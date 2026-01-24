@@ -47,7 +47,7 @@ Repository state today:
 - Repo root contains only:
   - `docs/specs.MD`: the v1 product specification (LAN-only, no auth, single output, presets on disk, Postgres model, worker, ComfyUI `/prompt` + `/history` polling).
   - `.agent/PLANS.md`: requirements for writing/maintaining ExecPlans.
-  - `.agent/AGENTS.md`: high-level repo/process notes (expected stack: Node 24, TanStack Start, React/TS, CSS modules, Postgres, Docker, Vitest/testing-library).
+  - `.agent/AGENTS.md`: high-level repo/process notes (expected stack + dev/testing/frontend best practices + MCP usage).
 
 Core domain definitions (use these terms consistently in code and docs):
 
@@ -69,6 +69,14 @@ Constraints:
   - `/data/inputs/`
   - `/data/outputs/`
 
+Engineering and workflow expectations (keep this section aligned with `.agent/AGENTS.md`):
+
+- Stack: Node.js 24, TanStack Start + React + TypeScript, CSS modules, Postgres, Docker.
+- Tooling: Vitest + Testing Library + jsdom; ESLint flat config using `eslint:recommended`, `plugin:react/recommended`, `plugin:react-hooks/recommended`; Prettier for formatting.
+- Testing: prefer small/deterministic tests; use `@testing-library/react` with user-visible queries; name tests `given_when_then` where it fits.
+- During implementation: run relevant tests, lint, and formatting; for UI behavior verify in a real browser and check Console + Network errors.
+- MCPs: use Context7 for TanStack Start docs or any other used library docs; use Chrome Devtools MCP to verify UI; optionally use Wallaby MCP for test status/debugging.
+
 Important ComfyUI API assumptions (must be verified early in implementation and recorded in `Surprises & Discoveries`):
 
 - Required (per spec): submit prompt via `POST /prompt` and poll via `GET /history/{prompt_id}`.
@@ -84,30 +92,32 @@ Goal: A developer can run the app and database locally, run tests, and hit a pla
 
 Work:
 
-- Create a TanStack Start project under `app/` using pnpm:
-  - `pnpm create @tanstack/start@latest app`
-  - `cd app && pnpm i && pnpm dev`
+- Create a TanStack Start project under `app/` using npm:
+  - `npm create @tanstack/start@latest app`
+  - `cd app && npm install && npm run dev`
 - Confirm the generated structure includes at least:
   - `app/src/routes/` for file-based routes.
   - `app/src/routes/__root.tsx` and `app/src/routes/index.tsx`.
   - `app/src/routeTree.gen.ts` (generated).
 - Add tooling:
   - Vitest + jsdom + Testing Library (`@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`).
-  - ESLint + Prettier consistent with TS + React.
+  - ESLint + Prettier:
+    - ESLint flat config with `eslint:recommended`, `plugin:react/recommended`, `plugin:react-hooks/recommended`.
+    - Prettier formatting (format before marking work complete).
 - Add Docker assets at repo root (or under `app/`—choose one and keep consistent):
   - `docker-compose.yml` with services:
     - `db` (Postgres) with a named volume.
-    - `app` (Node 24 image) that runs `pnpm dev` for local dev, mounting `./data` to `/data`.
+    - `app` (Node 24 image) that runs `npm run dev` for local dev, mounting `./data` to `/data`.
   - A `Dockerfile` for production build:
-    - Build: `pnpm i` then `pnpm build` (TanStack Start uses `vite build`).
+    - Build: `npm install` then `npm run build` (TanStack Start uses `vite build`).
     - Run: `node .output/server/index.mjs`.
 - Add a dev runbook `app/README.md` (or repo root `README.md`) explaining required files and commands.
 
 Acceptance:
 
-- `pnpm dev` serves the app locally and you can open the home page in a browser.
+- `npm run dev` serves the app locally and you can open the home page in a browser.
 - `GET /api/status` returns JSON with one of `Starting|Online|Offline` (stub initially).
-- `pnpm test` runs and reports at least one passing test (a smoke test).
+- `npm test` runs and reports at least one passing test (a smoke test).
 
 ### Milestone 2: Runtime config + presets on disk + status endpoint
 
@@ -283,21 +293,21 @@ Acceptance:
 All commands below are run from the repo root unless specified.
 
 1) Scaffold the app:
-
+    npm create @tanstack/start@latest app --mcp --package-manager npm
     cd app
-    pnpm create @tanstack/start@latest app
-    cd app
-    pnpm i
-    pnpm dev
+    npm install
+    npm run dev
 
 Expected: the dev server starts and prints a local URL (record the port used in this plan once known).
+
+IMPORTANT: the app must be created under `app/` to keep the repo structure clean.
 
 2) Add test tooling:
 
     cd app
-    pnpm add -D vitest jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event
+    npm add -D vitest jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event
 
-Expected: `pnpm test` (after adding a config and at least one test) reports passing.
+Expected: `npm test` (after adding a config and at least one test) reports passing.
 
 3) Create a local runtime data directory (host) and mount to `/data` in Docker:
 
@@ -393,3 +403,4 @@ Key internal interfaces to define:
 Plan change note:
 
 - (2026-01-24) Initial plan authored; ComfyUI upload/interrupt/view endpoints are called out as assumptions to verify early and then lock down in `Surprises & Discoveries` and the Comfy adapter.
+- (2026-01-24) Synced this ExecPlan with `.agent/AGENTS.md` so engineering expectations (tooling, lint/format, test conventions, MCP usage) and npm commands are consistent across repo docs.

@@ -31,8 +31,18 @@ This repo currently contains the product specification and agent workflow docs f
 - Postgres
 - Containerized (Docker); NAS-agnostic
 - Vitest for testing (https://vitest.dev/guide/)
-- ESLint, Prettier for code quality
+- ESLint "eslint:recommended", "plugin:react/recommended", "plugin:react-hooks/recommended" - use flat eslint config , Prettier for code quality
 - libraries used for testing: vitest @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom
+
+## Development Best Practices
+
+- follow good software engineering practices
+- write clean, maintainable code
+- document important decisions and trade-offs
+- write tests to ensure code quality and prevent regressions
+- after implementing a feature ensure a good test coverage, check linting and formatting and fix any issues. Then run the app locally to verify the feature works as expected by using chrome devtools mcp. Verify no errors are shown in the console and network tab. In case of warnings evaluate if they should be fixed.
+- for naming tests use given_when_then format where applicable.
+- format code using prettier
 
 ## Testing Best Practices
 
