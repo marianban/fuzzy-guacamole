@@ -1,3 +1,7 @@
+# ExecPlans
+
+When writing complex features or significant refactors, use an ExecPlan (as described in `.agent/PLANS.md`) from design to implementation.
+
 # Comfy Frontend Orchestrator
 
 This repo currently contains the product specification and agent workflow docs for a LAN-hosted "single-image img2img" UI that orchestrates a remote ComfyUI instance.
@@ -6,6 +10,7 @@ This repo currently contains the product specification and agent workflow docs f
 
 - Specs live in `docs/`. Start with `docs/specs.MD`.
 - Agent process docs live in `.agent/`.
+
 
 ## Product Snapshot (v1)
 
@@ -21,7 +26,8 @@ This repo currently contains the product specification and agent workflow docs f
 ## Expected Tech Stack
 
 - Node.js 24
-- Next.js 16 (App Router), React, TypeScript
+- TanStack Start, React, TypeScript
+- CSS modules
 - Postgres
 - Containerized (Docker); NAS-agnostic
 
@@ -51,7 +57,3 @@ The spec describes these endpoints (names/behavior are defined in `docs/specs.MD
 - Generations: `POST /api/generations`, `GET /api/generations`, `GET /api/generations/:id`
 - Generation actions: `POST /api/generations/:id/input`, `POST /api/generations/:id/queue`, `POST /api/generations/:id/cancel`, `DELETE /api/generations/:id`
 - Events: `GET /api/events` (SSE)
-
-# ExecPlans
-
-When writing complex features or significant refactors, use an ExecPlan (as described in `.agent/PLANS.md`) from design to implementation.

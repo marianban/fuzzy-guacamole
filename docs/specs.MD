@@ -26,7 +26,8 @@ Terminology:
 ## 2) Deployment
 
 - Runtime: Node.js 24
-- Framework: Next.js 16 (App Router), React, TypeScript
+- Framework: React, TypeScript (classic SPA no SSR needed), TanStack Start
+- Styling: CSS modules
 - Database: Postgres
 - Containerized (Docker, NAS-agnostic)
 - Persistent volumes:
