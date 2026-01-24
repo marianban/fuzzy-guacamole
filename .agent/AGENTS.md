@@ -26,10 +26,13 @@ This repo currently contains the product specification and agent workflow docs f
 ## Expected Tech Stack
 
 - Node.js 24
-- TanStack Start, React, TypeScript
+- TanStack Start (https://tanstack.com/start/latest), React, TypeScript
 - CSS modules
 - Postgres
 - Containerized (Docker); NAS-agnostic
+- Vitest for testing (https://vitest.dev/guide/)
+- ESLint, Prettier for code quality
+- libraries used for testing: vitest @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom
 
 ## Runtime Data & Configuration
 
@@ -57,3 +60,9 @@ The spec describes these endpoints (names/behavior are defined in `docs/specs.MD
 - Generations: `POST /api/generations`, `GET /api/generations`, `GET /api/generations/:id`
 - Generation actions: `POST /api/generations/:id/input`, `POST /api/generations/:id/queue`, `POST /api/generations/:id/cancel`, `DELETE /api/generations/:id`
 - Events: `GET /api/events` (SSE)
+
+## MCPs to use for Implementation
+
+When working with TanStack Start always use context7 mcp server to get relevant docs.
+When implementing ui features you can verify result or debug issues using Chrome Devtools MCP.
+Wallaby MCP server can be used to check test status and debug failing tests.
