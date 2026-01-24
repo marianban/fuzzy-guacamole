@@ -1,0 +1,395 @@
+# Build the v1 “Comfy Frontend Orchestrator” MVP (LAN-only)
+
+This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work proceeds.
+
+This repository already contains the canonical product spec at `docs/specs.MD` and the ExecPlan requirements at `.agent/PLANS.md`. This document must be maintained in accordance with `.agent/PLANS.md` (repo-relative path).
+
+## Purpose / Big Picture
+
+After this work, a user on the LAN can open a simple web UI, pick a preset, optionally upload an input image (img2img), click Generate, and receive exactly one output image produced by a remote ComfyUI machine. The backend transparently ensures the remote machine is reachable (Wake-on-LAN + health polling), runs a single-worker queue, persists generations in Postgres, stores inputs/outputs on disk under `/data`, and supports canceling queued/running jobs. The system is demonstrably working when: (1) `/api/status` becomes `Online`, (2) presets load from disk, (3) a generation can be created/queued, and (4) a mocked (and later real) ComfyUI flow yields a saved output image visible in the UI.
+
+## Progress
+
+- [x] (2026-01-24) Drafted initial ExecPlan from `docs/specs.MD` and `.agent/PLANS.md`.
+- [ ] (YYYY-MM-DD) Scaffold TanStack Start app + tooling (TypeScript, Vitest, ESLint/Prettier) and Docker dev stack.
+- [ ] (YYYY-MM-DD) Implement config + preset loading + `/api/status` + `/api/presets*` endpoints.
+- [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
+- [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
+- [ ] (YYYY-MM-DD) Implement UI (3-panel layout) + generation creation/queue/upload/cancel + status loader gate.
+- [ ] (YYYY-MM-DD) Implement `/api/events` SSE + UI live updates + integration tests with a mock ComfyUI server.
+- [ ] (YYYY-MM-DD) Harden edge cases (timeouts, retries, idempotence), polish UX, and document local/dev runbook.
+
+## Surprises & Discoveries
+
+- Observation: None yet; update this section during implementation.
+  Evidence: N/A
+
+## Decision Log
+
+- Decision: Use a subdirectory `app/` for the TanStack Start project, leaving `docs/` and `.agent/` intact at the repo root.
+  Rationale: Keeps the generated framework files separated from repo docs/process artifacts while remaining monorepo-simple.
+  Date/Author: 2026-01-24 / Codex (GPT-5.2)
+- Decision: Implement the ComfyUI integration behind an interface and provide a local “mock ComfyUI” server for deterministic tests.
+  Rationale: The real ComfyUI machine/API might not be available in CI/dev; we still need end-to-end proof and regression coverage.
+  Date/Author: 2026-01-24 / Codex (GPT-5.2)
+- Decision: Use Postgres with a minimal SQL migration runner checked into the repo.
+  Rationale: Avoids heavy ORM lock-in while keeping schema changes explicit and reproducible for novices.
+  Date/Author: 2026-01-24 / Codex (GPT-5.2)
+
+## Outcomes & Retrospective
+
+- (Fill in at milestone completion) What shipped, what didn’t, and what we learned.
+
+## Context and Orientation
+
+Repository state today:
+
+- Repo root contains only:
+  - `docs/specs.MD`: the v1 product specification (LAN-only, no auth, single output, presets on disk, Postgres model, worker, ComfyUI `/prompt` + `/history` polling).
+  - `.agent/PLANS.md`: requirements for writing/maintaining ExecPlans.
+  - `.agent/AGENTS.md`: high-level repo/process notes (expected stack: Node 24, TanStack Start, React/TS, CSS modules, Postgres, Docker, Vitest/testing-library).
+
+Core domain definitions (use these terms consistently in code and docs):
+
+- Preset: A workflow bundle stored under `/data/presets/<preset-id>/` containing `workflow.json` (ComfyUI workflow JSON template) and `preset.json` (metadata, defaults, placeholder mapping).
+- Placeholder token: A string like `{{PROMPT}}` embedded in `workflow.json` values. Tokens are replaced with user-provided values at queue time.
+- Generation: A persisted record representing a configured “thing to run”. It can be re-run multiple times. In v1, we do not model runs/attempts as a separate table.
+- Statuses: `draft`, `queued`, `submitted`, `completed`, `failed`, `canceled` (as defined in the spec).
+- Worker loop: A single background loop that picks the oldest queued generation (by `queuedAt`) and executes it end-to-end, one at a time.
+- Wake-on-LAN (WOL): Sending a “magic packet” to wake the remote ComfyUI machine, then polling until ComfyUI is healthy.
+- SSE (Server-Sent Events): A long-lived HTTP response with `Content-Type: text/event-stream` that pushes status updates to the browser.
+
+Constraints:
+
+- LAN-only and no auth in v1.
+- Exactly one output image per generation execution (no batching).
+- Persistent runtime data lives under container path `/data`:
+  - `/data/config.json` (required)
+  - `/data/presets/`
+  - `/data/inputs/`
+  - `/data/outputs/`
+
+Important ComfyUI API assumptions (must be verified early in implementation and recorded in `Surprises & Discoveries`):
+
+- Required (per spec): submit prompt via `POST /prompt` and poll via `GET /history/{prompt_id}`.
+- Likely needed for img2img: an upload endpoint (commonly `POST /upload/image`) and an image view endpoint (commonly `GET /view?...`) to retrieve output images. If these differ in the target ComfyUI build, adapt the adapter and update this plan.
+
+## Plan of Work
+
+This work is large; implement it in milestones so each milestone produces a demonstrably working behavior and can be validated independently. Keep the system usable at every milestone (even if ComfyUI is mocked early).
+
+### Milestone 1: Project scaffold + Dockerized dev environment
+
+Goal: A developer can run the app and database locally, run tests, and hit a placeholder `/api/status` endpoint.
+
+Work:
+
+- Create a TanStack Start project under `app/` using pnpm:
+  - `pnpm create @tanstack/start@latest app`
+  - `cd app && pnpm i && pnpm dev`
+- Confirm the generated structure includes at least:
+  - `app/src/routes/` for file-based routes.
+  - `app/src/routes/__root.tsx` and `app/src/routes/index.tsx`.
+  - `app/src/routeTree.gen.ts` (generated).
+- Add tooling:
+  - Vitest + jsdom + Testing Library (`@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`).
+  - ESLint + Prettier consistent with TS + React.
+- Add Docker assets at repo root (or under `app/`—choose one and keep consistent):
+  - `docker-compose.yml` with services:
+    - `db` (Postgres) with a named volume.
+    - `app` (Node 24 image) that runs `pnpm dev` for local dev, mounting `./data` to `/data`.
+  - A `Dockerfile` for production build:
+    - Build: `pnpm i` then `pnpm build` (TanStack Start uses `vite build`).
+    - Run: `node .output/server/index.mjs`.
+- Add a dev runbook `app/README.md` (or repo root `README.md`) explaining required files and commands.
+
+Acceptance:
+
+- `pnpm dev` serves the app locally and you can open the home page in a browser.
+- `GET /api/status` returns JSON with one of `Starting|Online|Offline` (stub initially).
+- `pnpm test` runs and reports at least one passing test (a smoke test).
+
+### Milestone 2: Runtime config + presets on disk + status endpoint
+
+Goal: The server loads `/data/config.json`, validates it, and can list presets from `/data/presets`. `/api/status` becomes meaningful (Online/Offline/Starting) based on Comfy reachability.
+
+Work:
+
+- Define a config schema and loader in `app/src/server/config.ts`:
+  - Reads JSON from `/data/config.json` (path is configurable via env var for local dev, defaulting to `/data/config.json`).
+  - Validates required fields:
+    - `comfyBaseUrl` (string URL)
+    - `wol` (mac, broadcast, port)
+    - `paths` (presets, inputs, outputs)
+    - `timeouts` (`comfyBootMs`, `healthPollMs`, `historyPollMs`)
+  - On startup, load once and fail fast with a clear error if invalid/missing.
+- Implement preset loading in `app/src/server/presets.ts`:
+  - List directories under `paths.presets`.
+  - For each directory, read `preset.json` and `workflow.json`.
+  - Validate `preset.json` shape: `id`, `name`, `type` in `{img2img, txt2img}`, `defaults`, `placeholders`.
+- Implement server routes in `app/src/routes/api/` using TanStack Start server routes:
+  - `app/src/routes/api/status.ts`:
+    - `GET` returns `{ state: "Starting"|"Online"|"Offline" }`.
+    - Initially, `Online` if Comfy health check succeeds; otherwise `Offline`.
+  - `app/src/routes/api/presets.ts`:
+    - `GET` returns a list of presets (metadata only, exclude full workflow by default).
+  - `app/src/routes/api/presets.$id.ts`:
+    - `GET` returns preset metadata + the stored workflow template (or a separate endpoint if size is a concern).
+- Implement Comfy health probing (no generation submission yet) in `app/src/server/comfy/client.ts`:
+  - A method `healthCheck(): Promise<boolean>` that performs an HTTP request to the configured `comfyBaseUrl` and returns true on success.
+  - Record the exact endpoint used (and the evidence) in `Surprises & Discoveries`.
+
+Acceptance:
+
+- With a valid local `./data/config.json` mounted to `/data/config.json`, the server boots.
+- `GET /api/presets` returns presets from `./data/presets`.
+- If ComfyUI is unreachable, `/api/status` returns `Offline`; if reachable, returns `Online`.
+
+### Milestone 3: Postgres schema + generation CRUD + filesystem layout
+
+Goal: Generations are persisted and visible via API; input files can be uploaded and stored under `/data/inputs/{generationId}/...`.
+
+Work:
+
+- Add Postgres connection module `app/src/server/db/index.ts` using `pg` (Pool) and `DATABASE_URL`.
+- Create a minimal migration runner:
+  - `app/src/server/db/migrate.ts` applies `app/src/server/db/migrations/*.sql` in lexical order and stores applied migrations in a table (e.g. `schema_migrations`).
+  - Run migrations on server start (dev) and as a separate command (prod) documented in Concrete Steps.
+- Create migration `app/src/server/db/migrations/001_init.sql` to add `generations` table with columns:
+  - `id uuid primary key`
+  - `status text not null`
+  - `queued_at timestamptz null`
+  - `prompt_request jsonb null`
+  - `prompt_response jsonb null`
+  - `preset_id text not null`
+  - `preset_params jsonb not null`
+  - `error text null`
+  - `created_at timestamptz not null default now()`
+  - `updated_at timestamptz not null default now()`
+- Implement generation store `app/src/server/generations/store.ts`:
+  - CRUD functions with explicit SQL.
+  - Update `updated_at` on changes.
+- Implement generation API routes:
+  - `app/src/routes/api/generations.ts`:
+    - `POST` creates a generation with `status=draft`, `presetId`, `presetParams` (seed mode, prompt, etc.).
+    - `GET` lists generations newest-first.
+  - `app/src/routes/api/generations.$id.ts`:
+    - `GET` returns a single generation detail.
+  - `app/src/routes/api/generations.$id.input.ts`:
+    - `POST` accepts `multipart/form-data` upload for img2img input.
+    - Store at `/data/inputs/{generationId}/original/{filename}` (create dirs).
+    - Persist the stored path (or a stable internal reference) into `presetParams.inputImagePath` (exact semantics will be finalized when Comfy upload semantics are confirmed).
+  - `app/src/routes/api/generations.$id.queue.ts`:
+    - `POST` transitions `draft|canceled|completed|failed -> queued` and sets `queuedAt=now()`.
+    - Validates placeholder tokens: after placeholder expansion (see next milestone), no unreplaced tokens remain.
+  - `app/src/routes/api/generations.$id.cancel.ts` and `app/src/routes/api/generations.$id.ts` (DELETE) are implemented in later milestones when the worker exists (but can return meaningful 409/400 errors now).
+
+Acceptance:
+
+- You can create a generation via `POST /api/generations` and see it in `GET /api/generations`.
+- Uploading an input image stores a file under `/data/inputs/<id>/original/`.
+- Queueing transitions status to `queued` and sets `queuedAt`.
+
+### Milestone 4: Placeholder expansion + worker loop + ComfyUI submission/polling
+
+Goal: The worker processes queued generations one at a time and produces a saved output image under `/data/outputs/{generationId}/...`. Cancellation works for queued and submitted states.
+
+Work:
+
+- Implement placeholder expansion in `app/src/server/workflows/expandPlaceholders.ts` exactly as specified in `docs/specs.MD`:
+  - Load `workflow.json` as JSON.
+  - Recursively walk all values.
+  - For strings:
+    - If the entire string equals a token, replace with the raw value (so numbers/booleans can remain typed).
+    - If token appears within a larger string, replace with the stringified value.
+  - Validation: fail queueing if any placeholder token in the workflow has no value available.
+- Implement a worker in `app/src/server/worker/worker.ts`:
+  - A single loop that wakes periodically (or is event-driven) to find the oldest queued generation.
+  - Transition `queued -> submitted` at the moment it is handed to ComfyUI.
+  - Transition `submitted -> completed|failed|canceled` based on outcomes.
+  - Check cancellation before each step (upload, submit, poll, fetch output).
+- Implement WOL + ensure-online in `app/src/server/comfy/ensureOnline.ts`:
+  - Send WOL packet then poll health until timeout `comfyBootMs`.
+  - Surface failure as a generation error.
+- Implement ComfyUI adapter `app/src/server/comfy/client.ts` with methods:
+  - `submitPrompt(workflow: unknown): Promise<{ promptId: string; request: unknown; response: unknown }>`
+    - Uses `POST /prompt` per spec.
+  - `pollHistory(promptId: string): Promise<HistoryPayload>`
+    - Uses `GET /history/{promptId}` per spec.
+  - `interrupt(): Promise<void>`
+    - Attempts to stop current execution for cancellation (verify endpoint and record evidence).
+  - `uploadInputImage(filePath: string): Promise<{ comfyImageRef: string }>` (if required for img2img)
+    - If the real ComfyUI expects uploads, use the confirmed endpoint and return the reference used in the workflow.
+- Define how outputs are found and saved:
+  - Parse the history payload and choose exactly one output image (first deterministic rule).
+  - Download it from ComfyUI (verify endpoint) and write to `/data/outputs/{generationId}/<timestamp>_<filename>`.
+- Implement retries per spec:
+  - One retry for transient network/timeouts during upload/submit/poll.
+  - No retry for validation errors or explicit Comfy execution errors.
+- Implement cancellation:
+  - `POST /api/generations/:id/cancel`:
+    - `queued -> canceled` immediately.
+    - `submitted -> attempt interrupt -> canceled` on success; `failed` if cancellation cannot be confirmed.
+  - Ensure the worker honors cancellations by checking generation status between steps.
+
+Acceptance:
+
+- With a mock ComfyUI server configured, queueing a generation results in:
+  - DB status progression `queued -> submitted -> completed`.
+  - Output file created under `/data/outputs/{generationId}/...`.
+- Canceling a queued generation results in status `canceled` and the worker never submits it.
+- Canceling a running generation causes the worker to stop and mark it `canceled` (or `failed` with a clear error if interrupt is not supported).
+
+### Milestone 5: UI MVP + SSE live updates + full-page loader gate
+
+Goal: The UI matches the v1 layout and can drive the full lifecycle: create generation, upload (img2img), queue, see output, cancel, re-run.
+
+Work:
+
+- UI layout in `app/src/routes/__root.tsx` (or equivalent root layout):
+  - Left panel: list generations (latest first), “+ New generation” (client-only draft), delete.
+  - Center canvas:
+    - img2img: input drop zone and split input/output view.
+    - txt2img: output preview once available.
+  - Right panel: preset dropdown, prompt fields, advanced (negative prompt, seed mode/seed), Generate.
+- Implement client data fetching:
+  - Load `/api/status` and show a full-page loader until state is `Online`.
+  - Load presets list and generations list.
+- Implement user flows:
+  - “+ New generation” creates a client-only draft state.
+  - Generate:
+    - `POST /api/generations`
+    - If img2img: `POST /api/generations/:id/input` (upload), then `POST /api/generations/:id/queue`
+    - If txt2img: `POST /api/generations/:id/queue`
+  - Generation detail:
+    - Show parameters, logs (if available), previews.
+    - Cancel (only when queued/submitted).
+    - Re-run (queues same generation id again).
+- Implement SSE:
+  - `app/src/routes/api/events.ts`:
+    - `GET` returns `text/event-stream` and emits generation status updates.
+    - Use an in-memory pub/sub (e.g. EventEmitter) fed by the worker and by API transitions.
+  - UI subscribes and updates list/detail without manual refresh.
+
+Acceptance:
+
+- You can use the app entirely in the browser to:
+  - Wait for Online gate, select a preset, set prompt, upload input (img2img), click Generate, and see an output.
+  - Cancel while queued/submitted and observe status update live.
+  - Re-run a completed generation and get a new output file.
+
+## Concrete Steps
+
+All commands below are run from the repo root unless specified.
+
+1) Scaffold the app:
+
+    cd app
+    pnpm create @tanstack/start@latest app
+    cd app
+    pnpm i
+    pnpm dev
+
+Expected: the dev server starts and prints a local URL (record the port used in this plan once known).
+
+2) Add test tooling:
+
+    cd app
+    pnpm add -D vitest jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event
+
+Expected: `pnpm test` (after adding a config and at least one test) reports passing.
+
+3) Create a local runtime data directory (host) and mount to `/data` in Docker:
+
+    mkdir data
+    mkdir data/presets
+    mkdir data/inputs
+    mkdir data/outputs
+
+Create `data/config.json` with the shape from `docs/specs.MD` (example, adjust IP/MAC):
+
+    {
+      "comfyBaseUrl": "http://192.168.0.X:8188",
+      "wol": { "mac": "AA:BB:CC:DD:EE:FF", "broadcast": "192.168.0.255", "port": 9 },
+      "paths": { "presets": "/data/presets", "inputs": "/data/inputs", "outputs": "/data/outputs" },
+      "timeouts": { "comfyBootMs": 180000, "healthPollMs": 2000, "historyPollMs": 1000 }
+    }
+
+4) Run with Docker Compose (once authored):
+
+    docker compose up --build
+
+Expected: Postgres is reachable, app starts, and `/api/status` responds.
+
+## Validation and Acceptance
+
+Acceptance is behavioral and must be provable without reading code:
+
+- Status:
+  - `GET /api/status` returns JSON `{ "state": "Online" }` when Comfy health is good, otherwise `{ "state": "Offline" }` (and “Starting” during boot/ensure-online).
+- Presets:
+  - Place one preset bundle at `/data/presets/img2img-basic/{preset.json,workflow.json}`.
+  - `GET /api/presets` returns an entry with `id=img2img-basic`.
+- Generations:
+  - `POST /api/generations` returns a new `id` and status `draft`.
+  - `POST /api/generations/:id/queue` transitions it to `queued`.
+  - Worker transitions it through `submitted` to `completed` and writes exactly one output file under `/data/outputs/:id/`.
+- Cancel:
+  - If status is `queued`, cancel immediately sets `canceled` and the worker never submits.
+  - If status is `submitted`, cancel interrupts remote execution (or clearly fails with an error) and results in `canceled` (or `failed` with explicit reason).
+- UI:
+  - Home page shows a blocking loader until `/api/status` is Online.
+  - Generations list updates (via SSE) when statuses change.
+  - Completed generations show output preview and allow re-run.
+
+Tests (minimum bar):
+
+- Unit tests for placeholder expansion (token replacement and validation).
+- Integration tests for generation lifecycle using a mock ComfyUI server:
+  - Fail before implementation, pass after.
+- UI tests for key interactions (create draft, select preset, generate disabled/enabled states, cancel button visibility).
+
+## Idempotence and Recovery
+
+- All API operations should be safe to retry:
+  - Uploading input should either overwrite a known path or create a deterministic per-generation file; document which and why.
+  - Queueing a non-queued generation should be rejected with a clear error, unless it is an allowed transition (re-run).
+- Worker crash/restart:
+  - On startup, the worker should detect `submitted` generations and mark them `failed` (v1 crash recovery is out of scope) or attempt a best-effort reconciliation; choose one approach, document it here, and implement consistently.
+- Cancellation race conditions:
+  - If cancel arrives while transitioning `queued -> submitted`, define the winner deterministically (e.g. cancel wins if observed before submit call; otherwise interrupt path).
+
+## Artifacts and Notes
+
+During implementation, capture short evidence snippets here (indented) such as:
+
+- Example `curl` transcript for `/api/status`.
+- Example of a completed generation JSON.
+- A short log line sequence showing worker progression.
+- The exact ComfyUI endpoints confirmed in the target environment.
+
+## Interfaces and Dependencies
+
+Required libraries/tech:
+
+- Node.js 24, TypeScript.
+- TanStack Start (React) with file-based routes under `app/src/routes`.
+- Postgres (via `pg`), with migrations stored in-repo as `.sql`.
+- Vitest + Testing Library for regression coverage.
+
+Key internal interfaces to define:
+
+- `ComfyClient` (in `app/src/server/comfy/client.ts`):
+  - `healthCheck()`
+  - `submitPrompt(workflow)`
+  - `pollHistory(promptId)`
+  - `uploadInputImage(filePath)` (if required)
+  - `interrupt()`
+- `GenerationStore` (in `app/src/server/generations/store.ts`):
+  - `create`, `get`, `list`, `updateStatus`, `setError`, `setPromptRequest/Response`, etc.
+- `Worker` (in `app/src/server/worker/worker.ts`):
+  - `start()` called on server boot; single concurrency; cancellation-aware.
+
+Plan change note:
+
+- (2026-01-24) Initial plan authored; ComfyUI upload/interrupt/view endpoints are called out as assumptions to verify early and then lock down in `Surprises & Discoveries` and the Comfy adapter.
