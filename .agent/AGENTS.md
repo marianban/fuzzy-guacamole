@@ -34,6 +34,16 @@ This repo currently contains the product specification and agent workflow docs f
 - ESLint, Prettier for code quality
 - libraries used for testing: vitest @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom
 
+## Testing Best Practices
+
+- Prefer small, deterministic tests; avoid timing-sensitive flakiness.
+- Add/extend tests with every behavior change; bugfixes require a regression test.
+- For UI: use `@testing-library/react` with user-visible queries (`getByRole`, `getByLabelText`), and drive interactions with `user-event`.
+- Assert outcomes/side effects (rendered text, disabled states, network calls) rather than implementation details.
+- Keep test setup minimal (helpers/factories are fine); reset shared state between tests.
+- Run the relevant test file(s) locally before marking work done.
+
+
 ## Runtime Data & Configuration
 
 Persistent runtime data lives under `/data` (container path):
