@@ -43,6 +43,15 @@ This repo currently contains the product specification and agent workflow docs f
 - Keep test setup minimal (helpers/factories are fine); reset shared state between tests.
 - Run the relevant test file(s) locally before marking work done.
 
+## Frontend Best Practices (React + TypeScript)
+
+- Prefer simple, typed props/state; avoid `any` and keep types close to usage.
+- Keep components small and focused; extract reusable logic into hooks.
+- Use semantic HTML + accessibility by default (labels, roles, keyboard, focus states).
+- Minimize global state; lift state only when needed; keep server/client boundaries clear in TanStack Start.
+- Handle loading/error/empty states explicitly; never leave UI in ambiguous states.
+- Prefer CSS modules for styling; keep class names consistent and avoid ad-hoc inline styles.
+
 
 ## Runtime Data & Configuration
 
