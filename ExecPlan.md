@@ -268,8 +268,8 @@ Work:
 - UI layout in `app/src/routes/__root.tsx` (or equivalent root layout):
   - Left panel: list generations (latest first), “+ New generation” (client-only draft), delete.
   - Center canvas:
-    - img2img: input drop zone and split input/output view.
-    - txt2img: output preview once available.
+    - img2img: single input drop zone + split input/output view; input side includes an edit-prompt textarea at the bottom.
+    - txt2img: placeholder text until an output exists; then split view with output on the right.
   - Right panel: preset dropdown, prompt fields, advanced (negative prompt, seed mode/seed), Generate.
 - Implement client data fetching:
   - Load `/api/status` and show a full-page loader until state is `Online`.

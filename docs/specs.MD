@@ -141,8 +141,8 @@ States:
 - No cancel here
 
 ### Center -- Canvas
-- `img2img`: single input drop zone + split view (input / output)
-- `txt2img`: placeholder (text) until an output exists; then output preview
+- `img2img`: single input drop zone + split view (input / output). in the first part of split view textarea for edit prompt at the bottom
+- `txt2img`: placeholder (text) until an output exists; then split view with output on right
 
 ### Right panel -- Controls
 - Preset dropdown
