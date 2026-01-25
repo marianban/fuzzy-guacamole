@@ -228,8 +228,21 @@ Re-run behavior:
 ## 9) ComfyUI execution
 
 - POST /prompt -> prompt_id
-- GET /history/{prompt_id} polling
+- GET /api/history_v2/{prompt_id} (fallback: /history/{prompt_id}) polling
 - One output image expected
+
+### 9.1 Checking when a run is "ready"
+
+After submitting a prompt, the backend needs a deterministic way to know when the run has finished and an output image can be fetched/saved.
+
+Use ComfyUI's history endpoint and poll for completion:
+- Preferred (per `docs/ComfyApi.md`): `GET /api/history_v2/{prompt_id}`
+  - While the prompt is still executing, this may return `404` (prompt not found) or a payload that does not include the `prompt_id` yet.
+  - Treat the run as **ready** when the response includes the `prompt_id` key and its entry contains a non-empty `outputs` object (the output image(s) are referenced there).
+- Fallback (older OSS ComfyUI builds): `GET /history/{prompt_id}` with the same readiness rules.
+
+Optional cross-check (useful for debugging/timeouts):
+- `GET /api/queue` exposes `queue_pending` and `queue_running`. If the `prompt_id` is not present in the queue anymore but also never appears in history before the backend's history timeout elapses, mark the run as failed with `History timeout`.
 
 ComfyUI readiness (v1):
 - `GET /api/system_stats` returning HTTP 200 with a payload containing at least `system` and `devices` indicates ComfyUI is started and ready for use.

@@ -12,6 +12,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 
 - [x] (2026-01-24) Drafted initial ExecPlan from `docs/specs.MD` and `.agent/PLANS.md`.
 - [x] (2026-01-25) Updated ExecPlan to match latest `docs/specs.MD` (txt2img support, SSH/remote start config, `/api/system_stats` readiness).
+- [x] (2026-01-25) Updated ExecPlan to match latest `docs/specs.MD` (`/api/history_v2` polling + readiness rules).
 - [ ] (YYYY-MM-DD) Scaffold TanStack Start app + tooling (TypeScript, Vitest, ESLint/Prettier) and Docker dev stack.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + `/api/status` + `/api/presets*` endpoints.
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
@@ -49,7 +50,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 Repository state today:
 
 - Repo root contains only:
-  - `docs/specs.MD`: the v1 product specification (LAN-only, no auth, single output per run, img2img + txt2img presets on disk, Postgres model, worker, remote bring-up via WOL+SSH, ComfyUI readiness via `/api/system_stats`, ComfyUI `/prompt` + `/history` polling).
+  - `docs/specs.MD`: the v1 product specification (LAN-only, no auth, single output per run, img2img + txt2img presets on disk, Postgres model, worker, remote bring-up via WOL+SSH, ComfyUI readiness via `/api/system_stats`, ComfyUI `/prompt` + `/api/history_v2` polling with `/history` fallback).
   - `.agent/PLANS.md`: requirements for writing/maintaining ExecPlans.
   - `.agent/AGENTS.md`: high-level repo/process notes (expected stack + dev/testing/frontend best practices + MCP usage + skills).
 
@@ -88,7 +89,9 @@ Engineering and workflow expectations (keep this section aligned with `.agent/AG
 Important ComfyUI API assumptions (must be verified early in implementation and recorded in `Surprises & Discoveries`):
 
 - Required (per spec): readiness/health is determined by `GET /api/system_stats` returning HTTP 200 and including `system` and `devices`.
-- Required (per spec): submit prompt via `POST /prompt` and poll via `GET /history/{prompt_id}`.
+- Required (per spec): submit prompt via `POST /prompt` and poll via `GET /api/history_v2/{prompt_id}` (fallback: `GET /history/{prompt_id}`).
+- Required (per spec): treat a run as ready when history contains the `prompt_id` entry and its `outputs` object is non-empty (tolerate `404` / missing `prompt_id` while executing).
+- Optional (debugging/timeouts): use `GET /api/queue` to cross-check; if a `prompt_id` leaves the queue but never appears in history before the history timeout, fail with `History timeout`.
 - Likely needed for img2img: an upload endpoint (commonly `POST /upload/image`) and an image view endpoint (commonly `GET /view?...`) to retrieve output images. If these differ in the target ComfyUI build, adapt the adapter and update this plan.
 
 ## Plan of Work
@@ -262,7 +265,7 @@ Work:
   - `submitPrompt(workflow: unknown): Promise<{ promptId: string; request: unknown; response: unknown }>`
     - Uses `POST /prompt` per spec.
   - `pollHistory(promptId: string): Promise<HistoryPayload>`
-    - Uses `GET /history/{promptId}` per spec.
+    - Uses `GET /api/history_v2/{promptId}` (fallback: `GET /history/{promptId}`) per spec; treat `404`/missing `promptId` as not-ready; ready when the `outputs` object is non-empty.
   - `interrupt(): Promise<void>`
     - Attempts to stop current execution for cancellation (verify endpoint and record evidence).
   - `uploadInputImage(filePath: string): Promise<{ comfyImageRef: string }>` (if required for img2img)
@@ -468,3 +471,4 @@ Plan change note:
 - (2026-01-24) Synced this ExecPlan with `.agent/AGENTS.md` so engineering expectations (tooling, lint/format, test conventions, MCP usage) and npm commands are consistent across repo docs.
 - (2026-01-25) Updated this ExecPlan to reflect `.agent/AGENTS.md` changes: Postgres uses Drizzle ORM, config is explicitly file-based (`/data/config.json`), and the documented skills to use are captured in Engineering and workflow expectations.
 - (2026-01-25) Updated this ExecPlan to reflect `docs/specs.MD` changes: txt2img is in-scope for v1, `config.json` includes SSH + remote start, and readiness/`/api/status` are based on `GET /api/system_stats` with a WOL+SSH bring-up flow.
+- (2026-01-25) Updated this ExecPlan to reflect `docs/specs.MD` changes: ComfyUI polling uses `GET /api/history_v2/{prompt_id}` with `/history/{prompt_id}` fallback and explicit readiness rules.
