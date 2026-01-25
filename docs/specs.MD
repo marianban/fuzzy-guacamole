@@ -28,6 +28,7 @@ Terminology:
 - Runtime: Node.js 24
 - Framework: React, TypeScript (classic SPA no SSR needed), TanStack Start
 - Styling: CSS modules
+- UI components library: Radix UI (for theme use <Theme appearance="dark"></Theme> wrapper)
 - Database: Postgres
 - Containerized (Docker, NAS-agnostic)
 - Persistent volumes:
@@ -160,6 +161,8 @@ Recommended response shape (v1):
 
 ## 6) UI
 
+### Distinctive, production-grade frontend interfaces with high design quality
+
 ### Left panel -- Generations
 - List of generations (latest first)
 - + New generation (client-only draft)
@@ -172,16 +175,11 @@ Recommended response shape (v1):
 
 ### Right panel -- Controls
 - Preset dropdown
-- Prompt
 - Advanced:
   - Negative prompt
   - Seed mode + seed
-- Generate
-
-### Generation detail
-- Shows parameters, logs, previews
-- Cancel button (only meaningful while queued/submitted)
-- Re-run (queues the same generation again)
+- Generate (used for reruns too), Cancel
+- at bottom shows logs
 
 ---
 
