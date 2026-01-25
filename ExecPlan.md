@@ -109,7 +109,7 @@ Goal: A developer can run the app and database locally, run tests, and hit a pla
 Work:
 
 - Create a TanStack Start project under `app/` using npm:
-  - `npm create @tanstack/start@latest app`
+  - `npm create @tanstack/start@latest app -- --package-manager npm`
   - `cd app && npm install && npm run dev`
 - Confirm the generated structure includes at least:
   - `app/src/routes/` for file-based routes.
@@ -338,7 +338,7 @@ Acceptance:
 All commands below are run from the repo root unless specified.
 
 1) Scaffold the app:
-    npm create @tanstack/start@latest app --mcp --package-manager npm
+    npm create @tanstack/start@latest app -- --package-manager npm
     cd app
     npm install
     npm run dev
