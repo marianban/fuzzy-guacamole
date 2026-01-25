@@ -22,13 +22,14 @@ This repo currently contains the product specification and agent workflow docs f
 - Backend transparently ensures the remote ComfyUI machine is online (Wake-on-LAN + polling).
 - UI shows a full-page loader until the system is ready.
 - Cancel is per-generation and must stop ComfyUI execution.
+- configuration is file-based only (`/data/config.json`) - for comfy url, target machine mac address, ip, paths, timeouts
 
 ## Expected Tech Stack
 
 - Node.js 24
 - TanStack Start (https://tanstack.com/start/latest), React, TypeScript
 - CSS modules
-- Postgres
+- Postgres + drizzle orm
 - Containerized (Docker); NAS-agnostic
 - Vitest for testing (https://vitest.dev/guide/)
 - ESLint "eslint:recommended", "plugin:react/recommended", "plugin:react-hooks/recommended" - use flat eslint config , Prettier for code quality
@@ -95,3 +96,9 @@ The spec describes these endpoints (names/behavior are defined in `docs/specs.MD
 When working with TanStack Start always use context7 mcp server to get relevant docs.
 When implementing ui features you can verify result or debug issues using Chrome Devtools MCP.
 Wallaby MCP server can be used to check test status and debug failing tests.
+
+## Skills
+
+For documentation update use doc-coauthoring skill.
+For designing frontend ise case use frontend-design skill.
+For using wallaby use wallaby-testing skill.
