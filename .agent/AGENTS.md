@@ -10,6 +10,7 @@ This repo currently contains the product specification and agent workflow docs f
 
 - Specs live in `docs/`. Start with `docs/specs.MD`.
 - Agent process docs live in `.agent/`.
+- ComfyUI OpenAPI docs in `docs/ComfyApi.md` use when needed.
 
 
 ## Product Snapshot (v1)
