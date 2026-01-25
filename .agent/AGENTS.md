@@ -48,6 +48,7 @@ This repo currently contains the product specification and agent workflow docs f
 
 ## Testing Best Practices
 
+- Implement tests as a separate step, and validate that new tests fail before moving to feature implementation.
 - Prefer small, deterministic tests; avoid timing-sensitive flakiness.
 - Add/extend tests with every behavior change; bugfixes require a regression test.
 - For UI: use `@testing-library/react` with user-visible queries (`getByRole`, `getByLabelText`), and drive interactions with `user-event`.
@@ -102,4 +103,4 @@ Wallaby MCP server can be used to check test status and debug failing tests.
 
 For documentation update use doc-coauthoring skill.
 For designing frontend ise case use frontend-design skill.
-For using wallaby use wallaby-testing skill.
+When evaluating tests or coverage use wallaby-testing skill.
