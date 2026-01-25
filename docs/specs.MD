@@ -32,6 +32,7 @@ Terminology:
 - Containerized (Docker, NAS-agnostic)
 - Persistent volumes:
   - /data/config.json
+  - /data/ssh/ (optional; SSH private key material for remote start)
   - /data/presets/
   - /data/inputs/
   - /data/outputs/
@@ -44,6 +45,15 @@ Terminology:
 ```json
 {
   "comfyBaseUrl": "http://192.168.0.X:8188",
+  "ssh": {
+    "host": "192.168.0.X",
+    "port": 22,
+    "username": "windows-user",
+    "privateKeyPath": "/data/ssh/id_ed25519"
+  },
+  "remoteStart": {
+    "startComfyCommand": "cmd /c start \"\" /b \"E:\\\\comfyui\\\\ComfyUI-Easy-Install\\\\run_nvidia_gpu_SageAttention.bat\""
+  },
   "wol": {
     "mac": "AA:BB:CC:DD:EE:FF",
     "broadcast": "192.168.0.255",
@@ -55,6 +65,8 @@ Terminology:
     "outputs": "/data/outputs"
   },
   "timeouts": {
+    "pcBootMs": 180000,
+    "sshPollMs": 2000,
     "comfyBootMs": 180000,
     "healthPollMs": 2000,
     "historyPollMs": 1000
@@ -130,6 +142,20 @@ States:
 - Online
 - Offline
 
+Notes:
+- `Online` means ComfyUI responds successfully to `GET /api/system_stats` (see readiness below) with the required fields.
+- `Starting` means the backend is actively trying to bring the remote machine + ComfyUI online (WOL/SSH/start/poll).
+- `Offline` means no bring-up is in progress and ComfyUI is not currently reachable.
+
+Recommended response shape (v1):
+- `state`: `Starting | Online | Offline`
+- `lastError`: optional string
+- `since`: timestamp for current state
+- `comfy`: optional object populated when `Online` (and optionally best-effort while `Starting`):
+  - `comfyuiVersion` (from `/api/system_stats.system.comfyui_version`)
+  - `pytorchVersion` (from `/api/system_stats.system.pytorch_version`)
+  - `devices[]`: `name`, `type`, `vram_total`, `vram_free` (when provided)
+
 ---
 
 ## 6) UI
@@ -186,9 +212,16 @@ Re-run behavior:
 ## 8) Backend behavior
 
 - Backend ensures ComfyUI availability transparently
-- Uses WOL + polling
+- Uses WOL + SSH + polling
 - No public ensure-online API
-- Health check endpoint details are intentionally deferred until ComfyUI API details are finalized
+- Bring-up flow (v1):
+  1. Send WOL packet.
+  2. Poll until the remote machine is reachable via SSH (successful auth + can run a trivial command).
+  3. Start ComfyUI on the remote machine via SSH by running the configured `remoteStart.startComfyCommand` in the background (detached from the SSH session).
+  4. Poll ComfyUI readiness via `GET /api/system_stats` until success or timeout.
+- Implementation requirements:
+  - Must be idempotent: if ComfyUI is already ready, do not start a new instance.
+  - Must be concurrency-safe: multiple callers share the same in-flight bring-up attempt (single-flight).
 
 ---
 
@@ -197,6 +230,9 @@ Re-run behavior:
 - POST /prompt -> prompt_id
 - GET /history/{prompt_id} polling
 - One output image expected
+
+ComfyUI readiness (v1):
+- `GET /api/system_stats` returning HTTP 200 with a payload containing at least `system` and `devices` indicates ComfyUI is started and ready for use.
 
 ---
 
@@ -224,6 +260,8 @@ DELETE /api/generations/:id
 
 Generation fails on:
 - Comfy offline timeout
+- Remote machine (SSH) offline timeout
+- Remote Comfy start failure
 - Upload failure
 - Prompt submit failure
 - Execution error

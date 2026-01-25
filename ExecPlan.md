@@ -1,4 +1,4 @@
-# Build the v1 “Comfy Frontend Orchestrator” MVP (LAN-only)
+# Build the v1 Comfy Frontend Orchestrator MVP (LAN-only)
 
 This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
@@ -6,11 +6,12 @@ This repository already contains the canonical product spec at `docs/specs.MD` a
 
 ## Purpose / Big Picture
 
-After this work, a user on the LAN can open a simple web UI, pick a preset, optionally upload an input image (img2img), click Generate, and receive exactly one output image produced by a remote ComfyUI machine. The backend transparently ensures the remote machine is reachable (Wake-on-LAN + health polling), runs a single-worker queue, persists generations in Postgres, stores inputs/outputs on disk under `/data`, and supports canceling queued/running jobs. The system is demonstrably working when: (1) `/api/status` becomes `Online`, (2) presets load from disk, (3) a generation can be created/queued, and (4) a mocked (and later real) ComfyUI flow yields a saved output image visible in the UI.
+After this work, a user on the LAN can open a simple web UI, pick a preset (img2img or txt2img), optionally upload an input image (img2img), click Generate, and receive exactly one output image produced by a remote ComfyUI machine. The backend transparently ensures the remote machine and ComfyUI are online (Wake-on-LAN + SSH + health polling), runs a single-worker queue, persists generations in Postgres, stores inputs/outputs on disk under `/data`, and supports canceling queued/running jobs. The system is demonstrably working when: (1) `/api/status` becomes `Online`, (2) presets load from disk, (3) a generation can be created and queued, and (4) a mocked (and later real) ComfyUI flow yields a saved output image visible in the UI.
 
 ## Progress
 
 - [x] (2026-01-24) Drafted initial ExecPlan from `docs/specs.MD` and `.agent/PLANS.md`.
+- [x] (2026-01-25) Updated ExecPlan to match latest `docs/specs.MD` (txt2img support, SSH/remote start config, `/api/system_stats` readiness).
 - [ ] (YYYY-MM-DD) Scaffold TanStack Start app + tooling (TypeScript, Vitest, ESLint/Prettier) and Docker dev stack.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + `/api/status` + `/api/presets*` endpoints.
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
@@ -48,7 +49,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset, opti
 Repository state today:
 
 - Repo root contains only:
-  - `docs/specs.MD`: the v1 product specification (LAN-only, no auth, single output, presets on disk, Postgres model, worker, ComfyUI `/prompt` + `/history` polling).
+  - `docs/specs.MD`: the v1 product specification (LAN-only, no auth, single output per run, img2img + txt2img presets on disk, Postgres model, worker, remote bring-up via WOL+SSH, ComfyUI readiness via `/api/system_stats`, ComfyUI `/prompt` + `/history` polling).
   - `.agent/PLANS.md`: requirements for writing/maintaining ExecPlans.
   - `.agent/AGENTS.md`: high-level repo/process notes (expected stack + dev/testing/frontend best practices + MCP usage + skills).
 
@@ -56,16 +57,18 @@ Core domain definitions (use these terms consistently in code and docs):
 
 - Preset: A workflow bundle stored under `/data/presets/<preset-id>/` containing `workflow.json` (ComfyUI workflow JSON template) and `preset.json` (metadata, defaults, placeholder mapping).
 - Placeholder token: A string like `{{PROMPT}}` embedded in `workflow.json` values. Tokens are replaced with user-provided values at queue time.
-- Generation: A persisted record representing a configured “thing to run”. It can be re-run multiple times. In v1, we do not model runs/attempts as a separate table.
+- Generation: A persisted record representing a configured thing to run. It can be queued and re-run multiple times. In v1, we do not model runs/attempts as a separate table.
+- Run: One execution of a generation that produces exactly one output image.
 - Statuses: `draft`, `queued`, `submitted`, `completed`, `failed`, `canceled` (as defined in the spec).
+- App status state: `Starting`, `Online`, `Offline` (as returned by `GET /api/status`).
 - Worker loop: A single background loop that picks the oldest queued generation (by `queuedAt`) and executes it end-to-end, one at a time.
-- Wake-on-LAN (WOL): Sending a “magic packet” to wake the remote ComfyUI machine, then polling until ComfyUI is healthy.
+- Wake-on-LAN (WOL): Sending a "magic packet" to wake the remote ComfyUI machine, then polling until ComfyUI is healthy.
 - SSE (Server-Sent Events): A long-lived HTTP response with `Content-Type: text/event-stream` that pushes status updates to the browser.
 
 Constraints:
 
 - LAN-only and no auth in v1.
-- Exactly one output image per generation execution (no batching).
+- Exactly one output image per run (no batching).
 - Persistent runtime data lives under container path `/data`:
   - `/data/config.json` (required)
   - `/data/presets/`
@@ -74,8 +77,8 @@ Constraints:
 
 Engineering and workflow expectations (keep this section aligned with `.agent/AGENTS.md`):
 
-- Stack: Node.js 24, TanStack Start + React + TypeScript, CSS modules, Postgres + Drizzle ORM, Docker.
-- Config: file-based only (`/data/config.json`) for Comfy URL, WOL target, paths, and timeouts.
+- Stack: Node.js 24, TanStack Start + React + TypeScript (classic SPA; SSR not required), CSS modules, Postgres + Drizzle ORM, Docker.
+- Config: file-based only (`/data/config.json`) for Comfy URL, WOL target, SSH connection + remote start command, paths, and timeouts.
 - Tooling: Vitest + Testing Library + jsdom; ESLint flat config using `eslint:recommended`, `plugin:react/recommended`, `plugin:react-hooks/recommended`; Prettier for formatting.
 - Testing: prefer small/deterministic tests; use `@testing-library/react` with user-visible queries; name tests `given_when_then` where it fits.
 - During implementation: run relevant tests, lint, and formatting; for UI behavior verify in a real browser and check Console + Network errors.
@@ -84,6 +87,7 @@ Engineering and workflow expectations (keep this section aligned with `.agent/AG
 
 Important ComfyUI API assumptions (must be verified early in implementation and recorded in `Surprises & Discoveries`):
 
+- Required (per spec): readiness/health is determined by `GET /api/system_stats` returning HTTP 200 and including `system` and `devices`.
 - Required (per spec): submit prompt via `POST /prompt` and poll via `GET /history/{prompt_id}`.
 - Likely needed for img2img: an upload endpoint (commonly `POST /upload/image`) and an image view endpoint (commonly `GET /view?...`) to retrieve output images. If these differ in the target ComfyUI build, adapt the adapter and update this plan.
 
@@ -134,9 +138,19 @@ Work:
   - Reads JSON from `/data/config.json` (path is configurable via env var for local dev, defaulting to `/data/config.json`).
   - Validates required fields:
     - `comfyBaseUrl` (string URL)
+    - `ssh` (object; required to support remote start):
+      - `host` (string)
+      - `port` (number)
+      - `username` (string)
+      - `privateKeyPath` (string; typically `/data/ssh/id_ed25519`)
+    - `remoteStart` (object; required to support remote start):
+      - `startComfyCommand` (string; the exact remote command to start ComfyUI detached)
     - `wol` (mac, broadcast, port)
     - `paths` (presets, inputs, outputs)
-    - `timeouts` (`comfyBootMs`, `healthPollMs`, `historyPollMs`)
+    - `timeouts`:
+      - `pcBootMs`, `sshPollMs`
+      - `comfyBootMs`, `healthPollMs`
+      - `historyPollMs`
   - On startup, load once and fail fast with a clear error if invalid/missing.
 - Implement preset loading in `app/src/server/presets.ts`:
   - List directories under `paths.presets`.
@@ -144,15 +158,23 @@ Work:
   - Validate `preset.json` shape: `id`, `name`, `type` in `{img2img, txt2img}`, `defaults`, `placeholders`.
 - Implement server routes in `app/src/routes/api/` using TanStack Start server routes:
   - `app/src/routes/api/status.ts`:
-    - `GET` returns `{ state: "Starting"|"Online"|"Offline" }`.
-    - Initially, `Online` if Comfy health check succeeds; otherwise `Offline`.
+    - `GET` returns at minimum `{ state: "Starting"|"Online"|"Offline", since: string }`.
+    - Recommended response shape (per `docs/specs.MD`):
+      - `state`: `Starting | Online | Offline`
+      - `since`: timestamp for current state
+      - `lastError`: optional string
+      - `comfy`: optional object populated when `Online` (and optionally best-effort while `Starting`):
+        - `comfyuiVersion` (from `/api/system_stats.system.comfyui_version`)
+        - `pytorchVersion` (from `/api/system_stats.system.pytorch_version`)
+        - `devices[]`: `name`, `type`, `vram_total`, `vram_free` (when provided)
   - `app/src/routes/api/presets.ts`:
     - `GET` returns a list of presets (metadata only, exclude full workflow by default).
   - `app/src/routes/api/presets.$id.ts`:
     - `GET` returns preset metadata + the stored workflow template (or a separate endpoint if size is a concern).
 - Implement Comfy health probing (no generation submission yet) in `app/src/server/comfy/client.ts`:
-  - A method `healthCheck(): Promise<boolean>` that performs an HTTP request to the configured `comfyBaseUrl` and returns true on success.
-  - Record the exact endpoint used (and the evidence) in `Surprises & Discoveries`.
+  - A method `healthCheck(): Promise<{ ok: boolean; systemStats?: unknown }>` that calls `GET {comfyBaseUrl}/api/system_stats` and returns `ok=true` only when HTTP 200 and the payload contains (at minimum) `system` and `devices`.
+  - A helper to extract `comfyuiVersion`, `pytorchVersion`, and `devices[]` (best-effort) for `/api/status`.
+  - Record any differences between the spec and the target ComfyUI build (and the evidence) in `Surprises & Discoveries`.
 
 Acceptance:
 
@@ -227,9 +249,15 @@ Work:
   - Transition `queued -> submitted` at the moment it is handed to ComfyUI.
   - Transition `submitted -> completed|failed|canceled` based on outcomes.
   - Check cancellation before each step (upload, submit, poll, fetch output).
-- Implement WOL + ensure-online in `app/src/server/comfy/ensureOnline.ts`:
-  - Send WOL packet then poll health until timeout `comfyBootMs`.
-  - Surface failure as a generation error.
+- Implement WOL + SSH + ensure-online in `app/src/server/comfy/ensureOnline.ts`:
+  - Must be idempotent: if ComfyUI is already healthy (per `GET /api/system_stats`), do not start a new instance.
+  - Must be concurrency-safe: multiple callers share the same in-flight bring-up attempt (single-flight).
+  - Bring-up flow (v1, per `docs/specs.MD`):
+    1. Send WOL packet.
+    2. Poll until the remote machine is reachable via SSH (successful auth + can run a trivial command), up to `timeouts.pcBootMs`, polling every `timeouts.sshPollMs`.
+    3. Start ComfyUI on the remote machine via SSH by running `remoteStart.startComfyCommand` detached from the SSH session.
+    4. Poll ComfyUI readiness via `GET /api/system_stats` until success or timeout `timeouts.comfyBootMs`, polling every `timeouts.healthPollMs`.
+  - Surface failure as a generation error (and surface a human-readable cause in `lastError` for `/api/status`).
 - Implement ComfyUI adapter `app/src/server/comfy/client.ts` with methods:
   - `submitPrompt(workflow: unknown): Promise<{ promptId: string; request: unknown; response: unknown }>`
     - Uses `POST /prompt` per spec.
@@ -266,7 +294,7 @@ Goal: The UI matches the v1 layout and can drive the full lifecycle: create gene
 Work:
 
 - UI layout in `app/src/routes/__root.tsx` (or equivalent root layout):
-  - Left panel: list generations (latest first), “+ New generation” (client-only draft), delete.
+  - Left panel: list generations (latest first), "+ New generation" (client-only draft), delete.
   - Center canvas:
     - img2img: single input drop zone + split input/output view; input side includes an edit-prompt textarea at the bottom.
     - txt2img: placeholder text until an output exists; then split view with output on the right.
@@ -275,7 +303,7 @@ Work:
   - Load `/api/status` and show a full-page loader until state is `Online`.
   - Load presets list and generations list.
 - Implement user flows:
-  - “+ New generation” creates a client-only draft state.
+  - "+ New generation" creates a client-only draft state.
   - Generate:
     - `POST /api/generations`
     - If img2img: `POST /api/generations/:id/input` (upload), then `POST /api/generations/:id/queue`
@@ -327,17 +355,35 @@ Expected: `npm test` (after adding a config and at least one test) reports passi
 3) Create a local runtime data directory (host) and mount to `/data` in Docker:
 
     mkdir data
+    mkdir data/ssh
     mkdir data/presets
     mkdir data/inputs
     mkdir data/outputs
+
+Place your SSH private key at `data/ssh/id_ed25519` so it is mounted into the container at `/data/ssh/id_ed25519` (or update `ssh.privateKeyPath` accordingly).
 
 Create `data/config.json` with the shape from `docs/specs.MD` (example, adjust IP/MAC):
 
     {
       "comfyBaseUrl": "http://192.168.0.X:8188",
+      "ssh": {
+        "host": "192.168.0.X",
+        "port": 22,
+        "username": "windows-user",
+        "privateKeyPath": "/data/ssh/id_ed25519"
+      },
+      "remoteStart": {
+        "startComfyCommand": "cmd /c start \"\" /b \"E:\\\\comfyui\\\\ComfyUI-Easy-Install\\\\run_nvidia_gpu_SageAttention.bat\""
+      },
       "wol": { "mac": "AA:BB:CC:DD:EE:FF", "broadcast": "192.168.0.255", "port": 9 },
       "paths": { "presets": "/data/presets", "inputs": "/data/inputs", "outputs": "/data/outputs" },
-      "timeouts": { "comfyBootMs": 180000, "healthPollMs": 2000, "historyPollMs": 1000 }
+      "timeouts": {
+        "pcBootMs": 180000,
+        "sshPollMs": 2000,
+        "comfyBootMs": 180000,
+        "healthPollMs": 2000,
+        "historyPollMs": 1000
+      }
     }
 
 4) Run with Docker Compose (once authored):
@@ -351,7 +397,8 @@ Expected: Postgres is reachable, app starts, and `/api/status` responds.
 Acceptance is behavioral and must be provable without reading code:
 
 - Status:
-  - `GET /api/status` returns JSON `{ "state": "Online" }` when Comfy health is good, otherwise `{ "state": "Offline" }` (and “Starting” during boot/ensure-online).
+  - `GET /api/status` returns JSON with `state` in `{ "Online", "Offline", "Starting" }` and a `since` timestamp.
+  - When `Online`, it also returns best-effort `comfy` fields derived from `GET {comfyBaseUrl}/api/system_stats` (`comfyuiVersion`, `pytorchVersion`, `devices[]`).
 - Presets:
   - Place one preset bundle at `/data/presets/img2img-basic/{preset.json,workflow.json}`.
   - `GET /api/presets` returns an entry with `id=img2img-basic`.
@@ -420,3 +467,4 @@ Plan change note:
 - (2026-01-24) Initial plan authored; ComfyUI upload/interrupt/view endpoints are called out as assumptions to verify early and then lock down in `Surprises & Discoveries` and the Comfy adapter.
 - (2026-01-24) Synced this ExecPlan with `.agent/AGENTS.md` so engineering expectations (tooling, lint/format, test conventions, MCP usage) and npm commands are consistent across repo docs.
 - (2026-01-25) Updated this ExecPlan to reflect `.agent/AGENTS.md` changes: Postgres uses Drizzle ORM, config is explicitly file-based (`/data/config.json`), and the documented skills to use are captured in Engineering and workflow expectations.
+- (2026-01-25) Updated this ExecPlan to reflect `docs/specs.MD` changes: txt2img is in-scope for v1, `config.json` includes SSH + remote start, and readiness/`/api/status` are based on `GET /api/system_stats` with a WOL+SSH bring-up flow.
