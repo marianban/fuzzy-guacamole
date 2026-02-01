@@ -13,12 +13,13 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-01-24) Drafted initial ExecPlan from `docs/specs.MD` and `.agent/PLANS.md`.
 - [x] (2026-01-25) Updated ExecPlan to match latest `docs/specs.MD` (txt2img support, SSH/remote start config, `/api/system_stats` readiness).
 - [x] (2026-01-25) Updated ExecPlan to match latest `docs/specs.MD` (`/api/history_v2` polling + readiness rules).
-- [x] (2026-01-25) Updated ExecPlan to match latest `docs/specs.MD` (Radix UI + UI layout: prompt in canvas, Generate/Cancel, logs panel).
+- [x] (2026-01-25) Updated ExecPlan to match `docs/specs.MD` (Radix UI + UI layout at the time: prompt in canvas, Generate/Cancel, logs panel).
+- [x] (2026-02-01) Updated ExecPlan to match `docs/specs.MD` UI changes (top bar + undo/redo, separate control panel w/ prompt textarea, canvas iteration model, left list thumbnails/createdAt, Delete button).
 - [ ] (YYYY-MM-DD) Scaffold TanStack Start app + tooling (TypeScript, Vitest, ESLint/Prettier) and Docker dev stack.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + `/api/status` + `/api/presets*` endpoints.
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
-- [ ] (YYYY-MM-DD) Implement UI (3-panel layout) + generation creation/queue/upload/cancel + status loader gate.
+- [ ] (YYYY-MM-DD) Implement UI (top bar + left generations + control panel + canvas) + generation creation/queue/upload/cancel + status loader gate.
 - [ ] (YYYY-MM-DD) Implement `/api/events` SSE + UI live updates + integration tests with a mock ComfyUI server.
 - [ ] (YYYY-MM-DD) Harden edge cases (timeouts, retries, idempotence), polish UX, and document local/dev runbook.
 
@@ -301,11 +302,20 @@ Goal: The UI matches the v1 layout and can drive the full lifecycle: create gene
 Work:
 
 - UI layout in `app/src/routes/__root.tsx` (or equivalent root layout):
-  - Left panel: list generations (latest first), "+ New generation" (client-only draft), delete.
-  - Center canvas:
-    - img2img: single input drop zone + split input/output view; input side includes an edit-prompt textarea at the bottom.
-    - txt2img: placeholder text until an output exists; then split view with output on the right; include a prompt textarea at the bottom of the left/placeholder area.
-  - Right panel: preset dropdown, advanced (negative prompt, seed mode/seed), Generate (used for re-runs too), Cancel; logs panel at the bottom.
+  - Top bar: logo + Undo/Redo buttons.
+    - Undo/Redo should apply to the user’s local “draft editing” history: prompt text plus the currently staged image in the canvas (input/output) so undo restores both together.
+  - Left panel (generations):
+    - A `+ New generation` button at the top (client-only draft; does not hit the backend).
+    - List generations (latest first), each with a 128x128 thumbnail (output or placeholder) and a created-at timestamp (relative for recent items; after ~1 week show an absolute date).
+  - Control panel:
+    - Preset dropdown.
+    - Prompt textarea.
+    - Advanced: negative prompt, seed mode + seed.
+    - Actions: Generate (also used for re-runs), Cancel, Delete.
+    - Logs panel at the bottom.
+  - Canvas (fills remaining space):
+    - img2img: single input drop zone; after generation shows output image; in edit mode allow iterating output -> new input (input -> output -> input...).
+    - txt2img: shows output image after generation (no placeholder/split view required in v1).
   - Use Radix Themes for base UI components and wrap the app in `<Theme appearance="dark">...</Theme>` so the default appearance is dark.
 - Implement client data fetching:
   - Load `/api/status` and show a full-page loader until state is `Online`.
@@ -318,8 +328,11 @@ Work:
     - If txt2img: `POST /api/generations/:id/queue`
   - Selected generation:
     - Output preview is shown in the center canvas.
-    - Logs are shown at the bottom of the right panel.
+    - Logs are shown at the bottom of the control panel.
     - Cancel is available only when queued/submitted; re-run uses the same Generate button (it re-queues the same generation id).
+  - Delete:
+    - If the selected generation is client-only, delete clears it from client state.
+    - If the selected generation is server-backed, delete calls `DELETE /api/generations/:id` and returns the UI to a fresh client-only draft.
 - Implement SSE:
   - `app/src/routes/api/events.ts`:
     - `GET` returns `text/event-stream` and emits generation status updates.
@@ -329,7 +342,8 @@ Work:
 Acceptance:
 
 - You can use the app entirely in the browser to:
-  - Wait for Online gate, select a preset, set prompt in the center panel, upload input (img2img), click Generate, and see an output.
+  - Wait for Online gate, select a preset, set prompt in the control panel, upload input (img2img), click Generate, and see an output.
+  - Use Undo/Redo to step through prompt+canvas history while iterating on a generation draft.
   - Cancel while queued/submitted and observe status update live.
   - Re-run a completed generation and get a new output file.
 
@@ -478,4 +492,5 @@ Plan change note:
 - (2026-01-25) Updated this ExecPlan to reflect `.agent/AGENTS.md` changes: Postgres uses Drizzle ORM, config is explicitly file-based (`/data/config.json`), and the documented skills to use are captured in Engineering and workflow expectations.
 - (2026-01-25) Updated this ExecPlan to reflect `docs/specs.MD` changes: txt2img is in-scope for v1, `config.json` includes SSH + remote start, and readiness/`/api/status` are based on `GET /api/system_stats` with a WOL+SSH bring-up flow.
 - (2026-01-25) Updated this ExecPlan to reflect `docs/specs.MD` changes: ComfyUI polling uses `GET /api/history_v2/{prompt_id}` with `/history/{prompt_id}` fallback and explicit readiness rules.
-- (2026-01-25) Updated this ExecPlan to reflect `docs/specs.MD` UI changes: Radix UI requirement, prompt editor placement in the center panel, and the right panel control/log layout (Generate/Cancel + logs at bottom).
+- (2026-01-25) Updated this ExecPlan to reflect `docs/specs.MD` UI at the time: Radix UI requirement, prompt editor placement in the center panel, and the right-side control/log layout (Generate/Cancel + logs at bottom).
+- (2026-02-01) Updated this ExecPlan to reflect `docs/specs.MD` UI changes: top bar (logo + undo/redo), separate control panel (includes prompt textarea + Delete), canvas iteration model (img2img input->output->input), and richer generation list items (thumbnail + createdAt formatting).

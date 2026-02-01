@@ -164,22 +164,27 @@ Recommended response shape (v1):
 ### Distinctive, production-grade frontend interfaces with high design quality
 
 ### Left panel -- Generations
+- + New generation (client-only draft) (At top)
 - List of generations (latest first)
-- + New generation (client-only draft)
-- Delete generation
-- No cancel here
+  - each generation item: thumbnail 128x128 (output or placeholder), createdAt (relative after a week absolute)
 
-### Center -- Canvas
-- `img2img`: single input drop zone + split view (input / output). in the first part of split view textarea for edit prompt at the bottom
-- `txt2img`: placeholder (text) until an output exists; then split view with output on right
-
-### Right panel -- Controls
+### Control panel
 - Preset dropdown
+- Prompt textarea
 - Advanced:
   - Negative prompt
   - Seed mode + seed
-- Generate (used for reruns too), Cancel
+- Generate (used for reruns too), Cancel, Delete
 - at bottom shows logs
+
+### Canvas
+- responsive area filling remaining space
+- `img2img`: single input drop zone, after generation shows output image. In edit mode user can iterate on image. input->output->input...
+- `txt2img`: shows output image after generation
+
+### Top bar
+- Logo
+- Undo/Redo buttons (useful for prompt edits). When undo it will load the previous image into the canvas.
 
 ---
 
