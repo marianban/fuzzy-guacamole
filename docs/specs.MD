@@ -26,9 +26,11 @@ Terminology:
 ## 2) Deployment
 
 - Runtime: Node.js 24
-- Framework: React, TypeScript (classic SPA no SSR needed), TanStack Start
+- Framework: React, TypeScript (classic SPA no SSR needed), vite + react-ts template
+ zod
+- Server: Fastify, trpc for API and SSE + zod for validation, drizzle ORM for Postgres
 - Styling: CSS modules
-- UI components library: Radix UI (for theme use <Theme appearance="dark"></Theme> wrapper)
+- UI components library: Radix UI (for theme use <Theme appearance="dark"></Theme> wrapper), https://react-hook-form.com/ for forms + @hookform/resolvers for zod schema validation
 - Database: Postgres
 - Containerized (Docker, NAS-agnostic)
 - Persistent volumes:
@@ -179,12 +181,15 @@ Recommended response shape (v1):
 
 ### Canvas
 - responsive area filling remaining space
+- zoom + pan
 - `img2img`: single input drop zone, after generation shows output image. In edit mode user can iterate on image. input->output->input...
 - `txt2img`: shows output image after generation
 
 ### Top bar
 - Logo
 - Undo/Redo buttons (useful for prompt edits). When undo it will load the previous image into the canvas.
+- before/after toggle (for img2img, on hover it shows the original input image, otherwise shows the current image. If clicked, then shows drawable divider to compare the two)
+- Selection tool (user can select region of image he wants to edit, then it sends for editing only that part of the image. Then it is edited and composited back to the original image. The composition should be done that before merging the edited part the edges should be blurred to avoid hard edges in the final image.)
 
 ---
 

@@ -15,7 +15,8 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-01-25) Updated ExecPlan to match latest `docs/specs.MD` (`/api/history_v2` polling + readiness rules).
 - [x] (2026-01-25) Updated ExecPlan to match `docs/specs.MD` (Radix UI + UI layout at the time: prompt in canvas, Generate/Cancel, logs panel).
 - [x] (2026-02-01) Updated ExecPlan to match `docs/specs.MD` UI changes (top bar + undo/redo, separate control panel w/ prompt textarea, canvas iteration model, left list thumbnails/createdAt, Delete button).
-- [ ] (YYYY-MM-DD) Scaffold TanStack Start app + tooling (TypeScript, Vitest, ESLint/Prettier) and Docker dev stack.
+- [x] (2026-02-07) Reviewed `docs/specs.MD` changes and realigned this plan to the current stack and UI behavior (Vite SPA + Fastify/tRPC server, before/after compare, selection/composite tool).
+- [ ] (YYYY-MM-DD) Scaffold Vite React app + Fastify/tRPC server + tooling (TypeScript, Vitest, ESLint/Prettier) and Docker dev stack.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + `/api/status` + `/api/presets*` endpoints.
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
@@ -30,9 +31,9 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 
 ## Decision Log
 
-- Decision: Use a subdirectory `app/` for the TanStack Start project, leaving `docs/` and `.agent/` intact at the repo root.
-  Rationale: Keeps the generated framework files separated from repo docs/process artifacts while remaining monorepo-simple.
-  Date/Author: 2026-01-24 / Codex (GPT-5.2)
+- Decision: Use a subdirectory `app/` for the implementation, with a Vite React SPA frontend and a Fastify + tRPC backend in the same project.
+  Rationale: Matches the current product spec while keeping generated/build files separated from repo docs/process artifacts.
+  Date/Author: 2026-02-07 / Codex (GPT-5)
 - Decision: Implement the ComfyUI integration behind an interface and provide a local "mock ComfyUI" server for deterministic tests.
   Rationale: The real ComfyUI machine/API might not be available in CI/dev; we still need end-to-end proof and regression coverage.
   Date/Author: 2026-01-24 / Codex (GPT-5.2)
@@ -42,6 +43,9 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - Decision: Use Radix UI (Radix Themes + primitives) for UI components, and use a dark theme by default.
   Rationale: The product spec requires Radix UI and a `<Theme appearance="dark">` wrapper; using Radix consistently keeps accessibility and styling coherent.
   Date/Author: 2026-01-25 / Codex (GPT-5.2)
+- Decision: Include img2img before/after compare and region-selection editing in the v1 UI milestone, including blurred-edge compositing for edited regions.
+  Rationale: These are now explicitly called out in `docs/specs.MD` and must be reflected in implementation scope and acceptance criteria.
+  Date/Author: 2026-02-07 / Codex (GPT-5)
 - Decision (superseded): Use Postgres with a minimal SQL migration runner checked into the repo.
   Rationale: Avoided heavy ORM lock-in while keeping schema changes explicit and reproducible for novices.
   Date/Author: 2026-01-24 / Codex (GPT-5.2)
@@ -75,6 +79,7 @@ Constraints:
 
 - LAN-only and no auth in v1.
 - Exactly one output image per run (no batching).
+- Global history only in v1 (no per-user session isolation).
 - Persistent runtime data lives under container path `/data`:
   - `/data/config.json` (required)
   - `/data/presets/`
@@ -83,12 +88,12 @@ Constraints:
 
 Engineering and workflow expectations (keep this section aligned with `.agent/AGENTS.md`):
 
-- Stack: Node.js 24, TanStack Start + React + TypeScript (classic SPA; SSR not required), CSS modules, Radix UI (Radix Themes + primitives), Postgres + Drizzle ORM, Docker.
+- Stack: Node.js 24, Vite + React + TypeScript (classic SPA; no SSR), Fastify + tRPC + Zod for API/SSE contracts, CSS modules, Radix UI (Radix Themes + primitives), Postgres + Drizzle ORM, Docker.
 - Config: file-based only (`/data/config.json`) for Comfy URL, WOL target, SSH connection + remote start command, paths, and timeouts.
 - Tooling: Vitest + Testing Library + jsdom; ESLint flat config using `eslint:recommended`, `plugin:react/recommended`, `plugin:react-hooks/recommended`; Prettier for formatting.
 - Testing: prefer small/deterministic tests; use `@testing-library/react` with user-visible queries; name tests `given_when_then` where it fits.
 - During implementation: run relevant tests, lint, and formatting; for UI behavior verify in a real browser and check Console + Network errors.
-- MCPs: use Context7 for TanStack Start docs or any other used library docs; use Chrome Devtools MCP to verify UI; optionally use Wallaby MCP for test status/debugging.
+- MCPs: use Context7 for Fastify/tRPC/Vite docs or any other used library docs; use Chrome Devtools MCP to verify UI; optionally use Wallaby MCP for test status/debugging.
 - Skills (when applicable): use `doc-coauthoring` for doc updates, `frontend-design` for frontend design work, and `wallaby-testing` when using Wallaby.
 
 Important ComfyUI API assumptions (must be verified early in implementation and recorded in `Surprises & Discoveries`):
@@ -109,13 +114,12 @@ Goal: A developer can run the app and database locally, run tests, and hit a pla
 
 Work:
 
-- Create a TanStack Start project under `app/` using npm:
-  - `npm create @tanstack/start@latest app -- --package-manager npm`
+- Create a Vite React TypeScript app under `app/` using npm:
+  - `npm create vite@latest app -- --template react-ts`
   - `cd app && npm install && npm run dev`
-- Confirm the generated structure includes at least:
-  - `app/src/routes/` for file-based routes.
-  - `app/src/routes/__root.tsx` and `app/src/routes/index.tsx`.
-  - `app/src/routeTree.gen.ts` (generated).
+- Add a Fastify + tRPC server entrypoint in the same project and run frontend+backend together in dev:
+  - Frontend source under `app/src/` (SPA).
+  - Backend source under `app/src/server/` (Fastify app, tRPC routers, SSE endpoint).
 - Add tooling:
   - Vitest + jsdom + Testing Library (`@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`).
   - ESLint + Prettier:
@@ -126,8 +130,8 @@ Work:
     - `db` (Postgres) with a named volume.
     - `app` (Node 24 image) that runs `npm run dev` for local dev, mounting `./data` to `/data`.
   - A `Dockerfile` for production build:
-    - Build: `npm install` then `npm run build` (TanStack Start uses `vite build`).
-    - Run: `node .output/server/index.mjs`.
+    - Build: `npm install` then `npm run build`.
+    - Run: `node dist/server/index.js` (or equivalent compiled Fastify entrypoint).
 - Add a dev runbook `app/README.md` (or repo root `README.md`) explaining required files and commands.
 
 Acceptance:
@@ -164,8 +168,8 @@ Work:
   - List directories under `paths.presets`.
   - For each directory, read `preset.json` and `workflow.json`.
   - Validate `preset.json` shape: `id`, `name`, `type` in `{img2img, txt2img}`, `defaults`, `placeholders`.
-- Implement server routes in `app/src/routes/api/` using TanStack Start server routes:
-  - `app/src/routes/api/status.ts`:
+- Implement Fastify + tRPC endpoints under `app/src/server/`:
+  - `app/src/server/http/routes/status.ts` (or equivalent Fastify route registration):
     - `GET` returns at minimum `{ state: "Starting"|"Online"|"Offline", since: string }`.
     - Recommended response shape (per `docs/specs.MD`):
       - `state`: `Starting | Online | Offline`
@@ -175,9 +179,9 @@ Work:
         - `comfyuiVersion` (from `/api/system_stats.system.comfyui_version`)
         - `pytorchVersion` (from `/api/system_stats.system.pytorch_version`)
         - `devices[]`: `name`, `type`, `vram_total`, `vram_free` (when provided)
-  - `app/src/routes/api/presets.ts`:
+  - `app/src/server/trpc/routers/presets.ts`:
     - `GET` returns a list of presets (metadata only, exclude full workflow by default).
-  - `app/src/routes/api/presets.$id.ts`:
+  - `app/src/server/trpc/routers/presetById.ts` (or parameterized `presets` procedure):
     - `GET` returns preset metadata + the stored workflow template (or a separate endpoint if size is a concern).
 - Implement Comfy health probing (no generation submission yet) in `app/src/server/comfy/client.ts`:
   - A method `healthCheck(): Promise<{ ok: boolean; systemStats?: unknown }>` that calls `GET {comfyBaseUrl}/api/system_stats` and returns `ok=true` only when HTTP 200 and the payload contains (at minimum) `system` and `devices`.
@@ -218,20 +222,20 @@ Work:
 - Implement generation store `app/src/server/generations/store.ts`:
   - CRUD functions using Drizzle.
   - Update `updated_at` on changes.
-- Implement generation API routes:
-  - `app/src/routes/api/generations.ts`:
+- Implement generation API routes/procedures:
+  - `app/src/server/trpc/routers/generations.ts`:
     - `POST` creates a generation with `status=draft`, `presetId`, `presetParams` (seed mode, prompt, etc.).
     - `GET` lists generations newest-first.
-  - `app/src/routes/api/generations.$id.ts`:
+  - `app/src/server/trpc/routers/generationById.ts` (or parameterized `generations` procedure):
     - `GET` returns a single generation detail.
-  - `app/src/routes/api/generations.$id.input.ts`:
+  - `app/src/server/http/routes/generationInputUpload.ts`:
     - `POST` accepts `multipart/form-data` upload for img2img input.
     - Store at `/data/inputs/{generationId}/original/{filename}` (create dirs).
     - Persist the stored path (or a stable internal reference) into `presetParams.inputImagePath` (exact semantics will be finalized when Comfy upload semantics are confirmed).
-  - `app/src/routes/api/generations.$id.queue.ts`:
+  - `app/src/server/trpc/routers/generationQueue.ts`:
     - `POST` transitions `draft|canceled|completed|failed -> queued` and sets `queuedAt=now()`.
     - Validates placeholder tokens: after placeholder expansion (see next milestone), no unreplaced tokens remain.
-  - `app/src/routes/api/generations.$id.cancel.ts` and `app/src/routes/api/generations.$id.ts` (DELETE) are implemented in later milestones when the worker exists (but can return meaningful 409/400 errors now).
+  - `app/src/server/trpc/routers/generationCancel.ts` and `app/src/server/trpc/routers/generationDelete.ts` are implemented in later milestones when the worker exists (but can return meaningful 409/400 errors now).
 
 Acceptance:
 
@@ -301,8 +305,10 @@ Goal: The UI matches the v1 layout and can drive the full lifecycle: create gene
 
 Work:
 
-- UI layout in `app/src/routes/__root.tsx` (or equivalent root layout):
+- UI layout in `app/src/App.tsx` (or equivalent root layout):
   - Top bar: logo + Undo/Redo buttons.
+    - Include before/after behavior for img2img: hover temporarily shows original input, and click toggles an interactive split-view divider for direct comparison.
+    - Include a selection tool for img2img region edits: selected region is edited and composited back into the base image with blurred edges to avoid hard seams.
     - Undo/Redo should apply to the user’s local “draft editing” history: prompt text plus the currently staged image in the canvas (input/output) so undo restores both together.
   - Left panel (generations):
     - A `+ New generation` button at the top (client-only draft; does not hit the backend).
@@ -315,7 +321,7 @@ Work:
     - Logs panel at the bottom.
   - Canvas (fills remaining space):
     - img2img: single input drop zone; after generation shows output image; in edit mode allow iterating output -> new input (input -> output -> input...).
-    - txt2img: shows output image after generation (no placeholder/split view required in v1).
+    - txt2img: shows output image after generation.
   - Use Radix Themes for base UI components and wrap the app in `<Theme appearance="dark">...</Theme>` so the default appearance is dark.
 - Implement client data fetching:
   - Load `/api/status` and show a full-page loader until state is `Online`.
@@ -334,8 +340,8 @@ Work:
     - If the selected generation is client-only, delete clears it from client state.
     - If the selected generation is server-backed, delete calls `DELETE /api/generations/:id` and returns the UI to a fresh client-only draft.
 - Implement SSE:
-  - `app/src/routes/api/events.ts`:
-    - `GET` returns `text/event-stream` and emits generation status updates.
+  - `app/src/server/http/routes/events.ts`:
+    - `GET` returns `text/event-stream` and emits generation status updates (wired from backend events).
     - Use an in-memory pub/sub (e.g. EventEmitter) fed by the worker and by API transitions.
   - UI subscribes and updates list/detail without manual refresh.
 
@@ -344,6 +350,7 @@ Acceptance:
 - You can use the app entirely in the browser to:
   - Wait for Online gate, select a preset, set prompt in the control panel, upload input (img2img), click Generate, and see an output.
   - Use Undo/Redo to step through prompt+canvas history while iterating on a generation draft.
+  - Use img2img before/after compare (hover preview and click-to-split mode) and region selection editing with blended-edge compositing.
   - Cancel while queued/submitted and observe status update live.
   - Re-run a completed generation and get a new output file.
 
@@ -352,14 +359,14 @@ Acceptance:
 All commands below are run from the repo root unless specified.
 
 1) Scaffold the app:
-    npm create @tanstack/start@latest app -- --package-manager npm
+    npm create vite@latest app -- --template react-ts
     cd app
     npm install
     npm run dev
 
 Expected: the dev server starts and prints a local URL (record the port used in this plan once known).
 
-IMPORTANT: the app must be created under `app/` to keep the repo structure clean.
+IMPORTANT: the app must be created under `app/` to keep the repo structure clean, then extended with a Fastify + tRPC backend in `app/src/server/`.
 
 2) Add test tooling:
 
@@ -435,6 +442,7 @@ Acceptance is behavioral and must be provable without reading code:
   - Home page shows a blocking loader until `/api/status` is Online.
   - Generations list updates (via SSE) when statuses change.
   - Completed generations show output preview and allow re-run.
+  - For img2img, before/after compare and region selection edit/composite behavior are functional and visually consistent.
 
 Tests (minimum bar):
 
@@ -467,7 +475,7 @@ During implementation, capture short evidence snippets here (indented) such as:
 Required libraries/tech:
 
 - Node.js 24, TypeScript.
-- TanStack Start (React) with file-based routes under `app/src/routes`.
+- Vite React SPA (`app/src`) plus Fastify + tRPC server (`app/src/server`) with Zod validation.
 - Radix UI for UI components, using Radix Themes for theming and wrapping the app in `<Theme appearance="dark">...</Theme>`.
 - Postgres + Drizzle ORM (with `pg` driver), with migrations stored in-repo as `.sql`.
 - Vitest + Testing Library for regression coverage.
@@ -494,3 +502,4 @@ Plan change note:
 - (2026-01-25) Updated this ExecPlan to reflect `docs/specs.MD` changes: ComfyUI polling uses `GET /api/history_v2/{prompt_id}` with `/history/{prompt_id}` fallback and explicit readiness rules.
 - (2026-01-25) Updated this ExecPlan to reflect `docs/specs.MD` UI at the time: Radix UI requirement, prompt editor placement in the center panel, and the right-side control/log layout (Generate/Cancel + logs at bottom).
 - (2026-02-01) Updated this ExecPlan to reflect `docs/specs.MD` UI changes: top bar (logo + undo/redo), separate control panel (includes prompt textarea + Delete), canvas iteration model (img2img input->output->input), and richer generation list items (thumbnail + createdAt formatting).
+- (2026-02-07) Updated this ExecPlan to reflect current `docs/specs.MD`: implementation stack is Vite React SPA + Fastify/tRPC/Zod backend (not TanStack Start), and v1 UI scope includes img2img before/after comparison plus region selection with blurred-edge compositing.
