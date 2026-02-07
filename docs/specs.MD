@@ -382,7 +382,16 @@ Re-runs create additional files in the same folder. Naming rule (v1):
 
 ## 18) Project structure
 
-- /app
-  |- /server/src
-  |- /client/src
-  |- /shared/src (shared types, utils)
+- /src
+  |- /server
+  |- /client
+  |- /shared
+  package.json
+
+## 19) References
+
+
+Example: https://github.com/trpc/trpc/tree/main/examples/fastify-server
+Docs for adapter: https://trpc.io/docs/server/adapters/fastify
+Trpc subscriptions: https://trpc.io/docs/server/subscriptions
+SSE https://trpc.io/docs/client/links/httpSubscriptionLink
