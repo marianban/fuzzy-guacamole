@@ -16,6 +16,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-01-25) Updated ExecPlan to match `docs/specs.MD` (Radix UI + UI layout at the time: prompt in canvas, Generate/Cancel, logs panel).
 - [x] (2026-02-01) Updated ExecPlan to match `docs/specs.MD` UI changes (top bar + undo/redo, separate control panel w/ prompt textarea, canvas iteration model, left list thumbnails/createdAt, Delete button).
 - [x] (2026-02-07) Reviewed `docs/specs.MD` changes and realigned this plan to the current stack and UI behavior (Vite SPA + Fastify/tRPC server, before/after compare, selection/composite tool).
+- [x] (2026-02-07) Updated ExecPlan to reflect the new project layout in `docs/specs.MD` (`/app/server/src`, `/app/client/src`, `/app/shared/src`).
 - [ ] (YYYY-MM-DD) Scaffold Vite React app + Fastify/tRPC server + tooling (TypeScript, Vitest, ESLint/Prettier) and Docker dev stack.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + `/api/status` + `/api/presets*` endpoints.
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
@@ -33,6 +34,9 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 
 - Decision: Use a subdirectory `app/` for the implementation, with a Vite React SPA frontend and a Fastify + tRPC backend in the same project.
   Rationale: Matches the current product spec while keeping generated/build files separated from repo docs/process artifacts.
+  Date/Author: 2026-02-07 / Codex (GPT-5)
+- Decision: Follow the specâ€™s project layout: `/app/server/src` (backend), `/app/client/src` (frontend), and `/app/shared/src` (shared types/utils).
+  Rationale: Keeps backend, frontend, and cross-cutting contracts isolated while matching the documented structure for tooling and imports.
   Date/Author: 2026-02-07 / Codex (GPT-5)
 - Decision: Implement the ComfyUI integration behind an interface and provide a local "mock ComfyUI" server for deterministic tests.
   Rationale: The real ComfyUI machine/API might not be available in CI/dev; we still need end-to-end proof and regression coverage.
@@ -114,12 +118,13 @@ Goal: A developer can run the app and database locally, run tests, and hit a pla
 
 Work:
 
-- Create a Vite React TypeScript app under `app/` using npm:
-  - `npm create vite@latest app -- --template react-ts`
-  - `cd app && npm install && npm run dev`
-- Add a Fastify + tRPC server entrypoint in the same project and run frontend+backend together in dev:
-  - Frontend source under `app/src/` (SPA).
-  - Backend source under `app/src/server/` (Fastify app, tRPC routers, SSE endpoint).
+- Create a Vite React TypeScript frontend under `app/client/` using npm:
+  - `npm create vite@latest app/client -- --template react-ts`
+  - `cd app/client && npm install && npm run dev`
+- Add a Fastify + tRPC server entrypoint under `app/server/` and run frontend+backend together in dev (choose either npm workspaces from `app/` or two package.json files; document the choice in Concrete Steps once made):
+  - Frontend source under `app/client/src/` (SPA).
+  - Backend source under `app/server/src/` (Fastify app, tRPC routers, SSE endpoint).
+  - Shared types/utilities under `app/shared/src/` consumed by both client and server (configure TS path aliases and/or a small build step to emit `.d.ts` to keep imports ergonomic).
 - Add tooling:
   - Vitest + jsdom + Testing Library (`@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`).
   - ESLint + Prettier:
@@ -128,15 +133,15 @@ Work:
 - Add Docker assets at repo root (or under `app/`—choose one and keep consistent):
   - `docker-compose.yml` with services:
     - `db` (Postgres) with a named volume.
-    - `app` (Node 24 image) that runs `npm run dev` for local dev, mounting `./data` to `/data`.
+    - `app` (Node 24 image) that runs both frontend and backend dev scripts (or a combined proxy) and mounts `./data` to `/data`.
   - A `Dockerfile` for production build:
-    - Build: `npm install` then `npm run build`.
-    - Run: `node dist/server/index.js` (or equivalent compiled Fastify entrypoint).
+    - Build: install and build both workspaces (client + server).
+    - Run: start the compiled Fastify entrypoint from the server package (for example `node app/server/dist/index.js`).
 - Add a dev runbook `app/README.md` (or repo root `README.md`) explaining required files and commands.
 
 Acceptance:
 
-- `npm run dev` serves the app locally and you can open the home page in a browser.
+- Dev scripts for both client and server run (via workspace root or separate commands) and you can open the home page in a browser.
 - `GET /api/status` returns JSON with one of `Starting|Online|Offline` (stub initially).
 - `npm test` runs and reports at least one passing test (a smoke test).
 
@@ -146,7 +151,7 @@ Goal: The server loads `/data/config.json`, validates it, and can list presets f
 
 Work:
 
-- Define a config schema and loader in `app/src/server/config.ts`:
+- Define a config schema and loader in `app/server/src/config.ts`:
   - Reads JSON from `/data/config.json` (path is configurable via env var for local dev, defaulting to `/data/config.json`).
   - Validates required fields:
     - `comfyBaseUrl` (string URL)
@@ -164,12 +169,12 @@ Work:
       - `comfyBootMs`, `healthPollMs`
       - `historyPollMs`
   - On startup, load once and fail fast with a clear error if invalid/missing.
-- Implement preset loading in `app/src/server/presets.ts`:
+- Implement preset loading in `app/server/src/presets.ts`:
   - List directories under `paths.presets`.
   - For each directory, read `preset.json` and `workflow.json`.
   - Validate `preset.json` shape: `id`, `name`, `type` in `{img2img, txt2img}`, `defaults`, `placeholders`.
-- Implement Fastify + tRPC endpoints under `app/src/server/`:
-  - `app/src/server/http/routes/status.ts` (or equivalent Fastify route registration):
+- Implement Fastify + tRPC endpoints under `app/server/src/`:
+  - `app/server/src/http/routes/status.ts` (or equivalent Fastify route registration):
     - `GET` returns at minimum `{ state: "Starting"|"Online"|"Offline", since: string }`.
     - Recommended response shape (per `docs/specs.MD`):
       - `state`: `Starting | Online | Offline`
@@ -179,11 +184,11 @@ Work:
         - `comfyuiVersion` (from `/api/system_stats.system.comfyui_version`)
         - `pytorchVersion` (from `/api/system_stats.system.pytorch_version`)
         - `devices[]`: `name`, `type`, `vram_total`, `vram_free` (when provided)
-  - `app/src/server/trpc/routers/presets.ts`:
+  - `app/server/src/trpc/routers/presets.ts`:
     - `GET` returns a list of presets (metadata only, exclude full workflow by default).
-  - `app/src/server/trpc/routers/presetById.ts` (or parameterized `presets` procedure):
+  - `app/server/src/trpc/routers/presetById.ts` (or parameterized `presets` procedure):
     - `GET` returns preset metadata + the stored workflow template (or a separate endpoint if size is a concern).
-- Implement Comfy health probing (no generation submission yet) in `app/src/server/comfy/client.ts`:
+- Implement Comfy health probing (no generation submission yet) in `app/server/src/comfy/client.ts`:
   - A method `healthCheck(): Promise<{ ok: boolean; systemStats?: unknown }>` that calls `GET {comfyBaseUrl}/api/system_stats` and returns `ok=true` only when HTTP 200 and the payload contains (at minimum) `system` and `devices`.
   - A helper to extract `comfyuiVersion`, `pytorchVersion`, and `devices[]` (best-effort) for `/api/status`.
   - Record any differences between the spec and the target ComfyUI build (and the evidence) in `Surprises & Discoveries`.
@@ -201,13 +206,13 @@ Goal: Generations are persisted and visible via API; input files can be uploaded
 Work:
 
 - Add Postgres + Drizzle ORM database module:
-  - `app/src/server/db/pool.ts`: create a `pg` `Pool` using `DATABASE_URL`.
-  - `app/src/server/db/index.ts`: create and export a typed `db` using `drizzle-orm/node-postgres`.
-- Define a Drizzle schema in `app/src/server/db/schema.ts` with a `generations` table matching the spec.
+  - `app/server/src/db/pool.ts`: create a `pg` `Pool` using `DATABASE_URL`.
+  - `app/server/src/db/index.ts`: create and export a typed `db` using `drizzle-orm/node-postgres`.
+- Define a Drizzle schema in `app/server/src/db/schema.ts` with a `generations` table matching the spec.
 - Add migrations using drizzle-kit:
-  - Add `app/drizzle.config.ts` pointing at `app/src/server/db/schema.ts` and outputting SQL migrations to `app/src/server/db/migrations/`.
+  - Add `app/drizzle.config.ts` pointing at `app/server/src/db/schema.ts` and outputting SQL migrations to `app/server/src/db/migrations/`.
   - Generate and commit an initial migration (expected name like `0000_*.sql`) that creates the `generations` table.
-  - Add `app/src/server/db/migrate.ts` that runs the Drizzle migrator over `app/src/server/db/migrations/` at server boot in dev, and as a separate command in prod (document the exact command in Concrete Steps once implemented).
+  - Add `app/server/src/db/migrate.ts` that runs the Drizzle migrator over `app/server/src/db/migrations/` at server boot in dev, and as a separate command in prod (document the exact command in Concrete Steps once implemented).
 - The `generations` table must contain (as per `docs/specs.MD`):
   - `id uuid primary key`
   - `status text not null`
@@ -219,23 +224,23 @@ Work:
   - `error text null`
   - `created_at timestamptz not null default now()`
   - `updated_at timestamptz not null default now()`
-- Implement generation store `app/src/server/generations/store.ts`:
+- Implement generation store `app/server/src/generations/store.ts`:
   - CRUD functions using Drizzle.
   - Update `updated_at` on changes.
 - Implement generation API routes/procedures:
-  - `app/src/server/trpc/routers/generations.ts`:
+  - `app/server/src/trpc/routers/generations.ts`:
     - `POST` creates a generation with `status=draft`, `presetId`, `presetParams` (seed mode, prompt, etc.).
     - `GET` lists generations newest-first.
-  - `app/src/server/trpc/routers/generationById.ts` (or parameterized `generations` procedure):
+  - `app/server/src/trpc/routers/generationById.ts` (or parameterized `generations` procedure):
     - `GET` returns a single generation detail.
-  - `app/src/server/http/routes/generationInputUpload.ts`:
+  - `app/server/src/http/routes/generationInputUpload.ts`:
     - `POST` accepts `multipart/form-data` upload for img2img input.
     - Store at `/data/inputs/{generationId}/original/{filename}` (create dirs).
     - Persist the stored path (or a stable internal reference) into `presetParams.inputImagePath` (exact semantics will be finalized when Comfy upload semantics are confirmed).
-  - `app/src/server/trpc/routers/generationQueue.ts`:
+  - `app/server/src/trpc/routers/generationQueue.ts`:
     - `POST` transitions `draft|canceled|completed|failed -> queued` and sets `queuedAt=now()`.
     - Validates placeholder tokens: after placeholder expansion (see next milestone), no unreplaced tokens remain.
-  - `app/src/server/trpc/routers/generationCancel.ts` and `app/src/server/trpc/routers/generationDelete.ts` are implemented in later milestones when the worker exists (but can return meaningful 409/400 errors now).
+  - `app/server/src/trpc/routers/generationCancel.ts` and `app/server/src/trpc/routers/generationDelete.ts` are implemented in later milestones when the worker exists (but can return meaningful 409/400 errors now).
 
 Acceptance:
 
@@ -249,19 +254,19 @@ Goal: The worker processes queued generations one at a time and produces a saved
 
 Work:
 
-- Implement placeholder expansion in `app/src/server/workflows/expandPlaceholders.ts` exactly as specified in `docs/specs.MD`:
+- Implement placeholder expansion in `app/server/src/workflows/expandPlaceholders.ts` exactly as specified in `docs/specs.MD`:
   - Load `workflow.json` as JSON.
   - Recursively walk all values.
   - For strings:
     - If the entire string equals a token, replace with the raw value (so numbers/booleans can remain typed).
     - If token appears within a larger string, replace with the stringified value.
   - Validation: fail queueing if any placeholder token in the workflow has no value available.
-- Implement a worker in `app/src/server/worker/worker.ts`:
+- Implement a worker in `app/server/src/worker/worker.ts`:
   - A single loop that wakes periodically (or is event-driven) to find the oldest queued generation.
   - Transition `queued -> submitted` at the moment it is handed to ComfyUI.
   - Transition `submitted -> completed|failed|canceled` based on outcomes.
   - Check cancellation before each step (upload, submit, poll, fetch output).
-- Implement WOL + SSH + ensure-online in `app/src/server/comfy/ensureOnline.ts`:
+- Implement WOL + SSH + ensure-online in `app/server/src/comfy/ensureOnline.ts`:
   - Must be idempotent: if ComfyUI is already healthy (per `GET /api/system_stats`), do not start a new instance.
   - Must be concurrency-safe: multiple callers share the same in-flight bring-up attempt (single-flight).
   - Bring-up flow (v1, per `docs/specs.MD`):
@@ -270,7 +275,7 @@ Work:
     3. Start ComfyUI on the remote machine via SSH by running `remoteStart.startComfyCommand` detached from the SSH session.
     4. Poll ComfyUI readiness via `GET /api/system_stats` until success or timeout `timeouts.comfyBootMs`, polling every `timeouts.healthPollMs`.
   - Surface failure as a generation error (and surface a human-readable cause in `lastError` for `/api/status`).
-- Implement ComfyUI adapter `app/src/server/comfy/client.ts` with methods:
+- Implement ComfyUI adapter `app/server/src/comfy/client.ts` with methods:
   - `submitPrompt(workflow: unknown): Promise<{ promptId: string; request: unknown; response: unknown }>`
     - Uses `POST /prompt` per spec.
   - `pollHistory(promptId: string): Promise<HistoryPayload>`
@@ -305,7 +310,7 @@ Goal: The UI matches the v1 layout and can drive the full lifecycle: create gene
 
 Work:
 
-- UI layout in `app/src/App.tsx` (or equivalent root layout):
+- UI layout in `app/client/src/App.tsx` (or equivalent root layout):
   - Top bar: logo + Undo/Redo buttons.
     - Include before/after behavior for img2img: hover temporarily shows original input, and click toggles an interactive split-view divider for direct comparison.
     - Include a selection tool for img2img region edits: selected region is edited and composited back into the base image with blurred edges to avoid hard seams.
@@ -340,7 +345,7 @@ Work:
     - If the selected generation is client-only, delete clears it from client state.
     - If the selected generation is server-backed, delete calls `DELETE /api/generations/:id` and returns the UI to a fresh client-only draft.
 - Implement SSE:
-  - `app/src/server/http/routes/events.ts`:
+  - `app/server/src/http/routes/events.ts`:
     - `GET` returns `text/event-stream` and emits generation status updates (wired from backend events).
     - Use an in-memory pub/sub (e.g. EventEmitter) fed by the worker and by API transitions.
   - UI subscribes and updates list/detail without manual refresh.
@@ -358,26 +363,31 @@ Acceptance:
 
 All commands below are run from the repo root unless specified.
 
-1) Scaffold the app:
-    npm create vite@latest app -- --template react-ts
+1) Scaffold the workspace and front/back apps:
+    mkdir -p app/shared
     cd app
-    npm install
-    npm run dev
+    npm init -y
+    # add `"workspaces": ["client", "server", "shared"]` to app/package.json
+    npm create vite@latest client -- --template react-ts
+    cd client && npm install && npm run dev
+    cd ../server && npm init -y
+    # wire a dev script (e.g., `npm run dev:server`) that starts Fastify+tRPC and watches ts
+    cd ..
 
 Expected: the dev server starts and prints a local URL (record the port used in this plan once known).
 
-IMPORTANT: the app must be created under `app/` to keep the repo structure clean, then extended with a Fastify + tRPC backend in `app/src/server/`.
+IMPORTANT: follow the spec layout under `app/` with `client/src`, `server/src`, and `shared/src` for cross-package types/utilities. Align workspace tooling accordingly (tsconfig paths, eslint, prettier).
 
-2) Add test tooling:
+2) Add test tooling (frontend):
 
-    cd app
+    cd app/client
     npm add -D vitest jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event
 
 Expected: `npm test` (after adding a config and at least one test) reports passing.
 
-2b) Add Postgres + ORM tooling:
+2b) Add Postgres + ORM tooling (backend):
 
-    cd app
+    cd app/server
     npm add pg drizzle-orm
     npm add -D drizzle-kit
 
@@ -475,22 +485,22 @@ During implementation, capture short evidence snippets here (indented) such as:
 Required libraries/tech:
 
 - Node.js 24, TypeScript.
-- Vite React SPA (`app/src`) plus Fastify + tRPC server (`app/src/server`) with Zod validation.
+- Vite React SPA (`app/client/src`) plus Fastify + tRPC server (`app/server/src`) with Zod validation.
 - Radix UI for UI components, using Radix Themes for theming and wrapping the app in `<Theme appearance="dark">...</Theme>`.
 - Postgres + Drizzle ORM (with `pg` driver), with migrations stored in-repo as `.sql`.
 - Vitest + Testing Library for regression coverage.
 
 Key internal interfaces to define:
 
-- `ComfyClient` (in `app/src/server/comfy/client.ts`):
+- `ComfyClient` (in `app/server/src/comfy/client.ts`):
   - `healthCheck()`
   - `submitPrompt(workflow)`
   - `pollHistory(promptId)`
   - `uploadInputImage(filePath)` (if required)
   - `interrupt()`
-- `GenerationStore` (in `app/src/server/generations/store.ts`):
+- `GenerationStore` (in `app/server/src/generations/store.ts`):
   - `create`, `get`, `list`, `updateStatus`, `setError`, `setPromptRequest/Response`, etc.
-- `Worker` (in `app/src/server/worker/worker.ts`):
+- `Worker` (in `app/server/src/worker/worker.ts`):
   - `start()` called on server boot; single concurrency; cancellation-aware.
 
 Plan change note:

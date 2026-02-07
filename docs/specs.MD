@@ -379,3 +379,10 @@ Outputs are written under:
 
 Re-runs create additional files in the same folder. Naming rule (v1):
 - Output filenames include a timestamp prefix to avoid collisions (implementation-defined).
+
+## 18) Project structure
+
+- /app
+  |- /server/src
+  |- /client/src
+  |- /shared/src (shared types, utils)
