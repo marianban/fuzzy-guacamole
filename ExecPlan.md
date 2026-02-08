@@ -6,7 +6,7 @@ This repository already contains the canonical product spec at `docs/specs.MD` a
 
 ## Purpose / Big Picture
 
-After this work, a user on the LAN can open a simple web UI, pick a preset (img2img or txt2img), optionally upload an input image (img2img), click Generate, and receive exactly one output image produced by a remote ComfyUI machine. The backend transparently ensures the remote machine and ComfyUI are online (Wake-on-LAN + SSH + health polling), runs a single-worker queue, persists generations in Postgres, stores inputs/outputs on disk under `/data`, and supports canceling queued/running jobs. The system is demonstrably working when: (1) `/api/status` becomes `Online`, (2) presets load from disk, (3) a generation can be created and queued, and (4) a mocked (and later real) ComfyUI flow yields a saved output image visible in the UI.
+After this work, a user on the LAN can open a simple web UI, pick a preset (img2img or txt2img), optionally upload an input image (img2img), click Generate, and receive exactly one output image produced by a remote ComfyUI machine. The backend transparently ensures the remote machine and ComfyUI are online (Wake-on-LAN + SSH + health polling), runs a single-worker queue, persists generations in Postgres, stores inputs/outputs on disk under `/data`, and supports canceling queued/running jobs. The system is demonstrably working when: (1) `status.get` returns `Online`, (2) presets load from disk, (3) a generation can be created and queued, and (4) a mocked (and later real) ComfyUI flow yields a saved output image visible in the UI.
 
 ## Progress
 
@@ -19,12 +19,13 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-02-07) Updated ExecPlan to reflect the new project layout in `docs/specs.MD` (`/src/server`, `/src/client`, `/src/shared`).
 - [x] (2026-02-08) Synced plan details with current `docs/specs.MD` + `.agent/AGENTS.md` (React Hook Form requirements, testing workflow expectations, and implementation verification notes).
 - [x] (2026-02-08) Synced ExecPlan linting details with `docs/specs.MD` (TypeScript-ESLint flat config with strict/stylistic presets plus React Hooks/React plugins).
+- [x] (2026-02-08) Updated ExecPlan to match current `docs/specs.MD` app API contract (tRPC procedures/subscriptions instead of app REST routes).
 - [ ] (YYYY-MM-DD) Scaffold Vite React app + Fastify/tRPC server + tooling (TypeScript, Vitest, ESLint/Prettier) and Docker dev stack.
-- [ ] (YYYY-MM-DD) Implement config + preset loading + `/api/status` + `/api/presets*` endpoints.
+- [ ] (YYYY-MM-DD) Implement config + preset loading + tRPC query procedures (`status.get`, `preset.list`, `preset.getById`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
 - [ ] (YYYY-MM-DD) Implement UI (top bar + left generations + control panel + canvas) + generation creation/queue/upload/cancel + status loader gate.
-- [ ] (YYYY-MM-DD) Implement `/api/events` SSE + UI live updates + integration tests with a mock ComfyUI server.
+- [ ] (YYYY-MM-DD) Implement `events.generation` tRPC subscription (SSE transport) + UI live updates + integration tests with a mock ComfyUI server.
 - [ ] (YYYY-MM-DD) Harden edge cases (timeouts, retries, idempotence), polish UX, and document local/dev runbook.
 
 ## Surprises & Discoveries
@@ -76,10 +77,10 @@ Core domain definitions (use these terms consistently in code and docs):
 - Generation: A persisted record representing a configured thing to run. It can be queued and re-run multiple times. In v1, we do not model runs/attempts as a separate table.
 - Run: One execution of a generation that produces exactly one output image.
 - Statuses: `draft`, `queued`, `submitted`, `completed`, `failed`, `canceled` (as defined in the spec).
-- App status state: `Starting`, `Online`, `Offline` (as returned by `GET /api/status`).
+- App status state: `Starting`, `Online`, `Offline` (as returned by `status.get`).
 - Worker loop: A single background loop that picks the oldest queued generation (by `queuedAt`) and executes it end-to-end, one at a time.
 - Wake-on-LAN (WOL): Sending a "magic packet" to wake the remote ComfyUI machine, then polling until ComfyUI is healthy.
-- SSE (Server-Sent Events): A long-lived HTTP response with `Content-Type: text/event-stream` that pushes status updates to the browser.
+- tRPC subscription over SSE: Live-only updates over `events.generation` using `httpSubscriptionLink` and `text/event-stream`.
 
 Constraints:
 
@@ -116,7 +117,7 @@ This work is large; implement it in milestones so each milestone produces a demo
 
 ### Milestone 1: Project scaffold + Dockerized dev environment
 
-Goal: A developer can run the app and database locally, run tests, and hit a placeholder `/api/status` endpoint.
+Goal: A developer can run the app and database locally, run tests, and hit a placeholder `status.get` procedure.
 
 Work:
 
@@ -144,12 +145,12 @@ Work:
 Acceptance:
 
 - Dev scripts for both client and server run (via workspace root or separate commands) and you can open the home page in a browser.
-- `GET /api/status` returns JSON with one of `Starting|Online|Offline` (stub initially).
+- `status.get` returns JSON with one of `Starting|Online|Offline` (stub initially).
 - `npm test` runs and reports at least one passing test (a smoke test).
 
 ### Milestone 2: Runtime config + presets on disk + status endpoint
 
-Goal: The server loads `/data/config.json`, validates it, and can list presets from `/data/presets`. `/api/status` becomes meaningful (Online/Offline/Starting) based on Comfy reachability.
+Goal: The server loads `/data/config.json`, validates it, and can list presets from `/data/presets`. `status.get` becomes meaningful (Online/Offline/Starting) based on Comfy reachability.
 
 Work:
 
@@ -175,9 +176,9 @@ Work:
   - List directories under `paths.presets`.
   - For each directory, read `preset.json` and `workflow.json`.
   - Validate `preset.json` shape: `id`, `name`, `type` in `{img2img, txt2img}`, `defaults`, `placeholders`.
-- Implement Fastify + tRPC endpoints under `src/server/`:
-  - `src/server/http/routes/status.ts` (or equivalent Fastify route registration):
-    - `GET` returns at minimum `{ state: "Starting"|"Online"|"Offline", since: string }`.
+- Implement Fastify + tRPC procedures under `src/server/`:
+  - `src/server/trpc/routers/status.ts`:
+    - `status.get` returns at minimum `{ state: "Starting"|"Online"|"Offline", since: string }`.
     - Recommended response shape (per `docs/specs.MD`):
       - `state`: `Starting | Online | Offline`
       - `since`: timestamp for current state
@@ -187,19 +188,18 @@ Work:
         - `pytorchVersion` (from `/api/system_stats.system.pytorch_version`)
         - `devices[]`: `name`, `type`, `vram_total`, `vram_free` (when provided)
   - `src/server/trpc/routers/presets.ts`:
-    - `GET` returns a list of presets (metadata only, exclude full workflow by default).
-  - `src/server/trpc/routers/presetById.ts` (or parameterized `presets` procedure):
-    - `GET` returns preset metadata + the stored workflow template (or a separate endpoint if size is a concern).
+    - `preset.list` returns a list of presets (metadata only, exclude full workflow by default).
+    - `preset.getById` returns preset metadata + the stored workflow template (or a separate procedure if size is a concern).
 - Implement Comfy health probing (no generation submission yet) in `src/server/comfy/client.ts`:
   - A method `healthCheck(): Promise<{ ok: boolean; systemStats?: unknown }>` that calls `GET {comfyBaseUrl}/api/system_stats` and returns `ok=true` only when HTTP 200 and the payload contains (at minimum) `system` and `devices`.
-  - A helper to extract `comfyuiVersion`, `pytorchVersion`, and `devices[]` (best-effort) for `/api/status`.
+  - A helper to extract `comfyuiVersion`, `pytorchVersion`, and `devices[]` (best-effort) for `status.get`.
   - Record any differences between the spec and the target ComfyUI build (and the evidence) in `Surprises & Discoveries`.
 
 Acceptance:
 
 - With a valid local `./data/config.json` mounted to `/data/config.json`, the server boots.
-- `GET /api/presets` returns presets from `./data/presets`.
-- If ComfyUI is unreachable, `/api/status` returns `Offline`; if reachable, returns `Online`.
+- `preset.list` returns presets from `./data/presets`.
+- If ComfyUI is unreachable, `status.get` returns `Offline`; if reachable, returns `Online`.
 
 ### Milestone 3: Postgres schema + generation CRUD + filesystem layout
 
@@ -229,24 +229,21 @@ Work:
 - Implement generation store `src/server/generations/store.ts`:
   - CRUD functions using Drizzle.
   - Update `updated_at` on changes.
-- Implement generation API routes/procedures:
-  - `src/server/trpc/routers/generations.ts`:
-    - `POST` creates a generation with `status=draft`, `presetId`, `presetParams` (seed mode, prompt, etc.).
-    - `GET` lists generations newest-first.
-  - `src/server/trpc/routers/generationById.ts` (or parameterized `generations` procedure):
-    - `GET` returns a single generation detail.
-  - `src/server/http/routes/generationInputUpload.ts`:
-    - `POST` accepts `multipart/form-data` upload for img2img input.
-    - Store at `/data/inputs/{generationId}/original/{filename}` (create dirs).
-    - Persist the stored path (or a stable internal reference) into `presetParams.inputImagePath` (exact semantics will be finalized when Comfy upload semantics are confirmed).
-  - `src/server/trpc/routers/generationQueue.ts`:
-    - `POST` transitions `draft|canceled|completed|failed -> queued` and sets `queuedAt=now()`.
-    - Validates placeholder tokens: after placeholder expansion (see next milestone), no unreplaced tokens remain.
-  - `src/server/trpc/routers/generationCancel.ts` and `src/server/trpc/routers/generationDelete.ts` are implemented in later milestones when the worker exists (but can return meaningful 409/400 errors now).
+- Implement generation tRPC procedures:
+  - `src/server/trpc/routers/generation.ts`:
+    - `generation.create` creates a generation with `status=draft`, `presetId`, `presetParams` (seed mode, prompt, etc.).
+    - `generation.list` lists generations newest-first.
+    - `generation.getById` returns a single generation detail.
+    - `generation.uploadInput` accepts `multipart/form-data` upload for img2img input.
+    - `generation.uploadInput` stores files at `/data/inputs/{generationId}/original/{filename}` (create dirs).
+    - `generation.uploadInput` persists the stored path (or a stable internal reference) into `presetParams.inputImagePath` (exact semantics will be finalized when Comfy upload semantics are confirmed).
+    - `generation.queue` transitions `draft|canceled|completed|failed -> queued` and sets `queuedAt=now()`.
+    - `generation.queue` validates placeholder tokens: after placeholder expansion (see next milestone), no unreplaced tokens remain.
+    - `generation.cancel` and `generation.delete` are implemented in later milestones when the worker exists (but can return meaningful 409/400 errors now).
 
 Acceptance:
 
-- You can create a generation via `POST /api/generations` and see it in `GET /api/generations`.
+- You can create a generation via `generation.create` and see it in `generation.list`.
 - Uploading an input image stores a file under `/data/inputs/<id>/original/`.
 - Queueing transitions status to `queued` and sets `queuedAt`.
 
@@ -276,7 +273,7 @@ Work:
     2. Poll until the remote machine is reachable via SSH (successful auth + can run a trivial command), up to `timeouts.pcBootMs`, polling every `timeouts.sshPollMs`.
     3. Start ComfyUI on the remote machine via SSH by running `remoteStart.startComfyCommand` detached from the SSH session.
     4. Poll ComfyUI readiness via `GET /api/system_stats` until success or timeout `timeouts.comfyBootMs`, polling every `timeouts.healthPollMs`.
-  - Surface failure as a generation error (and surface a human-readable cause in `lastError` for `/api/status`).
+  - Surface failure as a generation error (and surface a human-readable cause in `lastError` for `status.get`).
 - Implement ComfyUI adapter `src/server/comfy/client.ts` with methods:
   - `submitPrompt(workflow: unknown): Promise<{ promptId: string; request: unknown; response: unknown }>`
     - Uses `POST /prompt` per spec.
@@ -293,7 +290,7 @@ Work:
   - One retry for transient network/timeouts during upload/submit/poll.
   - No retry for validation errors or explicit Comfy execution errors.
 - Implement cancellation:
-  - `POST /api/generations/:id/cancel`:
+  - `generation.cancel` mutation:
     - `queued -> canceled` immediately.
     - `submitted -> attempt interrupt -> canceled` on success; `failed` if cancellation cannot be confirmed.
   - Ensure the worker honors cancellations by checking generation status between steps.
@@ -306,7 +303,7 @@ Acceptance:
 - Canceling a queued generation results in status `canceled` and the worker never submits it.
 - Canceling a running generation causes the worker to stop and mark it `canceled` (or `failed` with a clear error if interrupt is not supported).
 
-### Milestone 5: UI MVP + SSE live updates + full-page loader gate
+### Milestone 5: UI MVP + tRPC subscription live updates + full-page loader gate
 
 Goal: The UI matches the v1 layout and can drive the full lifecycle: create generation, upload (img2img), queue, see output, cancel, re-run.
 
@@ -332,26 +329,26 @@ Work:
     - txt2img: shows output image after generation.
   - Use Radix Themes for base UI components and wrap the app in `<Theme appearance="dark">...</Theme>` so the default appearance is dark.
 - Implement client data fetching:
-  - Load `/api/status` and show a full-page loader until state is `Online`.
-  - Load presets list and generations list.
+  - Load `status.get` and show a full-page loader until state is `Online`.
+  - Load `preset.list` and `generation.list`.
 - Implement user flows:
   - "+ New generation" creates a client-only draft state.
   - Generate:
-    - `POST /api/generations`
-    - If img2img: `POST /api/generations/:id/input` (upload), then `POST /api/generations/:id/queue`
-    - If txt2img: `POST /api/generations/:id/queue`
+    - `generation.create`
+    - If img2img: `generation.uploadInput`, then `generation.queue`
+    - If txt2img: `generation.queue`
   - Selected generation:
     - Output preview is shown in the center canvas.
     - Logs are shown at the bottom of the control panel.
     - Cancel is available only when queued/submitted; re-run uses the same Generate button (it re-queues the same generation id).
   - Delete:
     - If the selected generation is client-only, delete clears it from client state.
-    - If the selected generation is server-backed, delete calls `DELETE /api/generations/:id` and returns the UI to a fresh client-only draft.
-- Implement SSE:
-  - `src/server/http/routes/events.ts`:
-    - `GET` returns `text/event-stream` and emits generation status updates (wired from backend events).
-    - Use an in-memory pub/sub (e.g. EventEmitter) fed by the worker and by API transitions.
-  - UI subscribes and updates list/detail without manual refresh.
+    - If the selected generation is server-backed, delete calls `generation.delete` and returns the UI to a fresh client-only draft.
+- Implement tRPC subscription events:
+  - `src/server/trpc/routers/events.ts`:
+    - `events.generation` emits generation status updates (wired from backend events) over SSE transport.
+    - Use an in-memory pub/sub (e.g. EventEmitter) fed by the worker and by procedure transitions.
+  - UI subscribes using `httpSubscriptionLink` and updates list/detail without manual refresh.
 
 Acceptance:
 
@@ -432,28 +429,28 @@ Create `data/config.json` with the shape from `docs/specs.MD` (example, adjust I
 
     docker compose up --build
 
-Expected: Postgres is reachable, app starts, and `/api/status` responds.
+Expected: Postgres is reachable, app starts, and `status.get` responds.
 
 ## Validation and Acceptance
 
 Acceptance is behavioral and must be provable without reading code:
 
 - Status:
-  - `GET /api/status` returns JSON with `state` in `{ "Online", "Offline", "Starting" }` and a `since` timestamp.
+  - `status.get` returns JSON with `state` in `{ "Online", "Offline", "Starting" }` and a `since` timestamp.
   - When `Online`, it also returns best-effort `comfy` fields derived from `GET {comfyBaseUrl}/api/system_stats` (`comfyuiVersion`, `pytorchVersion`, `devices[]`).
 - Presets:
   - Place one preset bundle at `/data/presets/img2img-basic/{preset.json,workflow.json}`.
-  - `GET /api/presets` returns an entry with `id=img2img-basic`.
+  - `preset.list` returns an entry with `id=img2img-basic`.
 - Generations:
-  - `POST /api/generations` returns a new `id` and status `draft`.
-  - `POST /api/generations/:id/queue` transitions it to `queued`.
+  - `generation.create` returns a new `id` and status `draft`.
+  - `generation.queue` transitions it to `queued`.
   - Worker transitions it through `submitted` to `completed` and writes exactly one output file under `/data/outputs/:id/`.
 - Cancel:
   - If status is `queued`, cancel immediately sets `canceled` and the worker never submits.
   - If status is `submitted`, cancel interrupts remote execution (or clearly fails with an error) and results in `canceled` (or `failed` with explicit reason).
 - UI:
-  - Home page shows a blocking loader until `/api/status` is Online.
-  - Generations list updates (via SSE) when statuses change.
+  - Home page shows a blocking loader until `status.get` is Online.
+  - Generations list updates via `events.generation` subscription (SSE transport) when statuses change.
   - Completed generations show output preview and allow re-run.
   - For img2img, before/after compare and region selection edit/composite behavior are functional and visually consistent.
 
@@ -479,7 +476,7 @@ Tests (minimum bar):
 
 During implementation, capture short evidence snippets here (indented) such as:
 
-- Example `curl` transcript for `/api/status`.
+- Example request/response transcript for `status.get`.
 - Example of a completed generation JSON.
 - A short log line sequence showing worker progression.
 - The exact ComfyUI endpoints confirmed in the target environment.
@@ -521,3 +518,4 @@ Plan change note:
 - (2026-02-07) Updated this ExecPlan to reflect `docs/specs.MD` section 18 project structure: root `src/` layout with `src/server`, `src/client`, and `src/shared`.
 - (2026-02-08) Updated this ExecPlan to reflect latest `docs/specs.MD` + `.agent/AGENTS.md`: explicit `react-hook-form` + resolver usage for forms, test-first/separate-step expectations, and Chrome Devtools validation requirements after implementation.
 - (2026-02-08) Updated this ExecPlan to reflect `docs/specs.MD` linting changes: ESLint new flat config should follow TypeScript-ESLint (`strict` + `stylistic`) with `eslint-plugin-react-hooks` flat config and `eslint-plugin-react` integration.
+- (2026-02-08) Updated this ExecPlan to reflect `docs/specs.MD` API changes: app-facing API is defined as tRPC query/mutation procedures (`status.get`, `preset.*`, `generation.*`) and `events.generation` subscription over SSE transport, not custom REST routes.
