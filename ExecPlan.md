@@ -18,6 +18,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-02-07) Reviewed `docs/specs.MD` changes and realigned this plan to the current stack and UI behavior (Vite SPA + Fastify/tRPC server, before/after compare, selection/composite tool).
 - [x] (2026-02-07) Updated ExecPlan to reflect the new project layout in `docs/specs.MD` (`/src/server`, `/src/client`, `/src/shared`).
 - [x] (2026-02-08) Synced plan details with current `docs/specs.MD` + `.agent/AGENTS.md` (React Hook Form requirements, testing workflow expectations, and implementation verification notes).
+- [x] (2026-02-08) Synced ExecPlan linting details with `docs/specs.MD` (TypeScript-ESLint flat config with strict/stylistic presets plus React Hooks/React plugins).
 - [ ] (YYYY-MM-DD) Scaffold Vite React app + Fastify/tRPC server + tooling (TypeScript, Vitest, ESLint/Prettier) and Docker dev stack.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + `/api/status` + `/api/presets*` endpoints.
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
@@ -95,7 +96,7 @@ Engineering and workflow expectations (keep this section aligned with `.agent/AG
 
 - Stack: Node.js 24, Vite + React + TypeScript (classic SPA; no SSR), Fastify + tRPC + Zod for API/SSE contracts, CSS modules, Radix UI (Radix Themes + primitives), `react-hook-form` + `@hookform/resolvers` for forms, Postgres + Drizzle ORM, Docker.
 - Config: file-based only (`/data/config.json`) for Comfy URL, WOL target, SSH connection + remote start command, paths, and timeouts.
-- Tooling: Vitest + Testing Library + jsdom; ESLint flat config using `eslint:recommended`, `plugin:react/recommended`, `plugin:react-hooks/recommended`; Prettier for formatting.
+- Tooling: Vitest + Testing Library + jsdom; ESLint new flat config format aligned to TypeScript-ESLint (`strict` + `stylistic`) plus `eslint-plugin-react-hooks` flat recommended config and `eslint-plugin-react`; Prettier for formatting.
 - Testing: implement tests as a separate step, prefer small/deterministic tests, use `@testing-library/react` with user-visible queries, add/extend regression tests for behavior changes, and name tests `given_when_then` where it fits.
 - During implementation: run relevant tests (preferably fail-first for new behavior), lint, and formatting; then run the app locally and verify UI behavior in Chrome Devtools MCP (Console + Network), fixing warnings when they are actionable.
 - MCPs: use Context7 for docs when adopting libraries/frameworks; use Chrome Devtools MCP to verify UI; optionally use Wallaby MCP for test status/debugging.
@@ -129,7 +130,7 @@ Work:
 - Add tooling:
   - Vitest + jsdom + Testing Library (`@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`).
   - ESLint + Prettier:
-    - ESLint flat config with `eslint:recommended`, `plugin:react/recommended`, `plugin:react-hooks/recommended`.
+    - ESLint flat config based on TypeScript-ESLint getting-started guidance (`strict` + `stylistic`) with React Hooks flat recommended config and React plugin registration.
     - Prettier formatting (format before marking work complete).
 - Add Docker assets at repo root:
   - `docker-compose.yml` with services:
@@ -519,3 +520,4 @@ Plan change note:
 - (2026-02-07) Updated this ExecPlan to reflect current `docs/specs.MD`: implementation stack is Vite React SPA + Fastify/tRPC/Zod backend (not TanStack Start), and v1 UI scope includes img2img before/after comparison plus region selection with blurred-edge compositing.
 - (2026-02-07) Updated this ExecPlan to reflect `docs/specs.MD` section 18 project structure: root `src/` layout with `src/server`, `src/client`, and `src/shared`.
 - (2026-02-08) Updated this ExecPlan to reflect latest `docs/specs.MD` + `.agent/AGENTS.md`: explicit `react-hook-form` + resolver usage for forms, test-first/separate-step expectations, and Chrome Devtools validation requirements after implementation.
+- (2026-02-08) Updated this ExecPlan to reflect `docs/specs.MD` linting changes: ESLint new flat config should follow TypeScript-ESLint (`strict` + `stylistic`) with `eslint-plugin-react-hooks` flat config and `eslint-plugin-react` integration.

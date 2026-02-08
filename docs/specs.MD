@@ -23,12 +23,45 @@ Terminology:
 
 ---
 
-## 2) Deployment
+## 2) Development Stack
 
 - Runtime: Node.js 24
 - Framework: React, TypeScript (classic SPA no SSR needed), vite + react-ts template
  zod
 - Server: Fastify, trpc for API and SSE + zod for validation, drizzle ORM for Postgres
+- Linting/formatting: ESLint (use new flat config format), use https://typescript-eslint.io/getting-started + Prettier
+plugins: https://www.npmjs.com/package/eslint-plugin-react-hooks
+https://www.npmjs.com/package/eslint-plugin-react
+  ```
+  import reactHooks from 'eslint-plugin-react-hooks';
+  import eslintReact from 'eslint-plugin-react;
+  import globals from 'globals';
+  export default defineConfig(
+    eslint.configs.recommended,
+    tseslint.configs.strict,
+    tseslint.configs.stylistic,
+    reactHooks.configs.flat.recommended,
+    {
+    files: ['**/*.{js,jsx,mjs,cjs,ts,tsx}'],
+    plugins: {
+      eslintReact,
+    },
+    languageOptions: {
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      globals: {
+        ...globals.browser,
+      },
+    }
+  },
+  ```);
+
+  ```
+  import reactHooks from 'eslint-plugin-react-hooks';
+
 - Styling: CSS modules
 - UI components library: Radix UI (for theme use <Theme appearance="dark"></Theme> wrapper), https://react-hook-form.com/ for forms + @hookform/resolvers for zod schema validation
 - Database: Postgres
