@@ -17,6 +17,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-02-01) Updated ExecPlan to match `docs/specs.MD` UI changes (top bar + undo/redo, separate control panel w/ prompt textarea, canvas iteration model, left list thumbnails/createdAt, Delete button).
 - [x] (2026-02-07) Reviewed `docs/specs.MD` changes and realigned this plan to the current stack and UI behavior (Vite SPA + Fastify/tRPC server, before/after compare, selection/composite tool).
 - [x] (2026-02-07) Updated ExecPlan to reflect the new project layout in `docs/specs.MD` (`/src/server`, `/src/client`, `/src/shared`).
+- [x] (2026-02-08) Synced plan details with current `docs/specs.MD` + `.agent/AGENTS.md` (React Hook Form requirements, testing workflow expectations, and implementation verification notes).
 - [ ] (YYYY-MM-DD) Scaffold Vite React app + Fastify/tRPC server + tooling (TypeScript, Vitest, ESLint/Prettier) and Docker dev stack.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + `/api/status` + `/api/presets*` endpoints.
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
@@ -92,12 +93,12 @@ Constraints:
 
 Engineering and workflow expectations (keep this section aligned with `.agent/AGENTS.md`):
 
-- Stack: Node.js 24, Vite + React + TypeScript (classic SPA; no SSR), Fastify + tRPC + Zod for API/SSE contracts, CSS modules, Radix UI (Radix Themes + primitives), Postgres + Drizzle ORM, Docker.
+- Stack: Node.js 24, Vite + React + TypeScript (classic SPA; no SSR), Fastify + tRPC + Zod for API/SSE contracts, CSS modules, Radix UI (Radix Themes + primitives), `react-hook-form` + `@hookform/resolvers` for forms, Postgres + Drizzle ORM, Docker.
 - Config: file-based only (`/data/config.json`) for Comfy URL, WOL target, SSH connection + remote start command, paths, and timeouts.
 - Tooling: Vitest + Testing Library + jsdom; ESLint flat config using `eslint:recommended`, `plugin:react/recommended`, `plugin:react-hooks/recommended`; Prettier for formatting.
-- Testing: prefer small/deterministic tests; use `@testing-library/react` with user-visible queries; name tests `given_when_then` where it fits.
-- During implementation: run relevant tests, lint, and formatting; for UI behavior verify in a real browser and check Console + Network errors.
-- MCPs: use Context7 for Fastify/tRPC/Vite docs or any other used library docs; use Chrome Devtools MCP to verify UI; optionally use Wallaby MCP for test status/debugging.
+- Testing: implement tests as a separate step, prefer small/deterministic tests, use `@testing-library/react` with user-visible queries, add/extend regression tests for behavior changes, and name tests `given_when_then` where it fits.
+- During implementation: run relevant tests (preferably fail-first for new behavior), lint, and formatting; then run the app locally and verify UI behavior in Chrome Devtools MCP (Console + Network), fixing warnings when they are actionable.
+- MCPs: use Context7 for docs when adopting libraries/frameworks; use Chrome Devtools MCP to verify UI; optionally use Wallaby MCP for test status/debugging.
 - Skills (when applicable): use `doc-coauthoring` for doc updates, `frontend-design` for frontend design work, and `wallaby-testing` when using Wallaby.
 
 Important ComfyUI API assumptions (must be verified early in implementation and recorded in `Surprises & Discoveries`):
@@ -324,6 +325,7 @@ Work:
     - Advanced: negative prompt, seed mode + seed.
     - Actions: Generate (also used for re-runs), Cancel, Delete.
     - Logs panel at the bottom.
+    - Build forms with `react-hook-form` and `@hookform/resolvers` using Zod schemas for validation.
   - Canvas (fills remaining space):
     - img2img: single input drop zone; after generation shows output image; in edit mode allow iterating output -> new input (input -> output -> input...).
     - txt2img: shows output image after generation.
@@ -381,6 +383,7 @@ IMPORTANT: follow the spec layout under `src/` with `client/`, `server/`, and `s
 
     cd src/client
     npm add -D vitest jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event
+    npm add react-hook-form @hookform/resolvers zod
 
 Expected: `npm test` (after adding a config and at least one test) reports passing.
 
@@ -459,6 +462,7 @@ Tests (minimum bar):
 - Integration tests for generation lifecycle using a mock ComfyUI server:
   - Fail before implementation, pass after.
 - UI tests for key interactions (create draft, select preset, generate disabled/enabled states, cancel button visibility).
+- For each new behavior change, add/extend tests in a separate step and, when practical, make the new test fail before implementation.
 
 ## Idempotence and Recovery
 
@@ -486,6 +490,7 @@ Required libraries/tech:
 - Node.js 24, TypeScript.
 - Vite React SPA (`src/client`) plus Fastify + tRPC server (`src/server`) with Zod validation.
 - Radix UI for UI components, using Radix Themes for theming and wrapping the app in `<Theme appearance="dark">...</Theme>`.
+- `react-hook-form` + `@hookform/resolvers` for client form handling and schema-based validation.
 - Postgres + Drizzle ORM (with `pg` driver), with migrations stored in-repo as `.sql`.
 - Vitest + Testing Library for regression coverage.
 
@@ -513,4 +518,4 @@ Plan change note:
 - (2026-02-01) Updated this ExecPlan to reflect `docs/specs.MD` UI changes: top bar (logo + undo/redo), separate control panel (includes prompt textarea + Delete), canvas iteration model (img2img input->output->input), and richer generation list items (thumbnail + createdAt formatting).
 - (2026-02-07) Updated this ExecPlan to reflect current `docs/specs.MD`: implementation stack is Vite React SPA + Fastify/tRPC/Zod backend (not TanStack Start), and v1 UI scope includes img2img before/after comparison plus region selection with blurred-edge compositing.
 - (2026-02-07) Updated this ExecPlan to reflect `docs/specs.MD` section 18 project structure: root `src/` layout with `src/server`, `src/client`, and `src/shared`.
-
+- (2026-02-08) Updated this ExecPlan to reflect latest `docs/specs.MD` + `.agent/AGENTS.md`: explicit `react-hook-form` + resolver usage for forms, test-first/separate-step expectations, and Chrome Devtools validation requirements after implementation.

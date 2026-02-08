@@ -386,12 +386,16 @@ Re-runs create additional files in the same folder. Naming rule (v1):
   |- /server
   |- /client
   |- /shared
-  package.json
+  package.json (not using workspaces, client should reference server/shared via relative imports)
 
 ## 19) References
 
+### 20) Fastify + trpc setup
 
 Example: https://github.com/trpc/trpc/tree/main/examples/fastify-server
 Docs for adapter: https://trpc.io/docs/server/adapters/fastify
+`\examples\trpc\fastify-server` use this as a reference for Fastify + trpc setup, but adapt to our project structure and needs.
+
 Trpc subscriptions: https://trpc.io/docs/server/subscriptions
 SSE https://trpc.io/docs/client/links/httpSubscriptionLink
+`\examples\trpc\next-sse-chat` use this as a reference for SSE implementation, but adapt to our backend + React client.

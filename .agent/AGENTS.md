@@ -11,6 +11,7 @@ This repo currently contains the product specification and agent workflow docs f
 - Specs live in `docs/`. Start with `docs/specs.MD`.
 - Agent process docs live in `.agent/`.
 - ComfyUI OpenAPI docs in `docs/ComfyApi.md` use when needed.
+- Code examples should be in `examples/` and referenced from specs when relevant.
 
 ## Development Best Practices
 
@@ -44,7 +45,7 @@ This repo currently contains the product specification and agent workflow docs f
 
 ## MCPs to use for Implementation
 
-When working with TanStack Start always use context7 mcp server to get relevant docs.
+When working with libraries always use context7 mcp server to get relevant docs.
 When implementing ui features you can verify result or debug issues using Chrome Devtools MCP.
 Wallaby MCP server can be used to check test status and debug failing tests.
 
