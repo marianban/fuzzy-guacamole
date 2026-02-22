@@ -20,6 +20,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-02-08) Synced plan details with current `docs/specs.MD` + `.agent/AGENTS.md` (React Hook Form requirements, testing workflow expectations, and implementation verification notes).
 - [x] (2026-02-08) Synced ExecPlan linting details with `docs/specs.MD` (TypeScript-ESLint flat config with strict/stylistic presets plus React Hooks/React plugins).
 - [x] (2026-02-22) Synced ExecPlan to current `docs/specs.MD` API contract and client data layer (REST endpoints + SSE events + SWR, replacing outdated tRPC references).
+- [x] (2026-02-22) Synced project-structure guidance to a single root `package.json` (no workspaces) and explicit import boundaries (`client`/`server` only share via `src/shared`).
 - [ ] (YYYY-MM-DD) Scaffold Vite React app + Fastify REST server + tooling (TypeScript, Vitest, ESLint/Prettier) and Docker dev stack.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + REST endpoints (`GET /api/status`, `GET /api/presets`, `GET /api/presets/{presetId}`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
@@ -41,6 +42,9 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - Decision: Follow the spec's project layout: `/src/server` (backend), `/src/client` (frontend), and `/src/shared` (shared types/utils).
   Rationale: Keeps backend, frontend, and cross-cutting contracts isolated while matching the documented structure for tooling and imports.
   Date/Author: 2026-02-07 / Codex (GPT-5)
+- Decision: Use one root `package.json` (no npm workspaces) and enforce import boundaries: `src/client` and `src/server` never import each other directly; any shared contracts must live in `src/shared`.
+  Rationale: Matches current spec intent, removes conflicting setup guidance, and keeps coupling explicit and reviewable.
+  Date/Author: 2026-02-22 / Codex (GPT-5)
 - Decision: Implement the ComfyUI integration behind an interface and provide a local "mock ComfyUI" server for deterministic tests.
   Rationale: The real ComfyUI machine/API might not be available in CI/dev; we still need end-to-end proof and regression coverage.
   Date/Author: 2026-01-24 / Codex (GPT-5.2)
@@ -125,12 +129,13 @@ Goal: A developer can run the app and database locally, run tests, and hit a pla
 Work:
 
 - Create a Vite React TypeScript frontend under `src/client/` using npm:
-  - `npm create vite@latest src/client -- --template react-ts`
-  - `cd src/client && npm install && npm run dev`
-- Add a Fastify REST server entrypoint under `src/server/` and run frontend+backend together in dev (choose either npm workspaces from repo root or two package.json files; document the choice in Concrete Steps once made):
+  - Scaffold client source under `src/client/` while keeping dependency management at the repo root (`package.json` at root only).
+  - Run client dev through root scripts (for example, a root `dev:client` script).
+- Add a Fastify REST server entrypoint under `src/server/` and run frontend+backend together in dev from root scripts:
   - Frontend source under `src/client/` (SPA).
   - Backend source under `src/server/` (Fastify app, REST routes, SSE endpoint).
-  - Shared types/utilities under `src/shared/` consumed by both client and server (configure TS path aliases and/or a small build step to emit `.d.ts` to keep imports ergonomic).
+  - Shared types/utilities under `src/shared/` consumed by both client and server.
+  - Enforce boundaries: no direct `src/client` <-> `src/server` imports; shared contracts live in `src/shared`.
 - Add tooling:
   - Vitest + jsdom + Testing Library (`@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`).
   - ESLint + Prettier:
@@ -141,13 +146,13 @@ Work:
     - `db` (Postgres) with a named volume.
     - `app` (Node 24 image) that runs both frontend and backend dev scripts (or a combined proxy) and mounts `./data` to `/data`.
   - A `Dockerfile` for production build:
-    - Build: install and build both workspaces (client + server).
-    - Run: start the compiled Fastify entrypoint from the server package (for example `node src/server/dist/index.js`).
+    - Build: install dependencies and build client/server from the root package scripts.
+    - Run: start the compiled Fastify entrypoint (for example `node src/server/dist/index.js`).
 - Add a dev runbook at repo root `README.md` explaining required files and commands.
 
 Acceptance:
 
-- Dev scripts for both client and server run (via workspace root or separate commands) and you can open the home page in a browser.
+- Dev scripts for both client and server run from the root package and you can open the home page in a browser.
 - `GET /api/status` returns JSON with one of `Starting|Online|Offline` (stub initially).
 - `npm test` runs and reports at least one passing test (a smoke test).
 
@@ -367,23 +372,19 @@ Acceptance:
 
 All commands below are run from the repo root unless specified.
 
-1) Scaffold the workspace and front/back apps:
+1) Scaffold the root-package app layout (single `package.json`):
     mkdir -p src/shared src/server
     npm init -y
-    # add `"workspaces": ["src/client", "src/server", "src/shared"]` to package.json
-    npm create vite@latest src/client -- --template react-ts
-    cd src/client && npm install && npm run dev
-    cd ../server && npm init -y
-    # wire a dev script (e.g., `npm run dev:server`) that starts Fastify and watches ts
-    cd ..
+    # keep package.json at repo root only (no workspaces, no nested package.json files)
+    # scaffold Vite React TS source into src/client while preserving root dependency management
+    # add root scripts (e.g., dev:client, dev:server, dev) to run both app parts
 
 Expected: the dev server starts and prints a local URL (record the port used in this plan once known).
 
-IMPORTANT: follow the spec layout under `src/` with `client/`, `server/`, and `shared/` for cross-package types/utilities. Align workspace tooling accordingly (tsconfig paths, eslint, prettier).
+IMPORTANT: follow the spec layout under `src/` with `client/`, `server/`, and `shared/` using one root package. Enforce boundaries so `client` and `server` only share through `src/shared` via relative imports.
 
 2) Add test tooling (frontend):
 
-    cd src/client
     npm add -D vitest jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event
     npm add react-hook-form @hookform/resolvers zod
 
@@ -391,7 +392,6 @@ Expected: `npm test` (after adding a config and at least one test) reports passi
 
 2b) Add Postgres + ORM tooling (backend):
 
-    cd src/server
     npm add pg drizzle-orm
     npm add -D drizzle-kit
 
@@ -524,3 +524,4 @@ Plan change note:
 - (2026-02-08) Updated this ExecPlan to reflect `docs/specs.MD` linting changes: ESLint new flat config should follow TypeScript-ESLint (`strict` + `stylistic`) with `eslint-plugin-react-hooks` flat config and `eslint-plugin-react` integration.
 - (2026-02-08) Updated this ExecPlan to reflect `docs/specs.MD` API changes at the time: app-facing API was documented as tRPC procedures/subscriptions.
 - (2026-02-22) Updated this ExecPlan to reflect current `docs/specs.MD`: app-facing API is REST (`/api/status`, `/api/presets`, `/api/generations`, `/api/generations/{id}/...`) plus live-only SSE at `GET /api/events/generations`, and the client data layer uses SWR.
+- (2026-02-22) Updated this ExecPlan to remove workspace-based setup guidance and align to the spec's single-root `package.json` rule with strict `client`/`server` import boundaries via `src/shared`.

@@ -417,6 +417,10 @@ Re-runs create additional files in the same folder. Naming rule (v1):
   |- /server
   |- /client
   |- /shared
-  package.json (not using workspaces, client should reference server/shared via relative imports)
+- `package.json` at repo root only (no npm workspaces, no nested package manifests for `client`/`server`/`shared`)
+- Import boundary rules:
+  - `src/client` and `src/server` must not import from each other directly
+  - Code shared by both (for example Zod schemas/types) must live in `src/shared`
+  - Use relative imports between folders
 
 ## 19) References
