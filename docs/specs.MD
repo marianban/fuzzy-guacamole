@@ -229,7 +229,7 @@ Recommended response shape (v1):
 ## 7) Generation Lifecycle
 
 States:
-- draft (client-only until user starts; server-side draft exists only after `generation.create`)
+- draft (client-only until user starts; server-side draft exists only after `POST /api/generations`)
 - queued
 - submitted
 - completed
@@ -292,7 +292,7 @@ ComfyUI readiness (v1):
 
 ## 10) Cancel behavior
 
-`generation.cancel` mutation
+`POST /api/generations/{generationId}/cancel`
 
 - queued -> canceled
 - submitted -> interrupt ComfyUI -> canceled
@@ -302,7 +302,7 @@ ComfyUI readiness (v1):
 
 ## 11) Delete behavior
 
-`generation.delete` mutation
+`DELETE /api/generations/{generationId}`
 
 - Allowed for draft, completed, failed, canceled
 - queued -> remove then delete
@@ -331,31 +331,29 @@ Retries (v1):
 
 ## 13) API
 
-Application API is exposed via tRPC (Fastify adapter), not custom REST routes.
+Application API is exposed via REST endpoints (Fastify routes) plus SSE for live generation events.
 
-### Query procedures
-- `status.get`
-- `preset.list`
-- `preset.getById`
-- `generation.list`
-- `generation.getById`
+### REST endpoints
+- `GET /api/status`
+- `GET /api/presets`
+- `GET /api/presets/{presetId}`
+- `GET /api/generations`
+- `GET /api/generations/{generationId}`
+- `POST /api/generations`
+- `POST /api/generations/{generationId}/input`
+- `POST /api/generations/{generationId}/queue`
+- `POST /api/generations/{generationId}/cancel`
+- `DELETE /api/generations/{generationId}`
 
-### Mutation procedures
-- `generation.create`
-- `generation.uploadInput`
-- `generation.queue`
-- `generation.cancel`
-- `generation.delete`
-
-### Subscription procedures
-- `events.generation` (SSE transport via `httpSubscriptionLink`)
+### SSE endpoint
+- `GET /api/events/generations` (`text/event-stream`)
 
 Notes:
-- tRPC subscriptions are live-only in v1 (no replay/catch-up); they emit basic generation status updates and optional progress when available.
+- SSE events are live-only in v1 (no replay/catch-up); they emit basic generation status updates and optional progress when available.
 - `+ New generation` is client-only and does not hit the backend.
-- On Generate, the UI creates the server-side generation (`generation.create`), then:
-  - `img2img`: upload input (`generation.uploadInput`), then queue (`generation.queue`)
-  - `txt2img`: queue directly (`generation.queue`)
+- On Generate, the UI creates the server-side generation (`POST /api/generations`), then:
+  - `img2img`: upload input (`POST /api/generations/{generationId}/input`), then queue (`POST /api/generations/{generationId}/queue`)
+  - `txt2img`: queue directly (`POST /api/generations/{generationId}/queue`)
 
 ---
 
