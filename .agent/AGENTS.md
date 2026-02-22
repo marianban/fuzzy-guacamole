@@ -51,6 +51,4 @@ Wallaby MCP server can be used to check test status and debug failing tests.
 
 ## Skills
 
-For documentation update use doc-coauthoring skill.
-For designing frontend ise case use frontend-design skill.
-When evaluating tests or coverage use wallaby-testing skill.
+Use skills from `.agents/skills/` when implementing features.

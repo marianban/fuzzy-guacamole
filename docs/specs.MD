@@ -28,7 +28,7 @@ Terminology:
 - Runtime: Node.js 24
 - Framework: React, TypeScript (classic SPA no SSR needed), vite + react-ts template
  zod
-- Server: Fastify, trpc for API and SSE + zod for validation, drizzle ORM for Postgres
+- Server: Fastify, REST for API and SSE for events + zod for validation, drizzle ORM for Postgres
 - Linting/formatting: ESLint (use new flat config format), use https://typescript-eslint.io/getting-started + Prettier
 plugins: https://www.npmjs.com/package/eslint-plugin-react-hooks
 https://www.npmjs.com/package/eslint-plugin-react
@@ -422,13 +422,3 @@ Re-runs create additional files in the same folder. Naming rule (v1):
   package.json (not using workspaces, client should reference server/shared via relative imports)
 
 ## 19) References
-
-### 20) Fastify + trpc setup
-
-Example: https://github.com/trpc/trpc/tree/main/examples/fastify-server
-Docs for adapter: https://trpc.io/docs/server/adapters/fastify
-`\examples\trpc\fastify-server` use this as a reference for Fastify + trpc setup, but adapt to our project structure and needs.
-
-Trpc subscriptions: https://trpc.io/docs/server/subscriptions
-SSE https://trpc.io/docs/client/links/httpSubscriptionLink
-`\examples\trpc\next-sse-chat` use this as a reference for SSE implementation, but adapt to our backend + React client.
