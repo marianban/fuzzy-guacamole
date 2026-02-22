@@ -23,6 +23,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-02-22) Synced project-structure guidance to a single root `package.json` (no workspaces) and explicit import boundaries (`client`/`server` only share via `src/shared`).
 - [x] (2026-02-22) Scaffolded root-package app: Vite React client in `src/client`, Fastify server in `src/server`, shared status contract in `src/shared`, Vitest smoke test, ESLint flat config + Prettier, Dockerfile + `docker-compose.yml`, and `README.md` runbook.
 - [x] (2026-02-22) Captured target ComfyUI environment details and locked output persistence policy: ComfyUI `0.8.2`, frontend `v1.36.13`, Manager `V3.39.2`, LAN mode without auth/CSRF, and backend-owned output downloads to `/data/outputs/{generationId}/`.
+- [x] (2026-02-22) Locked prompt-template integration details from exported examples: submit as `{ "prompt": workflow }`, treat `examples/prompts/img2img.json` SaveImage node `3` as canonical v1 output, use API upload for img2img input (no manual copy into Comfy input folder), and scope validation to `img2img.json` + `txt2img.json`.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + REST endpoints (`GET /api/status`, `GET /api/presets`, `GET /api/presets/{presetId}`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
@@ -40,6 +41,10 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
   Evidence: User-provided environment details captured during planning (2026-02-22).
 - Observation: Final output files are backend-owned artifacts and must always be downloaded/saved under `/data/outputs/{generationId}/...`, regardless of ComfyUI internal storage layout.
   Evidence: Product decision confirmed during planning (2026-02-22).
+- Observation: Exported prompt templates under `examples/prompts/` are raw workflow graphs and must be wrapped server-side as `{ "prompt": workflow }` before submit.
+  Evidence: User confirmation during prompt-template review (2026-02-22).
+- Observation: The first img2img template currently includes multiple `SaveImage` nodes; v1 canonical output for `examples/prompts/img2img.json` is node `3` (standard output), while upscaled node `21` is out-of-scope for initial output selection.
+  Evidence: User confirmation during prompt-template review (2026-02-22).
 
 ## Decision Log
 
@@ -139,10 +144,12 @@ Important ComfyUI API assumptions (must be verified early in implementation and 
   - LAN-only deployment without authentication/CSRF
 - Required (per spec): readiness/health is determined by `GET /api/system_stats` returning HTTP 200 and including `system` and `devices`.
 - Required (per spec): submit prompt via `POST /prompt` and poll via `GET /api/history_v2/{prompt_id}` (fallback: `GET /history/{prompt_id}`).
+- Required request payload shape: submit workflows as `{ "prompt": <workflow-json> }` (workflow templates are stored as raw node-graph JSON).
 - Required (per spec): treat a run as ready when history contains the `prompt_id` entry and its `outputs` object is non-empty (tolerate `404` / missing `prompt_id` while executing).
 - Optional (debugging/timeouts): use `GET /api/queue` to cross-check; if a `prompt_id` leaves the queue but never appears in history before the history timeout, fail with `History timeout`.
 - Required output policy: always download exactly one chosen final output image from ComfyUI and persist it to `/data/outputs/{generationId}/...`, regardless of ComfyUI's internal file naming/storage.
-- Likely needed for img2img input transfer: an upload endpoint (commonly `POST /upload/image`) and an image view endpoint (commonly `GET /view?...`) for fetches during execution. If these differ in the target ComfyUI build, adapt the adapter and update this plan.
+- Required for img2img input transfer: upload the source image through Comfy's upload API (`POST /api/upload/image` or OSS-compatible `POST /upload/image` depending on target build), then patch the `LoadImage.inputs.image` value in the workflow with the returned file reference before submit.
+- Current preset-specific output rule: for `examples/prompts/img2img.json`, select output from SaveImage node `3` for v1 single-output persistence.
 
 ## Plan of Work
 
@@ -310,15 +317,16 @@ Work:
   - Surface failure as a generation error (and surface a human-readable cause in `lastError` for `GET /api/status`).
 - Implement ComfyUI adapter `src/server/comfy/client.ts` with methods:
   - `submitPrompt(workflow: unknown): Promise<{ promptId: string; request: unknown; response: unknown }>`
-    - Uses `POST /prompt` per spec.
+    - Uses `POST /prompt` per spec, with request payload shape `{ "prompt": workflow }`.
   - `pollHistory(promptId: string): Promise<HistoryPayload>`
     - Uses `GET /api/history_v2/{promptId}` (fallback: `GET /history/{promptId}`) per spec; treat `404`/missing `promptId` as not-ready; ready when the `outputs` object is non-empty.
   - `interrupt(): Promise<void>`
     - Attempts to stop current execution for cancellation (verify endpoint and record evidence).
-  - `uploadInputImage(filePath: string): Promise<{ comfyImageRef: string }>` (if required for img2img)
-    - If the real ComfyUI expects uploads, use the confirmed endpoint and return the reference used in the workflow.
+  - `uploadInputImage(filePath: string): Promise<{ comfyImageRef: string }>` (required for img2img)
+    - Use Comfy upload API (`POST /api/upload/image` or OSS-compatible `POST /upload/image`), then patch `LoadImage.inputs.image` in the workflow to the returned reference; do not rely on manual file copies to Comfy's `input/` folder.
 - Define how outputs are found and saved:
   - Parse the history payload and choose exactly one output image (first deterministic rule).
+  - For the initial `examples/prompts/img2img.json` preset, select the output associated with SaveImage node `3` as the deterministic rule.
   - Download it from ComfyUI (verify endpoint) and write to `/data/outputs/{generationId}/<timestamp>_<filename>`.
 - Implement retries per spec:
   - One retry for transient network/timeouts during upload/submit/poll.
@@ -520,6 +528,12 @@ Current evidence:
     Authentication/CSRF: disabled (LAN-only)
 - Output persistence policy confirmed (2026-02-22):
     Backend always downloads and saves final outputs to `/data/outputs/{generationId}/...` regardless of Comfy-side storage layout.
+- Prompt-template mapping decisions confirmed (2026-02-22):
+    Workflow templates from `examples/prompts/*.json` are submitted as `{ "prompt": workflow }`.
+    For `examples/prompts/img2img.json`, v1 canonical output is SaveImage node `3` (ignore node `21` for initial release).
+    Img2img input is uploaded through Comfy upload API and injected into `LoadImage.inputs.image` (no manual copy to Comfy input dir).
+- Current prompt-validation scope (2026-02-22):
+    `examples/prompts/img2img.json` and `examples/prompts/txt2img.json`.
 - Validation commands (2026-02-22):
     npm run typecheck  -> pass
     npm run lint       -> pass
@@ -574,3 +588,4 @@ Plan change note:
 - (2026-02-22) Updated this ExecPlan to remove workspace-based setup guidance and align to the spec's single-root `package.json` rule with strict `client`/`server` import boundaries via `src/shared`.
 - (2026-02-22) Started implementation and recorded Milestone 1 completion evidence, including scaffolded project files, verification commands, and execution-environment discoveries (sandbox/esbuild constraints and lint/format scope decisions).
 - (2026-02-22) Recorded confirmed target ComfyUI versions (`0.8.2`, frontend `v1.36.13`, Manager `V3.39.2`), LAN no-auth/no-CSRF mode, and locked the output-storage rule to always persist downloaded outputs under `/data/outputs/{generationId}/`.
+- (2026-02-22) Locked prompt-template integration details from `examples/prompts/`: submit as `{ "prompt": workflow }`, upload img2img inputs through Comfy API (no manual input-dir copy), use SaveImage node `3` as canonical v1 img2img output, and keep initial validation scope to `img2img.json` + `txt2img.json`.

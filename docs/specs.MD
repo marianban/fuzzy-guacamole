@@ -73,6 +73,12 @@ https://www.npmjs.com/package/eslint-plugin-react
   - /data/inputs/
   - /data/outputs/
 
+Current target ComfyUI environment (locked for v1 integration):
+- ComfyUI `0.8.2`
+- ComfyUI_frontend `v1.36.13`
+- ComfyUI-Manager `V3.39.2`
+- LAN-only mode without authentication/CSRF
+
 ---
 
 ## 3) Configuration (file-based, no UI)
@@ -166,6 +172,13 @@ Implementation rules:
 Validation rules (v1):
 - At queue time, fail if any placeholder token exists in the workflow but has no value.
 - Do not validate models/assets on the ComfyUI machine; if the workflow fails, surface the error.
+
+### 4.5 Initial validated workflow templates (2026-02-22)
+
+- Current implementation validation scope:
+  - `examples/prompts/img2img.json`
+  - `examples/prompts/txt2img.json`
+- For `examples/prompts/img2img.json`, v1 canonical final output is SaveImage node `3` (ignore upscaled SaveImage node `21` for initial release).
 
 ---
 
@@ -268,9 +281,16 @@ Re-run behavior:
 
 ## 9) ComfyUI execution
 
-- POST /prompt -> prompt_id
+- POST /prompt with body `{ "prompt": <workflow-json> }` -> prompt_id
 - GET /api/history_v2/{prompt_id} (fallback: /history/{prompt_id}) polling
 - One output image expected
+
+### 9.0 img2img input transfer and output persistence
+
+- For img2img, backend uploads the source image to Comfy via API (`POST /api/upload/image` or OSS-compatible `POST /upload/image` depending on target endpoint availability).
+- Backend injects the uploaded file reference into the workflow (`LoadImage.inputs.image`) before `POST /prompt`.
+- Backend does not rely on manual filesystem copy into ComfyUI `input/`.
+- Final outputs are always downloaded from Comfy and persisted under `/data/outputs/{generationId}/...` regardless of Comfy-side storage layout.
 
 ### 9.1 Checking when a run is "ready"
 
