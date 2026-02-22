@@ -22,6 +22,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-02-22) Synced ExecPlan to current `docs/specs.MD` API contract and client data layer (REST endpoints + SSE events + SWR, replacing outdated tRPC references).
 - [x] (2026-02-22) Synced project-structure guidance to a single root `package.json` (no workspaces) and explicit import boundaries (`client`/`server` only share via `src/shared`).
 - [x] (2026-02-22) Scaffolded root-package app: Vite React client in `src/client`, Fastify server in `src/server`, shared status contract in `src/shared`, Vitest smoke test, ESLint flat config + Prettier, Dockerfile + `docker-compose.yml`, and `README.md` runbook.
+- [x] (2026-02-22) Captured target ComfyUI environment details and locked output persistence policy: ComfyUI `0.8.2`, frontend `v1.36.13`, Manager `V3.39.2`, LAN mode without auth/CSRF, and backend-owned output downloads to `/data/outputs/{generationId}/`.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + REST endpoints (`GET /api/status`, `GET /api/presets`, `GET /api/presets/{presetId}`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
@@ -35,6 +36,10 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
   Evidence: `npm install ...` returned `ENOTCACHED`; `vitest` and `vite build` returned `spawn EPERM`; rerunning with escalated permissions succeeded.
 - Observation: Repo-wide lint/format attempted to process `.agent/` and `.agents/` skill assets, which contain template files that are intentionally not valid for this app's linting/parsing rules.
   Evidence: ESLint/Prettier initially failed on `.agents/skills/react-hook-form-zod/templates/*`; adding ignore rules for agent folders made checks deterministic for project source.
+- Observation: Target ComfyUI deployment for v1 is confirmed as ComfyUI `0.8.2` + `ComfyUI_frontend v1.36.13` + `ComfyUI-Manager V3.39.2`, running on LAN with no authentication/CSRF.
+  Evidence: User-provided environment details captured during planning (2026-02-22).
+- Observation: Final output files are backend-owned artifacts and must always be downloaded/saved under `/data/outputs/{generationId}/...`, regardless of ComfyUI internal storage layout.
+  Evidence: Product decision confirmed during planning (2026-02-22).
 
 ## Decision Log
 
@@ -68,6 +73,9 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - Decision: Exclude `.agent/`, `.agents/`, and docs from lint/format checks for app development commands.
   Rationale: Those folders include instructional/template assets outside runtime code ownership and they create non-actionable failures during normal CI-style checks.
   Date/Author: 2026-02-22 / Codex (GPT-5)
+- Decision: Treat backend-persisted files under `/data/outputs/{generationId}/...` as the only canonical generation outputs, even when ComfyUI stores files elsewhere internally.
+  Rationale: Keeps product behavior deterministic across Comfy builds and decouples UI/history from Comfy filesystem conventions.
+  Date/Author: 2026-02-22 / User + Codex (GPT-5)
 - Decision (superseded): Use Postgres with a minimal SQL migration runner checked into the repo.
   Rationale: Avoided heavy ORM lock-in while keeping schema changes explicit and reproducible for novices.
   Date/Author: 2026-01-24 / Codex (GPT-5.2)
@@ -124,11 +132,17 @@ Engineering and workflow expectations (keep this section aligned with `.agent/AG
 
 Important ComfyUI API assumptions (must be verified early in implementation and recorded in `Surprises & Discoveries`):
 
+- Target environment confirmed (2026-02-22):
+  - ComfyUI `0.8.2`
+  - `ComfyUI_frontend v1.36.13`
+  - `ComfyUI-Manager V3.39.2`
+  - LAN-only deployment without authentication/CSRF
 - Required (per spec): readiness/health is determined by `GET /api/system_stats` returning HTTP 200 and including `system` and `devices`.
 - Required (per spec): submit prompt via `POST /prompt` and poll via `GET /api/history_v2/{prompt_id}` (fallback: `GET /history/{prompt_id}`).
 - Required (per spec): treat a run as ready when history contains the `prompt_id` entry and its `outputs` object is non-empty (tolerate `404` / missing `prompt_id` while executing).
 - Optional (debugging/timeouts): use `GET /api/queue` to cross-check; if a `prompt_id` leaves the queue but never appears in history before the history timeout, fail with `History timeout`.
-- Likely needed for img2img: an upload endpoint (commonly `POST /upload/image`) and an image view endpoint (commonly `GET /view?...`) to retrieve output images. If these differ in the target ComfyUI build, adapt the adapter and update this plan.
+- Required output policy: always download exactly one chosen final output image from ComfyUI and persist it to `/data/outputs/{generationId}/...`, regardless of ComfyUI's internal file naming/storage.
+- Likely needed for img2img input transfer: an upload endpoint (commonly `POST /upload/image`) and an image view endpoint (commonly `GET /view?...`) for fetches during execution. If these differ in the target ComfyUI build, adapt the adapter and update this plan.
 
 ## Plan of Work
 
@@ -499,6 +513,13 @@ During implementation, capture short evidence snippets here (indented) such as:
 
 Current evidence:
 
+- Target ComfyUI environment for this plan (2026-02-22):
+    ComfyUI 0.8.2
+    ComfyUI_frontend v1.36.13
+    ComfyUI-Manager V3.39.2
+    Authentication/CSRF: disabled (LAN-only)
+- Output persistence policy confirmed (2026-02-22):
+    Backend always downloads and saves final outputs to `/data/outputs/{generationId}/...` regardless of Comfy-side storage layout.
 - Validation commands (2026-02-22):
     npm run typecheck  -> pass
     npm run lint       -> pass
@@ -552,3 +573,4 @@ Plan change note:
 - (2026-02-22) Updated this ExecPlan to reflect current `docs/specs.MD`: app-facing API is REST (`/api/status`, `/api/presets`, `/api/generations`, `/api/generations/{id}/...`) plus live-only SSE at `GET /api/events/generations`, and the client data layer uses SWR.
 - (2026-02-22) Updated this ExecPlan to remove workspace-based setup guidance and align to the spec's single-root `package.json` rule with strict `client`/`server` import boundaries via `src/shared`.
 - (2026-02-22) Started implementation and recorded Milestone 1 completion evidence, including scaffolded project files, verification commands, and execution-environment discoveries (sandbox/esbuild constraints and lint/format scope decisions).
+- (2026-02-22) Recorded confirmed target ComfyUI versions (`0.8.2`, frontend `v1.36.13`, Manager `V3.39.2`), LAN no-auth/no-CSRF mode, and locked the output-storage rule to always persist downloaded outputs under `/data/outputs/{generationId}/`.
