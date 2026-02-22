@@ -21,7 +21,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-02-08) Synced ExecPlan linting details with `docs/specs.MD` (TypeScript-ESLint flat config with strict/stylistic presets plus React Hooks/React plugins).
 - [x] (2026-02-22) Synced ExecPlan to current `docs/specs.MD` API contract and client data layer (REST endpoints + SSE events + SWR, replacing outdated tRPC references).
 - [x] (2026-02-22) Synced project-structure guidance to a single root `package.json` (no workspaces) and explicit import boundaries (`client`/`server` only share via `src/shared`).
-- [ ] (YYYY-MM-DD) Scaffold Vite React app + Fastify REST server + tooling (TypeScript, Vitest, ESLint/Prettier) and Docker dev stack.
+- [x] (2026-02-22) Scaffolded root-package app: Vite React client in `src/client`, Fastify server in `src/server`, shared status contract in `src/shared`, Vitest smoke test, ESLint flat config + Prettier, Dockerfile + `docker-compose.yml`, and `README.md` runbook.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + REST endpoints (`GET /api/status`, `GET /api/presets`, `GET /api/presets/{presetId}`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
@@ -31,8 +31,10 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 
 ## Surprises & Discoveries
 
-- Observation: None yet; update this section during implementation.
-  Evidence: N/A
+- Observation: `npm install`, `npm run test`, and `npm run build` failed in sandboxed mode because the environment blocked package fetches and esbuild subprocess spawning.
+  Evidence: `npm install ...` returned `ENOTCACHED`; `vitest` and `vite build` returned `spawn EPERM`; rerunning with escalated permissions succeeded.
+- Observation: Repo-wide lint/format attempted to process `.agent/` and `.agents/` skill assets, which contain template files that are intentionally not valid for this app's linting/parsing rules.
+  Evidence: ESLint/Prettier initially failed on `.agents/skills/react-hook-form-zod/templates/*`; adding ignore rules for agent folders made checks deterministic for project source.
 
 ## Decision Log
 
@@ -60,22 +62,32 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - Decision: Align the app integration contract to REST endpoints plus an SSE events stream, and use SWR on the client for fetching/caching.
   Rationale: `docs/specs.MD` now defines concrete REST routes (`/api/status`, `/api/presets`, `/api/generations`, `/api/events/generations`), so the plan must remove stale tRPC assumptions to avoid implementation drift.
   Date/Author: 2026-02-22 / Codex (GPT-5)
+- Decision: Keep the Milestone 1 status flow minimal by exposing a typed `GET /api/status` stub from Fastify and consuming it via SWR in the React shell.
+  Rationale: This satisfies Milestone 1 acceptance criteria while establishing the shared client/server contract to evolve in Milestone 2.
+  Date/Author: 2026-02-22 / Codex (GPT-5)
+- Decision: Exclude `.agent/`, `.agents/`, and docs from lint/format checks for app development commands.
+  Rationale: Those folders include instructional/template assets outside runtime code ownership and they create non-actionable failures during normal CI-style checks.
+  Date/Author: 2026-02-22 / Codex (GPT-5)
 - Decision (superseded): Use Postgres with a minimal SQL migration runner checked into the repo.
   Rationale: Avoided heavy ORM lock-in while keeping schema changes explicit and reproducible for novices.
   Date/Author: 2026-01-24 / Codex (GPT-5.2)
 
 ## Outcomes & Retrospective
 
-- (Fill in at milestone completion) What shipped, what didn't, and what we learned.
+- (2026-02-22) Milestone 1 shipped: project scaffolding, stub status API, client shell, test/lint/format/build scripts, Docker assets, and local runbook. Not shipped yet: runtime config/presets, database schema, worker/comfy integration, SSE updates, and full UI workflow.
 
 ## Context and Orientation
 
 Repository state today:
 
-- Repo root contains only:
-  - `docs/specs.MD`: the v1 product specification (LAN-only, no auth, single output per run, img2img + txt2img presets on disk, Postgres model, worker, remote bring-up via WOL+SSH, ComfyUI readiness via `/api/system_stats`, ComfyUI `/prompt` + `/api/history_v2` polling with `/history` fallback).
-  - `.agent/PLANS.md`: requirements for writing/maintaining ExecPlans.
-  - `.agent/AGENTS.md`: high-level repo/process notes (expected stack + dev/testing/frontend best practices + MCP usage + skills).
+- Repo root now includes a working Milestone 1 scaffold:
+  - Root `package.json` with scripts for dev/build/typecheck/test/lint/format.
+  - `src/client` Vite React SPA scaffold (status card polling `/api/status` via SWR).
+  - `src/server` Fastify server scaffold with `GET /api/status` stub and `GET /healthz`.
+  - `src/shared/status.ts` Zod schema + shared status types.
+  - Tooling/config files (`vitest.config.ts`, `eslint.config.mjs`, Prettier config, TypeScript configs).
+  - Docker assets (`Dockerfile`, `docker-compose.yml`) and root `README.md` runbook.
+  - Existing docs in `docs/` and process docs in `.agent/`.
 
 Core domain definitions (use these terms consistently in code and docs):
 
@@ -485,6 +497,20 @@ During implementation, capture short evidence snippets here (indented) such as:
 - A short log line sequence showing worker progression.
 - The exact ComfyUI endpoints confirmed in the target environment.
 
+Current evidence:
+
+- Validation commands (2026-02-22):
+    npm run typecheck  -> pass
+    npm run lint       -> pass
+    npm run format     -> pass
+    npm run test       -> 1 passed
+    npm run build      -> client+server build pass
+- `GET /api/status` verified against running built server:
+    {
+      "state": "Starting",
+      "since": "2026-02-22T10:11:22.857Z"
+    }
+
 ## Interfaces and Dependencies
 
 Required libraries/tech:
@@ -525,3 +551,4 @@ Plan change note:
 - (2026-02-08) Updated this ExecPlan to reflect `docs/specs.MD` API changes at the time: app-facing API was documented as tRPC procedures/subscriptions.
 - (2026-02-22) Updated this ExecPlan to reflect current `docs/specs.MD`: app-facing API is REST (`/api/status`, `/api/presets`, `/api/generations`, `/api/generations/{id}/...`) plus live-only SSE at `GET /api/events/generations`, and the client data layer uses SWR.
 - (2026-02-22) Updated this ExecPlan to remove workspace-based setup guidance and align to the spec's single-root `package.json` rule with strict `client`/`server` import boundaries via `src/shared`.
+- (2026-02-22) Started implementation and recorded Milestone 1 completion evidence, including scaffolded project files, verification commands, and execution-environment discoveries (sandbox/esbuild constraints and lint/format scope decisions).
