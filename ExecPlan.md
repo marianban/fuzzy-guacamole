@@ -25,6 +25,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-02-22) Captured target ComfyUI environment details and locked output persistence policy: ComfyUI `0.8.2`, frontend `v1.36.13`, Manager `V3.39.2`, LAN mode without auth/CSRF, and backend-owned output downloads to `/data/outputs/{generationId}/`.
 - [x] (2026-02-22) Locked prompt-template integration details from exported examples: submit as `{ "prompt": workflow }`, treat `examples/prompts/img2img.json` SaveImage node `3` as canonical v1 output, use API upload for img2img input (no manual copy into Comfy input folder), and scope validation to `img2img.json` + `txt2img.json`.
 - [x] (2026-02-28) Implemented Comfy client integration test harness in `src/server/comfy/client.integration.test.ts` with dual modes (`COMFY_TEST_MODE=mock|local`), mock fixture replay (`src/server/comfy/__fixtures__/captured/comfy-v0.8.2-contract.json`), and live contract coverage for health/upload/submit/history polling.
+- [x] (2026-02-28) Synced ExecPlan with `.agent/AGENTS.md` architecture-doc requirement: maintain `docs/architecture.MD` with concise overview-focused architecture notes and embedded Mermaid diagrams.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + REST endpoints (`GET /api/status`, `GET /api/presets`, `GET /api/presets/{presetId}`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
@@ -137,6 +138,7 @@ Engineering and workflow expectations (keep this section aligned with `.agent/AG
 - During implementation: run relevant tests (preferably fail-first for new behavior), lint, and formatting; then run the app locally and verify UI behavior in Chrome Devtools MCP (Console + Network), fixing warnings when they are actionable.
 - MCPs: use Context7 for docs when adopting libraries/frameworks; use Chrome Devtools MCP to verify UI; optionally use Wallaby MCP for test status/debugging.
 - Skills (when applicable): use `doc-coauthoring` for doc updates, `frontend-design` for frontend design work, and `wallaby-testing` when using Wallaby.
+- Architecture docs: whenever code is added/changed, create and maintain `docs/architecture.MD` with clear, concise system-overview content and Mermaid diagrams embedded directly in the Markdown.
 
 Important ComfyUI API assumptions (must be verified early in implementation and recorded in `Surprises & Discoveries`):
 
@@ -618,3 +620,4 @@ Plan change note:
 - (2026-02-22) Started implementation and recorded Milestone 1 completion evidence, including scaffolded project files, verification commands, and execution-environment discoveries (sandbox/esbuild constraints and lint/format scope decisions).
 - (2026-02-22) Recorded confirmed target ComfyUI versions (`0.8.2`, frontend `v1.36.13`, Manager `V3.39.2`), LAN no-auth/no-CSRF mode, and locked the output-storage rule to always persist downloaded outputs under `/data/outputs/{generationId}/`.
 - (2026-02-22) Locked prompt-template integration details from `examples/prompts/`: submit as `{ "prompt": workflow }`, upload img2img inputs through Comfy API (no manual input-dir copy), use SaveImage node `3` as canonical v1 img2img output, and keep initial validation scope to `img2img.json` + `txt2img.json`.
+- (2026-02-28) Updated this ExecPlan to reflect `.agent/AGENTS.md` documentation changes: code changes must keep `docs/architecture.MD` up to date with concise overview-level architecture descriptions and Mermaid diagrams embedded directly in the file.

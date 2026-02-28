@@ -9,6 +9,9 @@ This repo currently contains the product specification and agent workflow docs f
 ## Documentation
 
 - Specs live in `docs/`. Start with `docs/specs.MD`.
+- When writing code, create and maintain architecture docs in `docs/architecture.MD`.
+- Keep architecture descriptions clear and concise: provide an overview, not low-level detail.
+- Include Mermaid diagrams directly in `docs/architecture.MD` when describing architecture.
 - Agent process docs live in `.agent/`.
 - ComfyUI OpenAPI docs in `docs/ComfyApi.md` use when needed.
 - Code examples should be in `examples/` and referenced from specs when relevant.
