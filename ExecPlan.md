@@ -327,6 +327,11 @@ Work:
 - Add a dedicated Comfy adapter integration-test harness in `src/server/comfy/client.integration.test.ts`:
   - Support `COMFY_TEST_MODE=local|mock` (default `mock`).
   - For `local` mode, require `COMFY_BASE_URL` and run only when `COMFY_RUN_LOCAL_TESTS=1` is set.
+  - Use a capture-and-replay fixture flow for mocks:
+    - First run the adapter suite against local ComfyUI and capture sanitized request/response fixtures.
+    - Store fixtures under `src/server/comfy/__fixtures__/captured/` (JSON only; no binary image blobs).
+    - In `mock` mode, replay those captured fixtures so CI behavior mirrors the real instance contract.
+    - Refresh fixtures only when ComfyUI contract changes, and record the refresh date/version in `Surprises & Discoveries`.
   - Keep tests serial (`--pool=threads --poolOptions.threads.maxThreads=1` or equivalent) because v1 worker/queue is single-flight and local Comfy resources are shared.
   - Validate the actual adapter contract end-to-end:
     - `healthCheck` succeeds from `GET /api/system_stats`.
@@ -509,7 +514,7 @@ Tests (minimum bar):
 - Unit tests for placeholder expansion (token replacement and validation).
 - Integration tests for generation lifecycle and Comfy adapter contract in two modes:
   - Local acceptance mode (`COMFY_RUN_LOCAL_TESTS=1 COMFY_TEST_MODE=local`) communicates with the installed ComfyUI instance and must pass before milestone sign-off.
-  - Mock mode (`COMFY_TEST_MODE=mock`) remains required for deterministic CI coverage.
+  - Mock mode (`COMFY_TEST_MODE=mock`) replays fixtures captured from local mode and remains required for deterministic CI coverage.
   - Example local run command (PowerShell): ``$env:COMFY_RUN_LOCAL_TESTS='1'; $env:COMFY_TEST_MODE='local'; npm run test -- src/server/comfy/client.integration.test.ts``.
   - Example CI/mock command: ``$env:COMFY_TEST_MODE='mock'; npm run test -- src/server/comfy/client.integration.test.ts``.
   - Fail before implementation, pass after.
