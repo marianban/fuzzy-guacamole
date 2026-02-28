@@ -12,6 +12,7 @@ This repo currently contains the product specification and agent workflow docs f
 - When writing code, create and maintain architecture docs in `docs/architecture.MD`.
 - Keep architecture descriptions clear and concise: provide an overview, not low-level detail.
 - Include Mermaid diagrams directly in `docs/architecture.MD` when describing architecture.
+- `docs/architecture.MD` is a current-state document only: reflect implemented code as-is, remove outdated content, and do not use it for planning or future-state proposals.
 - Agent process docs live in `.agent/`.
 - ComfyUI OpenAPI docs in `docs/ComfyApi.md` use when needed.
 - Code examples should be in `examples/` and referenced from specs when relevant.
