@@ -24,6 +24,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-02-22) Scaffolded root-package app: Vite React client in `src/client`, Fastify server in `src/server`, shared status contract in `src/shared`, Vitest smoke test, ESLint flat config + Prettier, Dockerfile + `docker-compose.yml`, and `README.md` runbook.
 - [x] (2026-02-22) Captured target ComfyUI environment details and locked output persistence policy: ComfyUI `0.8.2`, frontend `v1.36.13`, Manager `V3.39.2`, LAN mode without auth/CSRF, and backend-owned output downloads to `/data/outputs/{generationId}/`.
 - [x] (2026-02-22) Locked prompt-template integration details from exported examples: submit as `{ "prompt": workflow }`, treat `examples/prompts/img2img.json` SaveImage node `3` as canonical v1 output, use API upload for img2img input (no manual copy into Comfy input folder), and scope validation to `img2img.json` + `txt2img.json`.
+- [x] (2026-02-28) Implemented Comfy client integration test harness in `src/server/comfy/client.integration.test.ts` with dual modes (`COMFY_TEST_MODE=mock|local`), mock fixture replay (`src/server/comfy/__fixtures__/captured/comfy-v0.8.2-contract.json`), and live contract coverage for health/upload/submit/history polling.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + REST endpoints (`GET /api/status`, `GET /api/presets`, `GET /api/presets/{presetId}`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
@@ -45,6 +46,8 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
   Evidence: User confirmation during prompt-template review (2026-02-22).
 - Observation: The first img2img template currently includes multiple `SaveImage` nodes; v1 canonical output for `examples/prompts/img2img.json` is node `3` (standard output), while upscaled node `21` is out-of-scope for initial output selection.
   Evidence: User confirmation during prompt-template review (2026-02-22).
+- Observation: On the target local ComfyUI instance (`0.8.2`), both `/api/*` and legacy non-`/api` routes respond for key endpoints (`system_stats`, `prompt`, `history`, `interrupt`), so the adapter should keep fallback path support.
+  Evidence: Manual probes against `http://127.0.0.1:8188` on 2026-02-28 returned `200` for both route families.
 
 ## Decision Log
 
@@ -566,6 +569,11 @@ Current evidence:
       "state": "Starting",
       "since": "2026-02-22T10:11:22.857Z"
     }
+- Local Comfy endpoint probes on 2026-02-28:
+    GET `http://127.0.0.1:8188/api/system_stats` -> 200
+    GET `http://127.0.0.1:8188/system_stats` -> 200
+    GET `http://127.0.0.1:8188/api/prompt` -> 200
+    GET `http://127.0.0.1:8188/prompt` -> 200
 
 ## Interfaces and Dependencies
 
