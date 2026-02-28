@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -47,6 +47,11 @@ const fixturePath = path.resolve(
   '__fixtures__/captured/comfy-v0.8.2-contract.json'
 );
 const tinyPngPath = path.resolve(currentDir, '__fixtures__/input/tiny.png');
+const liankaInputImagePath = path.resolve(
+  currentDir,
+  '__fixtures__/input/liankavalentincropped.png'
+);
+const outputDirPath = path.resolve(currentDir, '__fixtures__/output');
 const txt2imgTemplatePath = path.resolve(currentDir, '../../../examples/prompts/txt2img.json');
 const img2imgTemplatePath = path.resolve(currentDir, '../../../examples/prompts/img2img.json');
 
@@ -158,6 +163,44 @@ describe.sequential('ComfyClient integration (local ComfyUI)', () => {
       }
     }
   );
+
+  run(
+    'given_local_comfy_when_running_img2img_with_lianka_input_then_poll_until_done_and_download_output',
+    { timeout: 900_000 },
+    async () => {
+      const startedAt = Date.now();
+      const client = new ComfyClient({
+        baseUrl,
+        historyPollMs: 1_500,
+        historyTimeoutMs: 720_000
+      });
+      const img2imgWorkflow = await loadWorkflow(img2imgTemplatePath);
+
+      const upload = await client.uploadInputImage(liankaInputImagePath);
+      setLoadImageReference(img2imgWorkflow, upload.comfyImageRef, '12');
+      setImg2ImgPrompt(img2imgWorkflow, startedAt);
+
+      const submitted = await client.submitPrompt(img2imgWorkflow);
+      expect(submitted.promptId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      );
+      const historyResult = await client.pollHistory(submitted.promptId);
+      expect(historyResult.history[submitted.promptId]).toBeDefined();
+      const outputImage = extractDeterministicOutputImage(
+        historyResult.history,
+        submitted.promptId,
+        '3'
+      );
+      const downloadedImage = await client.downloadImage(outputImage);
+      await saveOutputImageFixture(submitted.promptId, outputImage.filename, downloadedImage);
+
+      expect(downloadedImage.byteLength).toBeGreaterThan(0);
+      const elapsedMs = Date.now() - startedAt;
+      console.info(
+        `Comfy local img2img completed promptId=${submitted.promptId} durationMs=${elapsedMs}`
+      );
+    }
+  );
 });
 
 async function loadFixture(): Promise<CapturedFixture> {
@@ -192,6 +235,26 @@ function prepareTxt2ImgWorkflowForFastTest(workflow: Record<string, unknown>): v
   const saveNode = workflow['60'] as { inputs?: Record<string, unknown> } | undefined;
   if (saveNode?.inputs !== undefined) {
     saveNode.inputs.filename_prefix = `vitest_txt2img_${Date.now()}`;
+  }
+}
+
+function setImg2ImgPrompt(workflow: Record<string, unknown>, nonce: number): void {
+  const positivePromptNode = workflow['14'] as
+    | { inputs?: Record<string, unknown> }
+    | undefined;
+  if (positivePromptNode?.inputs !== undefined) {
+    positivePromptNode.inputs.prompt =
+      "transform style to european children's book illustration, watercolor, muted pastel palette.";
+  }
+
+  const samplerNode = workflow['7'] as { inputs?: Record<string, unknown> } | undefined;
+  if (samplerNode?.inputs !== undefined) {
+    samplerNode.inputs.seed = nonce;
+  }
+
+  const saveNode = workflow['3'] as { inputs?: Record<string, unknown> } | undefined;
+  if (saveNode?.inputs !== undefined) {
+    saveNode.inputs.filename_prefix = `vitest_img2img_${nonce}`;
   }
 }
 
@@ -278,4 +341,16 @@ async function writeCapturedFixture(
   };
 
   await writeFile(fixturePath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+}
+
+async function saveOutputImageFixture(
+  promptId: string,
+  originalFilename: string,
+  imageBytes: Buffer
+): Promise<void> {
+  await mkdir(outputDirPath, { recursive: true });
+  const extension = path.extname(originalFilename) || '.png';
+  const outputFilename = `img2img_${promptId}${extension}`;
+  const outputPath = path.join(outputDirPath, outputFilename);
+  await writeFile(outputPath, imageBytes);
 }

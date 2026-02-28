@@ -207,7 +207,7 @@ export class ComfyClient {
 
     while (Date.now() < deadline) {
       const history = await this.getHistoryForPrompt(promptId);
-      const entry = history[promptId] ?? Object.values(history)[0];
+      const entry = history[promptId];
 
       if (entry?.outputs !== undefined && Object.keys(entry.outputs).length > 0) {
         return { history, entry };
@@ -384,7 +384,7 @@ export function extractDeterministicOutputImage(
   promptId: string,
   preferredSaveNodeId?: string
 ): ComfyOutputImage {
-  const entry = history[promptId] ?? Object.values(history)[0];
+  const entry = history[promptId];
   if (entry === undefined || entry.outputs === undefined) {
     throw new Error(`No history entry with outputs found for prompt ${promptId}.`);
   }
