@@ -32,6 +32,7 @@ This repo currently contains the product specification and agent workflow docs f
 
 - Implement tests as a separate step, and validate that new tests fail before moving to feature implementation.
 - Prefer small, deterministic tests; avoid timing-sensitive flakiness.
+- Follow Test-Driven Development principles
 - Add/extend tests with every behavior change; bugfixes require a regression test.
 - For UI: use `@testing-library/react` with user-visible queries (`getByRole`, `getByLabelText`), and drive interactions with `user-event`.
 - Assert outcomes/side effects (rendered text, disabled states, network calls) rather than implementation details.
