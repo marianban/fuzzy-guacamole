@@ -27,6 +27,7 @@ This repo currently contains the product specification and agent workflow docs f
 - after implementing a feature ensure a good test coverage, check linting and formatting and fix any issues. Then run the app locally to verify the feature works as expected by using chrome devtools mcp. Verify no errors are shown in the console and network tab. In case of warnings evaluate if they should be fixed.
 - for naming tests use gherkin syntax given_when_then format where applicable.
 - format code using prettier
+- mandatory quality gate for every code change: all edited files must be Prettier-formatted and pass ESLint with zero lint errors before the task is considered complete.
 
 ## Testing Best Practices
 
