@@ -21,7 +21,8 @@
     "lint": "eslint . --max-warnings=0",
     "mermaid:lint": "node scripts/lint-mermaid.mjs",
     "format": "prettier --check .",
-    "format:write": "prettier --write ."
+    "format:write": "prettier --write .",
+    "cloc": "npx cloc . --exclude-dir=coverage,dist,node_modules"
   },
   "keywords": [
     "comfyui",

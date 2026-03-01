@@ -125,4 +125,32 @@ describe('preset loading and routes', () => {
       /Preset type mismatch/
     );
   });
+
+  it('given_list_result_when_mutated_then_catalog_state_is_not_modified', async () => {
+    const presetsRoot = await mkdtemp(path.join(tmpdir(), 'fg-presets-'));
+    tempDirs.push(presetsRoot);
+    const templateDir = path.join(presetsRoot, 'img2img-basic');
+    await mkdir(templateDir, { recursive: true });
+
+    await writeJsonFile(path.join(templateDir, 'prompt.template.json'), {
+      id: 'img2img-basic',
+      type: 'img2img',
+      workflow: {},
+      placeholders: {}
+    });
+
+    await writeJsonFile(path.join(templateDir, 'basic.preset.json'), {
+      id: 'img2img-basic/basic',
+      name: 'Img2Img - Basic',
+      type: 'img2img',
+      template: 'prompt.template.json',
+      defaults: {}
+    });
+
+    const catalog = await loadPresetCatalog({ presetsDir: presetsRoot });
+    const firstList = catalog.list();
+    firstList.splice(0, 1);
+
+    expect(catalog.list()).toHaveLength(1);
+  });
 });

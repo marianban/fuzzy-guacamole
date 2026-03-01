@@ -5,14 +5,14 @@ import {
   rmSync,
   statSync,
   writeFileSync
-} from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import process from "node:process";
-import { execSync } from "node:child_process";
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import process from 'node:process';
+import { execSync } from 'node:child_process';
 
-const DEFAULT_FILES = ["README.md", "README.MD"];
-const DEFAULT_DIRS = ["docs"];
+const DEFAULT_FILES = ['README.md', 'README.MD'];
+const DEFAULT_DIRS = ['docs'];
 
 function extractMermaidBlocks(content) {
   const blocks = [];
@@ -25,7 +25,7 @@ function extractMermaidBlocks(content) {
 }
 
 function validateFile(filePath) {
-  const content = readFileSync(filePath, "utf8");
+  const content = readFileSync(filePath, 'utf8');
   const blocks = extractMermaidBlocks(content);
 
   if (blocks.length === 0) {
@@ -35,22 +35,22 @@ function validateFile(filePath) {
   const errors = [];
   for (let i = 0; i < blocks.length; i += 1) {
     const diagram = blocks[i];
-    const tmpBase = mkdtempSync(path.join(tmpdir(), "mermaid-lint-"));
-    const inputPath = path.join(tmpBase, "diagram.mmd");
-    const outputPath = path.join(tmpBase, "diagram.svg");
-    writeFileSync(inputPath, `${diagram}\n`, "utf8");
+    const tmpBase = mkdtempSync(path.join(tmpdir(), 'mermaid-lint-'));
+    const inputPath = path.join(tmpBase, 'diagram.mmd');
+    const outputPath = path.join(tmpBase, 'diagram.svg');
+    writeFileSync(inputPath, `${diagram}\n`, 'utf8');
 
     try {
       execSync(`npx mmdc -i "${inputPath}" -o "${outputPath}"`, {
-        stdio: "pipe",
-        encoding: "utf8"
+        stdio: 'pipe',
+        encoding: 'utf8'
       });
     } catch (error) {
       const rawMessage = (
         error?.stderr ||
         error?.stdout ||
         error?.message ||
-        "Unknown Mermaid parser error"
+        'Unknown Mermaid parser error'
       )
         .toString()
         .trim();
@@ -91,13 +91,15 @@ function main() {
     inputPaths.length > 0
       ? inputPaths.filter((p) => statSync(p, { throwIfNoEntry: false })?.isFile())
       : [
-          ...DEFAULT_FILES.filter((f) => statSync(f, { throwIfNoEntry: false })?.isFile()),
+          ...DEFAULT_FILES.filter((f) =>
+            statSync(f, { throwIfNoEntry: false })?.isFile()
+          ),
           ...DEFAULT_DIRS.flatMap((dir) => walkMarkdownFiles(dir))
         ];
   const uniqueFiles = [...new Set(files)].sort((a, b) => a.localeCompare(b));
 
   if (uniqueFiles.length === 0) {
-    console.error("No markdown files found to check.");
+    console.error('No markdown files found to check.');
     process.exit(1);
   }
 
@@ -123,7 +125,7 @@ function main() {
   }
 
   if (totalBlocks === 0) {
-    console.error("No mermaid blocks found in matched markdown files.");
+    console.error('No mermaid blocks found in matched markdown files.');
     process.exit(1);
   }
 

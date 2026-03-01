@@ -15,7 +15,7 @@ interface LoadPresetCatalogOptions {
 }
 
 export interface PresetCatalog {
-  list(): PresetSummary[];
+  list(): readonly PresetSummary[];
   getById(presetId: string): PresetDetail | undefined;
 }
 
@@ -28,8 +28,8 @@ class InMemoryPresetCatalog implements PresetCatalog {
     this.#detailsById = detailsById;
   }
 
-  list(): PresetSummary[] {
-    return this.#summaries;
+  list(): readonly PresetSummary[] {
+    return [...this.#summaries];
   }
 
   getById(presetId: string): PresetDetail | undefined {
@@ -160,9 +160,7 @@ interface AssertTemplateFileReferenceOptions {
   presetPath: string;
 }
 
-function assertTemplateFileReference(
-  options: AssertTemplateFileReferenceOptions
-): void {
+function assertTemplateFileReference(options: AssertTemplateFileReferenceOptions): void {
   const resolvedTemplatePath = path.resolve(
     options.templateDirPath,
     options.presetTemplateFile
