@@ -23,12 +23,47 @@ Terminology:
 
 ---
 
-## 2) Deployment
+## 2) Development Stack
 
 - Runtime: Node.js 24
-- Framework: React, TypeScript (classic SPA no SSR needed), TanStack Start
+- Framework: React, TypeScript (classic SPA no SSR needed), vite + react-ts template
+ zod, swr for data fetching on the client
+- Server: Fastify, REST for API and SSE for events + zod for validation, drizzle ORM for Postgres
+- Linting/formatting: ESLint (use new flat config format), use https://typescript-eslint.io/getting-started + Prettier
+plugins: https://www.npmjs.com/package/eslint-plugin-react-hooks
+https://www.npmjs.com/package/eslint-plugin-react
+  ```
+  import reactHooks from 'eslint-plugin-react-hooks';
+  import eslintReact from 'eslint-plugin-react;
+  import globals from 'globals';
+  export default defineConfig(
+    eslint.configs.recommended,
+    tseslint.configs.strict,
+    tseslint.configs.stylistic,
+    reactHooks.configs.flat.recommended,
+    {
+    files: ['**/*.{js,jsx,mjs,cjs,ts,tsx}'],
+    plugins: {
+      eslintReact,
+    },
+    languageOptions: {
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      globals: {
+        ...globals.browser,
+      },
+    }
+  },
+  ```);
+
+  ```
+  import reactHooks from 'eslint-plugin-react-hooks';
+
 - Styling: CSS modules
-- UI components library: Radix UI (for theme use <Theme appearance="dark"></Theme> wrapper)
+- UI components library: Radix UI (for theme use <Theme appearance="dark"></Theme> wrapper), https://react-hook-form.com/ for forms + @hookform/resolvers for zod schema validation
 - Database: Postgres
 - Containerized (Docker, NAS-agnostic)
 - Persistent volumes:
@@ -37,6 +72,12 @@ Terminology:
   - /data/presets/
   - /data/inputs/
   - /data/outputs/
+
+Current target ComfyUI environment (locked for v1 integration):
+- ComfyUI `0.8.2`
+- ComfyUI_frontend `v1.36.13`
+- ComfyUI-Manager `V3.39.2`
+- LAN-only mode without authentication/CSRF
 
 ---
 
@@ -82,23 +123,21 @@ Terminology:
 ### 4.1 Structure
 ```
 /data/presets/img2img-basic/
-  |- workflow.json
-  `- preset.json
+  |- prompt.template.json
+  |- basic.preset.json
+  `- advanced.preset.json
 ```
 
-### 4.2 preset.json
+Folder naming rule:
+- Folder name is `templateId` (for example `img2img-basic`).
+- One template can have multiple preset variants (`1:N` relation).
+
+### 4.2 prompt.template.json
 ```json
 {
   "id": "img2img-basic",
-  "name": "Img2Img - Basic",
   "type": "img2img",
-  "defaults": {
-    "prompt": "soft cinematic lighting",
-    "negativePrompt": "",
-    "steps": 30,
-    "cfg": 7,
-    "seedMode": "random"
-  },
+  "workflow": {},
   "placeholders": {
     "{{PROMPT}}": "prompt",
     "{{NEG_PROMPT}}": "negativePrompt",
@@ -110,33 +149,70 @@ Terminology:
 }
 ```
 
-### 4.3 Supported preset types
+Template rules:
+- `workflow` is an exported ComfyUI workflow JSON with placeholder tokens.
+- `placeholders` defines the token -> parameter mapping for all presets of this template.
+
+### 4.3 *.preset.json
+```json
+{
+  "id": "img2img-basic/basic",
+  "name": "Img2Img - Basic",
+  "type": "img2img",
+  "template": "prompt.template.json",
+  "defaults": {
+    "prompt": "soft cinematic lighting",
+    "negativePrompt": "",
+    "steps": 30,
+    "cfg": 7,
+    "seedMode": "random"
+  }
+}
+```
+
+Preset rules:
+- `template` is required and must point to a template file in the same preset folder (v1).
+- `id` format is `{templateId}/{presetName}` to avoid collisions across folders.
+- Presets provide parameter defaults/overrides only; placeholder definitions live in template.
+
+### 4.4 Supported preset types
 
 v1 supports:
 - `img2img`
 - `txt2img`
 
-### 4.4 Placeholder application (simple templating)
+### 4.5 Placeholder application (simple templating)
 
-Workflows are treated as JSON templates with placeholder tokens (e.g. `{{PROMPT}}`) placed inside `workflow.json`.
+Workflows are treated as JSON templates with placeholder tokens (e.g. `{{PROMPT}}`) placed inside `prompt.template.json`.
 
 Implementation rules:
-1. Load `workflow.json` as JSON (not as a raw string).
-2. Recursively walk all values.
-3. For any string value:
+1. Load selected `*.preset.json`.
+2. Resolve and load preset `template` (`prompt.template.json`) as JSON (not as a raw string).
+3. Recursively walk `template.workflow` values.
+4. For any string value:
    - If it contains a placeholder token, replace occurrences with the corresponding parameter value.
    - If the entire string equals the token, replace with the raw value (so numbers can stay numbers).
    - If the token is embedded in a larger string, replace with the stringified value.
 
 Validation rules (v1):
-- At queue time, fail if any placeholder token exists in the workflow but has no value.
+- At queue time, fail if any placeholder token exists in the template workflow but has no value.
+- Fail if preset `type` and template `type` do not match.
+- Fail if preset `template` file is missing.
 - Do not validate models/assets on the ComfyUI machine; if the workflow fails, surface the error.
+
+### 4.6 Initial validated workflow templates (2026-02-22)
+
+- Current implementation validation scope:
+  - `examples/prompts/img2img.json`
+  - `examples/prompts/txt2img.json`
+- These example prompts are source workflows used to build `prompt.template.json` files by replacing concrete values with placeholders.
+- For `examples/prompts/img2img.json`, v1 canonical final output is SaveImage node `3` (ignore upscaled SaveImage node `21` for initial release).
 
 ---
 
 ## 5) App-wide Status
 
-### GET /api/status
+### Status
 
 States:
 - Starting
@@ -164,29 +240,37 @@ Recommended response shape (v1):
 ### Distinctive, production-grade frontend interfaces with high design quality
 
 ### Left panel -- Generations
+- + New generation (client-only draft) (At top)
 - List of generations (latest first)
-- + New generation (client-only draft)
-- Delete generation
-- No cancel here
+  - each generation item: thumbnail 128x128 (output or placeholder), createdAt (relative after a week absolute)
 
-### Center -- Canvas
-- `img2img`: single input drop zone + split view (input / output). in the first part of split view textarea for edit prompt at the bottom
-- `txt2img`: placeholder (text) until an output exists; then split view with output on right
-
-### Right panel -- Controls
+### Control panel
 - Preset dropdown
+- Prompt textarea
 - Advanced:
   - Negative prompt
   - Seed mode + seed
-- Generate (used for reruns too), Cancel
+- Generate (used for reruns too), Cancel, Delete
 - at bottom shows logs
+
+### Canvas
+- responsive area filling remaining space
+- zoom + pan
+- `img2img`: single input drop zone, after generation shows output image. In edit mode user can iterate on image. input->output->input...
+- `txt2img`: shows output image after generation
+
+### Top bar
+- Logo
+- Undo/Redo buttons (useful for prompt edits). When undo it will load the previous image into the canvas.
+- before/after toggle (for img2img, on hover it shows the original input image, otherwise shows the current image. If clicked, then shows drawable divider to compare the two)
+- Selection tool (user can select region of image he wants to edit, then it sends for editing only that part of the image. Then it is edited and composited back to the original image. The composition should be done that before merging the edited part the edges should be blurred to avoid hard edges in the final image.)
 
 ---
 
 ## 7) Generation Lifecycle
 
 States:
-- draft (client-only until user starts; server-side draft exists only after POST /api/generations)
+- draft (client-only until user starts; server-side draft exists only after `POST /api/generations`)
 - queued
 - submitted
 - completed
@@ -225,9 +309,16 @@ Re-run behavior:
 
 ## 9) ComfyUI execution
 
-- POST /prompt -> prompt_id
+- POST /prompt with body `{ "prompt": <workflow-json> }` -> prompt_id
 - GET /api/history_v2/{prompt_id} (fallback: /history/{prompt_id}) polling
 - One output image expected
+
+### 9.0 img2img input transfer and output persistence
+
+- For img2img, backend uploads the source image to Comfy via API (`POST /api/upload/image` or OSS-compatible `POST /upload/image` depending on target endpoint availability).
+- Backend injects the uploaded file reference into the workflow (`LoadImage.inputs.image`) before `POST /prompt`.
+- Backend does not rely on manual filesystem copy into ComfyUI `input/`.
+- Final outputs are always downloaded from Comfy and persisted under `/data/outputs/{generationId}/...` regardless of Comfy-side storage layout.
 
 ### 9.1 Checking when a run is "ready"
 
@@ -249,7 +340,7 @@ ComfyUI readiness (v1):
 
 ## 10) Cancel behavior
 
-POST /api/generations/:id/cancel
+`POST /api/generations/{generationId}/cancel`
 
 - queued -> canceled
 - submitted -> interrupt ComfyUI -> canceled
@@ -259,7 +350,7 @@ POST /api/generations/:id/cancel
 
 ## 11) Delete behavior
 
-DELETE /api/generations/:id
+`DELETE /api/generations/{generationId}`
 
 - Allowed for draft, completed, failed, canceled
 - queued -> remove then delete
@@ -288,31 +379,31 @@ Retries (v1):
 
 ## 13) API
 
-### Status
-- GET /api/status
+Application API is exposed via REST endpoints (Fastify routes) plus SSE for live generation events.
+All API endpoints must be documented in the OpenAPI Specification.
 
-### Presets
-- GET /api/presets
-- GET /api/presets/:id
+### REST endpoints
+- `GET /api/status`
+- `GET /api/presets`
+- `GET /api/presets/{presetId}`
+- `GET /api/generations`
+- `GET /api/generations/{generationId}`
+- `POST /api/generations`
+- `POST /api/generations/{generationId}/input`
+- `POST /api/generations/{generationId}/queue`
+- `POST /api/generations/{generationId}/cancel`
+- `DELETE /api/generations/{generationId}`
 
-### Generations
-- POST /api/generations
-- GET /api/generations
-- GET /api/generations/:id
-- POST /api/generations/:id/input
-- POST /api/generations/:id/queue
-- POST /api/generations/:id/cancel
-- DELETE /api/generations/:id
-
-### Events
-- GET /api/events (SSE)
+### SSE endpoint
+- `GET /api/events/generations` (`text/event-stream`)
 
 Notes:
-- SSE is live-only in v1 (no replay/catch-up); it emits basic generation status updates and optional progress when available.
+- SSE events are live-only in v1 (no replay/catch-up); they emit basic generation status updates and optional progress when available.
 - `+ New generation` is client-only and does not hit the backend.
-- On Generate, the UI creates the server-side generation (POST /api/generations), then:
-  - `img2img`: upload input (POST /api/generations/:id/input), then queue (POST /api/generations/:id/queue)
-  - `txt2img`: queue directly (POST /api/generations/:id/queue)
+- `presetId` uses `{templateId}/{presetName}` format (for example `img2img-basic/basic`).
+- On Generate, the UI creates the server-side generation (`POST /api/generations`), then:
+  - `img2img`: upload input (`POST /api/generations/{generationId}/input`), then queue (`POST /api/generations/{generationId}/queue`)
+  - `txt2img`: queue directly (`POST /api/generations/{generationId}/queue`)
 
 ---
 
@@ -325,6 +416,7 @@ Notes:
 - promptRequest (jsonb)
 - promptResponse (jsonb)
 - presetId (text)
+- templateId (text)
 - presetParams (jsonb)
 - error (text)
 - createdAt (timestamp)
@@ -369,3 +461,17 @@ Outputs are written under:
 
 Re-runs create additional files in the same folder. Naming rule (v1):
 - Output filenames include a timestamp prefix to avoid collisions (implementation-defined).
+
+## 18) Project structure
+
+- /src
+  |- /server
+  |- /client
+  |- /shared
+- `package.json` at repo root only (no npm workspaces, no nested package manifests for `client`/`server`/`shared`)
+- Import boundary rules:
+  - `src/client` and `src/server` must not import from each other directly
+  - Code shared by both (for example Zod schemas/types) must live in `src/shared`
+  - Use relative imports between folders
+
+## 19) References

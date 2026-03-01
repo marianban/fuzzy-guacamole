@@ -1,0 +1,8 @@
+.agent
+.agents
+docs
+ExecPlan.md
+node_modules
+dist
+coverage
+*.tsbuildinfo

@@ -9,32 +9,14 @@ This repo currently contains the product specification and agent workflow docs f
 ## Documentation
 
 - Specs live in `docs/`. Start with `docs/specs.MD`.
+- When writing code, create and maintain architecture docs in `docs/architecture.MD`.
+- Architecture policy ID: `ARCH-CURRENT-HL-001`.
+- Keep `docs/architecture.MD` high-level and concise. Prefer Mermaid diagrams plus short text.
+- `docs/architecture.MD` is current-state only: include only behavior currently backed by code, remove outdated content, and exclude proposals, future plans, risks, recommendations, and detailed folder breakdowns.
+- Update `docs/architecture.MD` only when code changes alter the implemented architecture.
 - Agent process docs live in `.agent/`.
 - ComfyUI OpenAPI docs in `docs/ComfyApi.md` use when needed.
-
-
-## Product Snapshot (v1)
-
-- LAN-only web app, no auth.
-- One generation = one input image -> one output image (no batching).
-- "Presets" are exported ComfyUI workflows stored on disk as bundles:
-  - `/data/presets/<preset-id>/workflow.json`
-  - `/data/presets/<preset-id>/preset.json`
-- Backend transparently ensures the remote ComfyUI machine is online (Wake-on-LAN + polling).
-- UI shows a full-page loader until the system is ready.
-- Cancel is per-generation and must stop ComfyUI execution.
-- configuration is file-based only (`/data/config.json`) - for comfy url, target machine mac address, ip, paths, timeouts
-
-## Expected Tech Stack
-
-- Node.js 24
-- TanStack Start (https://tanstack.com/start/latest), React, TypeScript
-- CSS modules
-- Postgres + drizzle orm
-- Containerized (Docker); NAS-agnostic
-- Vitest for testing (https://vitest.dev/guide/)
-- ESLint "eslint:recommended", "plugin:react/recommended", "plugin:react-hooks/recommended" - use flat eslint config , Prettier for code quality
-- libraries used for testing: vitest @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom
+- Code examples should be in `examples/` and referenced from specs when relevant.
 
 ## Development Best Practices
 
@@ -43,64 +25,44 @@ This repo currently contains the product specification and agent workflow docs f
 - document important decisions and trade-offs
 - write tests to ensure code quality and prevent regressions
 - after implementing a feature ensure a good test coverage, check linting and formatting and fix any issues. Then run the app locally to verify the feature works as expected by using chrome devtools mcp. Verify no errors are shown in the console and network tab. In case of warnings evaluate if they should be fixed.
-- for naming tests use given_when_then format where applicable.
+- for naming tests use gherkin syntax given_when_then format where applicable.
 - format code using prettier
+- mandatory quality gate for every code change: all edited files must be Prettier-formatted and pass ESLint with zero lint errors before the task is considered complete.
 
 ## Testing Best Practices
 
 - Implement tests as a separate step, and validate that new tests fail before moving to feature implementation.
 - Prefer small, deterministic tests; avoid timing-sensitive flakiness.
+- Follow Test-Driven Development principles
 - Add/extend tests with every behavior change; bugfixes require a regression test.
 - For UI: use `@testing-library/react` with user-visible queries (`getByRole`, `getByLabelText`), and drive interactions with `user-event`.
 - Assert outcomes/side effects (rendered text, disabled states, network calls) rather than implementation details.
 - Keep test setup minimal (helpers/factories are fine); reset shared state between tests.
 - Run the relevant test file(s) locally before marking work done.
+- Increase practical text coverage over time and prioritize tests for critical paths (API handlers, Comfy client integration, and core UI flows).
+- Coverage targets for `npm run test:coverage` should meet these minimum thresholds:
+  - lines: 75%
+  - functions: 75%
+  - branches: 65%
+  - statements: 75%
+- Any intentional coverage gaps should be documented in PR notes with a short rationale.
 
 ## Frontend Best Practices (React + TypeScript)
 
 - Prefer simple, typed props/state; avoid `any` and keep types close to usage.
 - Keep components small and focused; extract reusable logic into hooks.
 - Use semantic HTML + accessibility by default (labels, roles, keyboard, focus states).
-- Minimize global state; lift state only when needed; keep server/client boundaries clear in TanStack Start.
+- Minimize global state; lift state only when needed; keep server/client boundaries clear.
 - Handle loading/error/empty states explicitly; never leave UI in ambiguous states.
-- Prefer CSS modules for styling; keep class names consistent and avoid ad-hoc inline styles.
+- Use CSS modules for styling; keep class names consistent and avoid ad-hoc inline styles.
 
-
-## Runtime Data & Configuration
-
-Persistent runtime data lives under `/data` (container path):
-
-- `/data/config.json` (required)
-- `/data/presets/`
-- `/data/inputs/`
-- `/data/outputs/`
-
-See `docs/specs.MD` for the canonical `config.json` shape and timeouts.
-
-## Domain Concepts
-
-- **Generation statuses**: `draft`, `queued`, `submitted`, `completed`, `failed`, `canceled`.
-- **Worker model**: single worker loop; processes oldest queued; one execution at a time; checks cancellation between steps.
-- **ComfyUI API expectations**: submit via `POST /prompt` (gets `prompt_id`), poll via `GET /history/{prompt_id}`, one output image expected.
-
-## API Surface (v1)
-
-The spec describes these endpoints (names/behavior are defined in `docs/specs.MD`):
-
-- Status: `GET /api/status`
-- Presets: `GET /api/presets`, `GET /api/presets/:id`
-- Generations: `POST /api/generations`, `GET /api/generations`, `GET /api/generations/:id`
-- Generation actions: `POST /api/generations/:id/input`, `POST /api/generations/:id/queue`, `POST /api/generations/:id/cancel`, `DELETE /api/generations/:id`
-- Events: `GET /api/events` (SSE)
 
 ## MCPs to use for Implementation
 
-When working with TanStack Start always use context7 mcp server to get relevant docs.
+When working with libraries always use context7 mcp server to get relevant docs.
 When implementing ui features you can verify result or debug issues using Chrome Devtools MCP.
-Wallaby MCP server can be used to check test status and debug failing tests.
+Wallaby MCP server should be used by the agent to check test status, inspect covered lines, and debug failing tests.
 
 ## Skills
 
-For documentation update use doc-coauthoring skill.
-For designing frontend ise case use frontend-design skill.
-When evaluating tests or coverage use wallaby-testing skill.
+Use skills from `.agents/skills/` when implementing features.

@@ -1,0 +1,51 @@
+{
+  "metadata": {
+    "capturedAt": "2026-02-28T09:00:00.000Z",
+    "comfyVersion": "0.8.2",
+    "notes": "Initial mocked fixture for ComfyClient integration replay."
+  },
+  "responses": {
+    "healthCheck": {
+      "system": {
+        "os": "win32",
+        "comfyui_version": "0.8.2",
+        "pytorch_version": "2.8.0+cu128"
+      },
+      "devices": [
+        {
+          "name": "cuda:0 NVIDIA GeForce RTX 4070 Ti SUPER : cudaMallocAsync",
+          "type": "cuda",
+          "vram_total": 17170956288,
+          "vram_free": 15817768960
+        }
+      ]
+    },
+    "uploadImage": {
+      "name": "vitest_uploaded_input.png",
+      "subfolder": "",
+      "type": "input"
+    },
+    "submitPrompt": {
+      "prompt_id": "7fba2632-f514-4bff-bf2b-182040f12345",
+      "number": 1,
+      "node_errors": {}
+    },
+    "historyByPrompt": {
+      "7fba2632-f514-4bff-bf2b-182040f12345": {
+        "7fba2632-f514-4bff-bf2b-182040f12345": {
+          "outputs": {
+            "3": {
+              "images": [
+                {
+                  "filename": "ComfyUI_00001_.png",
+                  "subfolder": "",
+                  "type": "output"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

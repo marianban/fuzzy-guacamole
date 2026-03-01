@@ -1,0 +1,41 @@
+.page {
+  min-height: 100vh;
+  padding: 2rem;
+  background: linear-gradient(135deg, #f4f1ec 0%, #d6e2ea 100%);
+  color: #1f2530;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.card {
+  max-width: 38rem;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 85%);
+  box-shadow: 0 10px 30px rgb(20 29 42 / 12%);
+  backdrop-filter: blur(4px);
+}
+
+.title {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.description {
+  margin: 0 0 1rem;
+}
+
+.statusGrid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 1rem;
+}
+
+.statusGrid dt {
+  font-weight: 600;
+}
+
+.statusGrid dd {
+  margin: 0;
+}
