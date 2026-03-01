@@ -123,23 +123,21 @@ Current target ComfyUI environment (locked for v1 integration):
 ### 4.1 Structure
 ```
 /data/presets/img2img-basic/
-  |- workflow.json
-  `- preset.json
+  |- prompt.template.json
+  |- basic.preset.json
+  `- advanced.preset.json
 ```
 
-### 4.2 preset.json
+Folder naming rule:
+- Folder name is `templateId` (for example `img2img-basic`).
+- One template can have multiple preset variants (`1:N` relation).
+
+### 4.2 prompt.template.json
 ```json
 {
   "id": "img2img-basic",
-  "name": "Img2Img - Basic",
   "type": "img2img",
-  "defaults": {
-    "prompt": "soft cinematic lighting",
-    "negativePrompt": "",
-    "steps": 30,
-    "cfg": 7,
-    "seedMode": "random"
-  },
+  "workflow": {},
   "placeholders": {
     "{{PROMPT}}": "prompt",
     "{{NEG_PROMPT}}": "negativePrompt",
@@ -151,33 +149,63 @@ Current target ComfyUI environment (locked for v1 integration):
 }
 ```
 
-### 4.3 Supported preset types
+Template rules:
+- `workflow` is an exported ComfyUI workflow JSON with placeholder tokens.
+- `placeholders` defines the token -> parameter mapping for all presets of this template.
+
+### 4.3 *.preset.json
+```json
+{
+  "id": "img2img-basic/basic",
+  "name": "Img2Img - Basic",
+  "type": "img2img",
+  "template": "prompt.template.json",
+  "defaults": {
+    "prompt": "soft cinematic lighting",
+    "negativePrompt": "",
+    "steps": 30,
+    "cfg": 7,
+    "seedMode": "random"
+  }
+}
+```
+
+Preset rules:
+- `template` is required and must point to a template file in the same preset folder (v1).
+- `id` format is `{templateId}/{presetName}` to avoid collisions across folders.
+- Presets provide parameter defaults/overrides only; placeholder definitions live in template.
+
+### 4.4 Supported preset types
 
 v1 supports:
 - `img2img`
 - `txt2img`
 
-### 4.4 Placeholder application (simple templating)
+### 4.5 Placeholder application (simple templating)
 
-Workflows are treated as JSON templates with placeholder tokens (e.g. `{{PROMPT}}`) placed inside `workflow.json`.
+Workflows are treated as JSON templates with placeholder tokens (e.g. `{{PROMPT}}`) placed inside `prompt.template.json`.
 
 Implementation rules:
-1. Load `workflow.json` as JSON (not as a raw string).
-2. Recursively walk all values.
-3. For any string value:
+1. Load selected `*.preset.json`.
+2. Resolve and load preset `template` (`prompt.template.json`) as JSON (not as a raw string).
+3. Recursively walk `template.workflow` values.
+4. For any string value:
    - If it contains a placeholder token, replace occurrences with the corresponding parameter value.
    - If the entire string equals the token, replace with the raw value (so numbers can stay numbers).
    - If the token is embedded in a larger string, replace with the stringified value.
 
 Validation rules (v1):
-- At queue time, fail if any placeholder token exists in the workflow but has no value.
+- At queue time, fail if any placeholder token exists in the template workflow but has no value.
+- Fail if preset `type` and template `type` do not match.
+- Fail if preset `template` file is missing.
 - Do not validate models/assets on the ComfyUI machine; if the workflow fails, surface the error.
 
-### 4.5 Initial validated workflow templates (2026-02-22)
+### 4.6 Initial validated workflow templates (2026-02-22)
 
 - Current implementation validation scope:
   - `examples/prompts/img2img.json`
   - `examples/prompts/txt2img.json`
+- These example prompts are source workflows used to build `prompt.template.json` files by replacing concrete values with placeholders.
 - For `examples/prompts/img2img.json`, v1 canonical final output is SaveImage node `3` (ignore upscaled SaveImage node `21` for initial release).
 
 ---
@@ -371,6 +399,7 @@ Application API is exposed via REST endpoints (Fastify routes) plus SSE for live
 Notes:
 - SSE events are live-only in v1 (no replay/catch-up); they emit basic generation status updates and optional progress when available.
 - `+ New generation` is client-only and does not hit the backend.
+- `presetId` uses `{templateId}/{presetName}` format (for example `img2img-basic/basic`).
 - On Generate, the UI creates the server-side generation (`POST /api/generations`), then:
   - `img2img`: upload input (`POST /api/generations/{generationId}/input`), then queue (`POST /api/generations/{generationId}/queue`)
   - `txt2img`: queue directly (`POST /api/generations/{generationId}/queue`)
@@ -386,6 +415,7 @@ Notes:
 - promptRequest (jsonb)
 - promptResponse (jsonb)
 - presetId (text)
+- templateId (text)
 - presetParams (jsonb)
 - error (text)
 - createdAt (timestamp)
