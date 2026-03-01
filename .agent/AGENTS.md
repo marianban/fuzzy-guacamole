@@ -37,6 +37,13 @@ This repo currently contains the product specification and agent workflow docs f
 - Assert outcomes/side effects (rendered text, disabled states, network calls) rather than implementation details.
 - Keep test setup minimal (helpers/factories are fine); reset shared state between tests.
 - Run the relevant test file(s) locally before marking work done.
+- Increase practical text coverage over time and prioritize tests for critical paths (API handlers, Comfy client integration, and core UI flows).
+- Coverage targets for `npm run test:coverage` should meet these minimum thresholds:
+  - lines: 75%
+  - functions: 75%
+  - branches: 65%
+  - statements: 75%
+- Any intentional coverage gaps should be documented in PR notes with a short rationale.
 
 ## Frontend Best Practices (React + TypeScript)
 
@@ -52,7 +59,7 @@ This repo currently contains the product specification and agent workflow docs f
 
 When working with libraries always use context7 mcp server to get relevant docs.
 When implementing ui features you can verify result or debug issues using Chrome Devtools MCP.
-Wallaby MCP server can be used to check test status and debug failing tests.
+Wallaby MCP server should be used by the agent to check test status, inspect covered lines, and debug failing tests.
 
 ## Skills
 
