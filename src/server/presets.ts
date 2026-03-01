@@ -1,0 +1,200 @@
+import type { Dirent } from 'node:fs';
+import { access, readdir, readFile } from 'node:fs/promises';
+import path from 'node:path';
+
+import {
+  type PresetDetail,
+  type PresetSummary,
+  presetDefinitionSchema,
+  presetDetailSchema,
+  workflowTemplateSchema
+} from '../shared/presets.js';
+
+interface LoadPresetCatalogOptions {
+  presetsDir: string;
+}
+
+export interface PresetCatalog {
+  list(): PresetSummary[];
+  getById(presetId: string): PresetDetail | undefined;
+}
+
+class InMemoryPresetCatalog implements PresetCatalog {
+  readonly #summaries: PresetSummary[];
+  readonly #detailsById: Map<string, PresetDetail>;
+
+  constructor(summaries: PresetSummary[], detailsById: Map<string, PresetDetail>) {
+    this.#summaries = summaries;
+    this.#detailsById = detailsById;
+  }
+
+  list(): PresetSummary[] {
+    return this.#summaries;
+  }
+
+  getById(presetId: string): PresetDetail | undefined {
+    return this.#detailsById.get(presetId);
+  }
+}
+
+export function createPresetCatalog(
+  summaries: PresetSummary[],
+  detailsById: Map<string, PresetDetail>
+): PresetCatalog {
+  return new InMemoryPresetCatalog(summaries, detailsById);
+}
+
+export function createEmptyPresetCatalog(): PresetCatalog {
+  return new InMemoryPresetCatalog([], new Map<string, PresetDetail>());
+}
+
+export async function loadPresetCatalog(
+  options: LoadPresetCatalogOptions
+): Promise<PresetCatalog> {
+  const templateDirs = await listTemplateDirectories(options.presetsDir);
+  const summaries: PresetSummary[] = [];
+  const detailsById = new Map<string, PresetDetail>();
+
+  for (const templateDirName of templateDirs) {
+    const templateDirPath = path.resolve(options.presetsDir, templateDirName);
+    const templatePath = path.resolve(templateDirPath, 'prompt.template.json');
+    const template = workflowTemplateSchema.parse(await loadJsonFile(templatePath));
+
+    if (template.id !== templateDirName) {
+      throw new Error(
+        `Template id mismatch for ${templatePath}: expected "${templateDirName}" but got "${template.id}".`
+      );
+    }
+
+    const directoryEntries = await readdir(templateDirPath, { withFileTypes: true });
+    const presetFileNames = directoryEntries
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.preset.json'))
+      .map((entry) => entry.name)
+      .sort((left, right) => left.localeCompare(right));
+
+    for (const presetFileName of presetFileNames) {
+      const presetPath = path.resolve(templateDirPath, presetFileName);
+      const preset = presetDefinitionSchema.parse(await loadJsonFile(presetPath));
+
+      assertPresetIdForTemplate(preset.id, templateDirName);
+      assertTemplateFileReference({
+        templateDirPath,
+        templatePath,
+        presetTemplateFile: preset.template,
+        presetPath
+      });
+
+      if (preset.type !== template.type) {
+        throw new Error(
+          `Preset type mismatch for ${presetPath}: preset "${preset.type}" does not match template "${template.type}".`
+        );
+      }
+
+      const summary: PresetSummary = {
+        id: preset.id,
+        name: preset.name,
+        type: preset.type,
+        templateId: template.id,
+        templateFile: preset.template,
+        defaults: preset.defaults
+      };
+
+      const detail = presetDetailSchema.parse({
+        ...summary,
+        template
+      });
+
+      if (detailsById.has(detail.id)) {
+        throw new Error(`Duplicate preset id "${detail.id}" found in ${presetPath}.`);
+      }
+
+      summaries.push(summary);
+      detailsById.set(detail.id, detail);
+    }
+  }
+
+  return createPresetCatalog(
+    summaries.sort((left, right) => left.id.localeCompare(right.id)),
+    detailsById
+  );
+}
+
+async function listTemplateDirectories(presetsDir: string): Promise<string[]> {
+  let entries: Dirent[];
+  try {
+    entries = await readdir(presetsDir, {
+      withFileTypes: true,
+      encoding: 'utf8'
+    });
+  } catch (error) {
+    throw new Error(
+      `Failed to read presets directory ${presetsDir}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function assertPresetIdForTemplate(presetId: string, templateId: string): void {
+  const segments = presetId.split('/');
+  if (segments.length !== 2 || segments.some((segment) => segment.length === 0)) {
+    throw new Error(
+      `Preset id "${presetId}" is invalid. Expected format "{templateId}/{presetName}".`
+    );
+  }
+
+  if (segments[0] !== templateId) {
+    throw new Error(
+      `Preset id "${presetId}" does not match template folder "${templateId}".`
+    );
+  }
+}
+
+interface AssertTemplateFileReferenceOptions {
+  templateDirPath: string;
+  templatePath: string;
+  presetTemplateFile: string;
+  presetPath: string;
+}
+
+function assertTemplateFileReference(
+  options: AssertTemplateFileReferenceOptions
+): void {
+  const resolvedTemplatePath = path.resolve(
+    options.templateDirPath,
+    options.presetTemplateFile
+  );
+  if (!resolvedTemplatePath.startsWith(options.templateDirPath)) {
+    throw new Error(
+      `Preset ${options.presetPath} template "${options.presetTemplateFile}" must stay within ${options.templateDirPath}.`
+    );
+  }
+  if (path.normalize(resolvedTemplatePath) !== path.normalize(options.templatePath)) {
+    throw new Error(
+      `Preset ${options.presetPath} template "${options.presetTemplateFile}" must reference prompt.template.json in the same folder.`
+    );
+  }
+}
+
+async function loadJsonFile(filePath: string): Promise<unknown> {
+  let content: string;
+  try {
+    await access(filePath);
+    content = await readFile(filePath, 'utf8');
+  } catch (error) {
+    throw new Error(
+      `Failed to read preset file ${filePath}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  try {
+    return JSON.parse(content) as unknown;
+  } catch (error) {
+    throw new Error(
+      `Preset file ${filePath} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}

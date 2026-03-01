@@ -27,6 +27,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-02-28) Implemented Comfy client integration test harness in `src/server/comfy/client.integration.test.ts` with dual modes (`COMFY_TEST_MODE=mock|local`), mock fixture replay (`src/server/comfy/__fixtures__/captured/comfy-v0.8.2-contract.json`), and live contract coverage for health/upload/submit/history polling.
 - [x] (2026-02-28) Synced ExecPlan with `.agent/AGENTS.md` architecture-doc requirement: maintain `docs/architecture.MD` as a concise, overview-focused current-state document (implemented code only) with embedded Mermaid diagrams.
 - [x] (2026-03-01) Synced ExecPlan to latest `docs/specs.MD` preset contract: `1 template : N presets`, `prompt.template.json` + `*.preset.json`, required preset `template` reference, `presetId={templateId}/{presetName}`, and generation `templateId`.
+- [x] (2026-03-01) Implemented first preset slice: validated config loader (`/data/config.json`), preset catalog loader (`/data/presets/{templateId}/prompt.template.json` + `*.preset.json`), and Fastify preset routes (`GET /api/presets`, `GET /api/presets/{presetId}` via wildcard path).
 - [ ] (YYYY-MM-DD) Implement config + preset loading + REST endpoints (`GET /api/status`, `GET /api/presets`, `GET /api/presets/{presetId}`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
