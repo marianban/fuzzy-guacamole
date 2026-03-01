@@ -37,6 +37,8 @@ flowchart TD
   Build --> Status["GET /api/status"]
   Build --> PresetsList["GET /api/presets"]
   Build --> PresetsDetail["GET /api/presets/*"]
+  Build --> OpenApiJson["GET /openapi/json"]
+  Build --> OpenApiUi["GET /openapi"]
   Status --> Payload["state: Starting<br/>since: startup timestamp"]
   PresetsList --> PresetPayload["preset summaries only"]
   PresetsDetail --> PresetDetailPayload["preset summary + template workflow"]
@@ -47,6 +49,7 @@ Implemented routes:
 - `GET /api/status` -> status payload validated via shared Zod schema
 - `GET /api/presets` -> preset metadata list loaded from disk at startup
 - `GET /api/presets/{presetId}` -> wildcard-backed route (`/api/presets/*`) returning metadata + resolved template
+- `GET /openapi/json` and `GET /openapi` -> OpenAPI spec + Swagger UI generated from Fastify route schemas
 
 ## Comfy Module (Implemented, Not Wired to API Routes)
 

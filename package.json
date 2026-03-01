@@ -31,9 +31,12 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@fastify/swagger": "^9.7.0",
+    "@fastify/swagger-ui": "^5.2.5",
     "@hookform/resolvers": "^5.2.2",
     "drizzle-orm": "^0.45.1",
     "fastify": "^5.7.4",
+    "fastify-type-provider-zod": "^6.1.0",
     "pg": "^8.18.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
