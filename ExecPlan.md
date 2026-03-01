@@ -27,6 +27,8 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-02-28) Implemented Comfy client integration test harness in `src/server/comfy/client.integration.test.ts` with dual modes (`COMFY_TEST_MODE=mock|local`), mock fixture replay (`src/server/comfy/__fixtures__/captured/comfy-v0.8.2-contract.json`), and live contract coverage for health/upload/submit/history polling.
 - [x] (2026-02-28) Synced ExecPlan with `.agent/AGENTS.md` architecture-doc requirement: maintain `docs/architecture.MD` as a concise, overview-focused current-state document (implemented code only) with embedded Mermaid diagrams.
 - [x] (2026-03-01) Synced ExecPlan to latest `docs/specs.MD` preset contract: `1 template : N presets`, `prompt.template.json` + `*.preset.json`, required preset `template` reference, `presetId={templateId}/{presetName}`, and generation `templateId`.
+- [x] (2026-03-01) Synced ExecPlan to latest `docs/specs.MD` API documentation requirement: all app API endpoints must be documented in the OpenAPI Specification.
+- [x] (2026-03-01) Synced ExecPlan to `.agent/AGENTS.md` TDD requirements: strict red-green-refactor flow, explicit fail-first verification, and minimum coverage thresholds.
 - [x] (2026-03-01) Implemented first preset slice: validated config loader (`/data/config.json`), preset catalog loader (`/data/presets/{templateId}/prompt.template.json` + `*.preset.json`), and Fastify preset routes (`GET /api/presets`, `GET /api/presets/{presetId}` via wildcard path).
 - [ ] (YYYY-MM-DD) Implement config + preset loading + REST endpoints (`GET /api/status`, `GET /api/presets`, `GET /api/presets/{presetId}`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
@@ -137,7 +139,10 @@ Engineering and workflow expectations (keep this section aligned with `.agent/AG
 - Stack: Node.js 24, Vite + React + TypeScript (classic SPA; no SSR), Fastify REST + SSE + Zod for API contracts, SWR for client data fetching, CSS modules, Radix UI (Radix Themes + primitives), `react-hook-form` + `@hookform/resolvers` for forms, Postgres + Drizzle ORM, Docker.
 - Config: file-based only (`/data/config.json`) for Comfy URL, WOL target, SSH connection + remote start command, paths, and timeouts.
 - Tooling: Vitest + Testing Library + jsdom; ESLint new flat config format aligned to TypeScript-ESLint (`strict` + `stylistic`) plus `eslint-plugin-react-hooks` flat recommended config and `eslint-plugin-react`; Prettier for formatting.
-- Testing: implement tests as a separate step, prefer small/deterministic tests, use `@testing-library/react` with user-visible queries, add/extend regression tests for behavior changes, and name tests `given_when_then` where it fits.
+- Testing: follow TDD strictly for behavior changes (red-green-refactor): write tests first, run them to verify expected failure before implementation, then implement minimal code to pass.
+- Testing: implement tests as a separate step, prefer small/deterministic tests, use `@testing-library/react` with user-visible queries + `user-event`, assert outcomes/side effects over implementation details, and name tests `given_when_then` where it fits.
+- Testing: add/extend regression tests for every behavior change (bugfixes require a reproducing regression test), keep setup minimal/reset shared state between tests, and run relevant test files locally before marking work done.
+- API docs: maintain an OpenAPI Specification for the app API, and update it whenever any endpoint (REST or SSE) is added/changed so all endpoints are documented.
 - During implementation: run relevant tests (preferably fail-first for new behavior), lint, and formatting; then run the app locally and verify UI behavior in Chrome Devtools MCP (Console + Network), fixing warnings when they are actionable.
 - MCPs: use Context7 for docs when adopting libraries/frameworks; use Chrome Devtools MCP to verify UI; optionally use Wallaby MCP for test status/debugging.
 - Skills (when applicable): use `doc-coauthoring` for doc updates, `frontend-design` for frontend design work, and `wallaby-testing` when using Wallaby.
@@ -243,6 +248,8 @@ Work:
   - `src/server/routes/presets.ts`:
     - `GET /api/presets` returns a list of presets (metadata only, exclude full workflow by default).
     - `GET /api/presets/{presetId}` returns preset metadata + the stored workflow template (or a separate endpoint if size is a concern).
+- Add/update OpenAPI docs for implemented routes:
+  - Define `GET /api/status`, `GET /api/presets`, and `GET /api/presets/{presetId}` in the OpenAPI document with response schemas and status codes.
 - Implement Comfy health probing (no generation submission yet) in `src/server/comfy/client.ts`:
   - A method `healthCheck(): Promise<{ ok: boolean; systemStats?: unknown }>` that calls `GET {comfyBaseUrl}/api/system_stats` and returns `ok=true` only when HTTP 200 and the payload contains (at minimum) `system` and `devices`.
   - A helper to extract `comfyuiVersion`, `pytorchVersion`, and `devices[]` (best-effort) for `GET /api/status`.
@@ -294,6 +301,8 @@ Work:
     - `POST /api/generations/{generationId}/queue` transitions `draft|canceled|completed|failed -> queued` and sets `queuedAt=now()`.
     - `POST /api/generations/{generationId}/queue` validates placeholder tokens: after placeholder expansion (see next milestone), no unreplaced tokens remain.
     - `POST /api/generations/{generationId}/cancel` and `DELETE /api/generations/{generationId}` are implemented in later milestones when the worker exists (but can return meaningful 409/400 errors now).
+- Add/update OpenAPI docs for generation routes:
+  - Define all generation REST endpoints in the OpenAPI document, including request bodies (`multipart/form-data` for input upload), response schemas, and transition/error status codes.
 
 Acceptance:
 
@@ -423,6 +432,8 @@ Work:
     - `GET /api/events/generations` emits generation status updates (wired from backend events) over SSE transport.
     - Use an in-memory pub/sub (e.g. EventEmitter) fed by the worker and by route transitions.
   - UI subscribes using `EventSource` and updates list/detail without manual refresh.
+- Add/update OpenAPI docs for SSE:
+  - Document `GET /api/events/generations` in OpenAPI with `text/event-stream` response semantics and event payload shape used by the UI.
 
 Acceptance:
 
@@ -522,6 +533,9 @@ Acceptance is behavioral and must be provable without reading code:
   - Generations list updates via `GET /api/events/generations` (SSE transport) when statuses change.
   - Completed generations show output preview and allow re-run.
   - For img2img, before/after compare and region selection edit/composite behavior are functional and visually consistent.
+- OpenAPI documentation:
+  - Every app API endpoint listed in `docs/specs.MD` section 13 is present in the OpenAPI document.
+  - OpenAPI includes request/response schemas and expected status/error codes for each endpoint, including `text/event-stream` details for SSE.
 
 Tests (minimum bar):
 
@@ -534,6 +548,12 @@ Tests (minimum bar):
   - Fail before implementation, pass after.
 - UI tests for key interactions (create draft, select preset, generate disabled/enabled states, cancel button visibility).
 - For each new behavior change, add/extend tests in a separate step and, when practical, make the new test fail before implementation.
+- Coverage thresholds for `npm run test:coverage` must meet minimums:
+  - lines: 75%
+  - functions: 75%
+  - branches: 65%
+  - statements: 75%
+- Any intentional coverage gaps must be documented with a short rationale in implementation notes/PR notes.
 
 ## Idempotence and Recovery
 
@@ -635,3 +655,5 @@ Plan change note:
 - (2026-02-22) Locked prompt-template integration details from `examples/prompts/`: submit as `{ "prompt": workflow }`, upload img2img inputs through Comfy API (no manual input-dir copy), use SaveImage node `3` as canonical v1 img2img output, and keep initial validation scope to `img2img.json` + `txt2img.json`.
 - (2026-02-28) Updated this ExecPlan to reflect `.agent/AGENTS.md` documentation changes: code changes must keep `docs/architecture.MD` up to date as a concise overview-level architecture record of implemented code only, with Mermaid diagrams embedded directly in the file.
 - (2026-03-01) Updated this ExecPlan to reflect latest `docs/specs.MD` preset model: `1:N` template-to-preset relationship, `prompt.template.json` + `*.preset.json` on disk, required preset `template` reference, `presetId={templateId}/{presetName}`, and `templateId` persisted on generations.
+- (2026-03-01) Updated this ExecPlan to reflect latest `docs/specs.MD` API requirement: all REST and SSE app endpoints must be documented in the OpenAPI Specification.
+- (2026-03-01) Updated this ExecPlan to reflect `.agent/AGENTS.md` testing requirements: strict fail-first TDD flow, outcome-focused tests, required regression tests for bugfixes, and explicit coverage thresholds.

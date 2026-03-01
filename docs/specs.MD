@@ -380,6 +380,7 @@ Retries (v1):
 ## 13) API
 
 Application API is exposed via REST endpoints (Fastify routes) plus SSE for live generation events.
+All API endpoints must be documented in the OpenAPI Specification.
 
 ### REST endpoints
 - `GET /api/status`
