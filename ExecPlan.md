@@ -26,6 +26,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-02-22) Locked prompt-template integration details from exported examples: submit as `{ "prompt": workflow }`, treat `examples/prompts/img2img.json` SaveImage node `3` as canonical v1 output, use API upload for img2img input (no manual copy into Comfy input folder), and scope validation to `img2img.json` + `txt2img.json`.
 - [x] (2026-02-28) Implemented Comfy client integration test harness in `src/server/comfy/client.integration.test.ts` with dual modes (`COMFY_TEST_MODE=mock|local`), mock fixture replay (`src/server/comfy/__fixtures__/captured/comfy-v0.8.2-contract.json`), and live contract coverage for health/upload/submit/history polling.
 - [x] (2026-02-28) Synced ExecPlan with `.agent/AGENTS.md` architecture-doc requirement: maintain `docs/architecture.MD` as a concise, overview-focused current-state document (implemented code only) with embedded Mermaid diagrams.
+- [x] (2026-03-01) Synced ExecPlan to latest `docs/specs.MD` preset contract: `1 template : N presets`, `prompt.template.json` + `*.preset.json`, required preset `template` reference, `presetId={templateId}/{presetName}`, and generation `templateId`.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + REST endpoints (`GET /api/status`, `GET /api/presets`, `GET /api/presets/{presetId}`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
@@ -108,8 +109,9 @@ Repository state today:
 
 Core domain definitions (use these terms consistently in code and docs):
 
-- Preset: A workflow bundle stored under `/data/presets/<preset-id>/` containing `workflow.json` (ComfyUI workflow JSON template) and `preset.json` (metadata, defaults, placeholder mapping).
-- Placeholder token: A string like `{{PROMPT}}` embedded in `workflow.json` values. Tokens are replaced with user-provided values at queue time.
+- Template: A workflow template stored as `/data/presets/<templateId>/prompt.template.json`, containing `id`, `type`, `workflow`, and `placeholders`.
+- Preset: A variant config stored as `/data/presets/<templateId>/*.preset.json`, containing metadata/default values and required `template` reference (v1: `prompt.template.json` in same folder).
+- Placeholder token: A string like `{{PROMPT}}` embedded in `prompt.template.json` workflow values. Tokens are replaced with user-provided values at queue time.
 - Generation: A persisted record representing a configured thing to run. It can be queued and re-run multiple times. In v1, we do not model runs/attempts as a separate table.
 - Run: One execution of a generation that produces exactly one output image.
 - Statuses: `draft`, `queued`, `submitted`, `completed`, `failed`, `canceled` (as defined in the spec).
@@ -221,8 +223,11 @@ Work:
   - On startup, load once and fail fast with a clear error if invalid/missing.
 - Implement preset loading in `src/server/presets.ts`:
   - List directories under `paths.presets`.
-  - For each directory, read `preset.json` and `workflow.json`.
-  - Validate `preset.json` shape: `id`, `name`, `type` in `{img2img, txt2img}`, `defaults`, `placeholders`.
+  - For each directory (`templateId`), read `prompt.template.json` once and `*.preset.json` variants.
+  - Validate template shape: `id`, `type` in `{img2img, txt2img}`, `workflow`, `placeholders`.
+  - Validate preset shape: `id`, `name`, `type`, `template`, `defaults`.
+  - Enforce `preset.template` file exists and `preset.type === template.type`.
+  - Enforce `preset.id` format `{templateId}/{presetName}`.
 - Implement Fastify REST routes under `src/server/routes/`:
   - `src/server/routes/status.ts`:
     - `GET /api/status` returns at minimum `{ state: "Starting"|"Online"|"Offline", since: string }`.
@@ -269,6 +274,7 @@ Work:
   - `prompt_request jsonb null`
   - `prompt_response jsonb null`
   - `preset_id text not null`
+  - `template_id text not null`
   - `preset_params jsonb not null`
   - `error text null`
   - `created_at timestamptz not null default now()`
@@ -278,7 +284,7 @@ Work:
   - Update `updated_at` on changes.
 - Implement generation REST endpoints:
   - `src/server/routes/generations.ts`:
-    - `POST /api/generations` creates a generation with `status=draft`, `presetId`, `presetParams` (seed mode, prompt, etc.).
+    - `POST /api/generations` creates a generation with `status=draft`, `presetId`, `templateId`, `presetParams` (seed mode, prompt, etc.).
     - `GET /api/generations` lists generations newest-first.
     - `GET /api/generations/{generationId}` returns a single generation detail.
     - `POST /api/generations/{generationId}/input` accepts `multipart/form-data` upload for img2img input.
@@ -301,12 +307,13 @@ Goal: The worker processes queued generations one at a time and produces a saved
 Work:
 
 - Implement placeholder expansion in `src/server/workflows/expandPlaceholders.ts` exactly as specified in `docs/specs.MD`:
-  - Load `workflow.json` as JSON.
-  - Recursively walk all values.
+  - Load selected `*.preset.json`, resolve `preset.template`, then load `prompt.template.json` as JSON.
+  - Recursively walk `template.workflow` values.
   - For strings:
     - If the entire string equals a token, replace with the raw value (so numbers/booleans can remain typed).
     - If token appears within a larger string, replace with the stringified value.
-  - Validation: fail queueing if any placeholder token in the workflow has no value available.
+  - Use placeholder mapping from template-level `placeholders`.
+  - Validation: fail queueing if any placeholder token in template workflow has no value available, if preset/template types mismatch, or if preset template file is missing.
 - Implement a worker in `src/server/worker/worker.ts`:
   - A single loop that wakes periodically (or is event-driven) to find the oldest queued generation.
   - Transition `queued -> submitted` at the moment it is handed to ComfyUI.
@@ -500,8 +507,8 @@ Acceptance is behavioral and must be provable without reading code:
   - `GET /api/status` returns JSON with `state` in `{ "Online", "Offline", "Starting" }` and a `since` timestamp.
   - When `Online`, it also returns best-effort `comfy` fields derived from `GET {comfyBaseUrl}/api/system_stats` (`comfyuiVersion`, `pytorchVersion`, `devices[]`).
 - Presets:
-  - Place one preset bundle at `/data/presets/img2img-basic/{preset.json,workflow.json}`.
-  - `GET /api/presets` returns an entry with `id=img2img-basic`.
+  - Place one template folder at `/data/presets/img2img-basic/` with `prompt.template.json` and at least one preset variant (for example `basic.preset.json`).
+  - `GET /api/presets` returns an entry with `id=img2img-basic/basic`.
 - Generations:
   - `POST /api/generations` returns a new `id` and status `draft`.
   - `POST /api/generations/{generationId}/queue` transitions it to `queued`.
@@ -559,6 +566,10 @@ Current evidence:
     Workflow templates from `examples/prompts/*.json` are submitted as `{ "prompt": workflow }`.
     For `examples/prompts/img2img.json`, v1 canonical output is SaveImage node `3` (ignore node `21` for initial release).
     Img2img input is uploaded through Comfy upload API and injected into `LoadImage.inputs.image` (no manual copy to Comfy input dir).
+- Preset/template packaging decision confirmed (2026-03-01):
+    Presets are variants under a template folder: `/data/presets/{templateId}/prompt.template.json` + `*.preset.json`.
+    Presets must include `template` and use `id={templateId}/{presetName}`.
+    Template-level `placeholders` are shared by all presets in that folder.
 - Current prompt-validation scope (2026-02-22):
     `examples/prompts/img2img.json` and `examples/prompts/txt2img.json`.
 - Validation commands (2026-02-22):
@@ -622,3 +633,4 @@ Plan change note:
 - (2026-02-22) Recorded confirmed target ComfyUI versions (`0.8.2`, frontend `v1.36.13`, Manager `V3.39.2`), LAN no-auth/no-CSRF mode, and locked the output-storage rule to always persist downloaded outputs under `/data/outputs/{generationId}/`.
 - (2026-02-22) Locked prompt-template integration details from `examples/prompts/`: submit as `{ "prompt": workflow }`, upload img2img inputs through Comfy API (no manual input-dir copy), use SaveImage node `3` as canonical v1 img2img output, and keep initial validation scope to `img2img.json` + `txt2img.json`.
 - (2026-02-28) Updated this ExecPlan to reflect `.agent/AGENTS.md` documentation changes: code changes must keep `docs/architecture.MD` up to date as a concise overview-level architecture record of implemented code only, with Mermaid diagrams embedded directly in the file.
+- (2026-03-01) Updated this ExecPlan to reflect latest `docs/specs.MD` preset model: `1:N` template-to-preset relationship, `prompt.template.json` + `*.preset.json` on disk, required preset `template` reference, `presetId={templateId}/{presetName}`, and `templateId` persisted on generations.
