@@ -28,6 +28,7 @@ This repo currently contains the product specification and agent workflow docs f
 - for naming tests use gherkin syntax given_when_then format where applicable.
 - format code using prettier
 - mandatory quality gate for every code change: all edited files must be Prettier-formatted and pass ESLint with zero lint errors before the task is considered complete.
+- mandatory post-feature quality gate (after tests pass): run focused automated tests that cover the new/changed feature (not only broad full-suite runs), add and run E2E tests that capture the new/changed behavior, run exploratory tests against the implemented behavior, and start the real server and real client locally (`npm run dev:server` and client dev command) to verify startup succeeds and no blocking runtime errors appear in logs, browser console, or network traffic.
 
 ## Testing Best Practices
 
@@ -39,6 +40,7 @@ This repo currently contains the product specification and agent workflow docs f
 - Assert outcomes/side effects (rendered text, disabled states, network calls) rather than implementation details.
 - Keep test setup minimal (helpers/factories are fine); reset shared state between tests.
 - Run the relevant test file(s) locally before marking work done.
+- For each new/changed feature, run targeted automated tests for that feature, and add/run E2E coverage that exercises the same user flow end-to-end.
 - Increase practical text coverage over time and prioritize tests for critical paths (API handlers, Comfy client integration, and core UI flows).
 - Coverage targets for `npm run test:coverage` should meet these minimum thresholds:
   - lines: 75%
@@ -46,6 +48,7 @@ This repo currently contains the product specification and agent workflow docs f
   - branches: 65%
   - statements: 75%
 - Any intentional coverage gaps should be documented in PR notes with a short rationale.
+- E2E tests run against a real server and client instance
 
 ## Frontend Best Practices (React + TypeScript)
 
