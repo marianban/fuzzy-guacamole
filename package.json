@@ -18,11 +18,12 @@
     "test:watch": "vitest",
     "test:comfy:mock": "vitest run src/server/comfy/client.integration.test.ts",
     "test:comfy:local": "vitest run src/server/comfy/client.integration.test.ts",
-    "lint": "eslint . --max-warnings=0",
+    "lint": "eslint . --max-warnings=0 && npm run lint:styles",
     "mermaid:lint": "node scripts/lint-mermaid.mjs",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
-    "cloc": "npx cloc . --exclude-dir=coverage,dist,node_modules"
+    "cloc": "npx cloc . --exclude-dir=coverage,dist,node_modules",
+    "lint:styles": "stylelint src/client/src/**/*.{css,scss,sass}"
   },
   "keywords": [
     "comfyui",
@@ -65,6 +66,8 @@
     "globals": "^17.3.0",
     "jsdom": "^28.1.0",
     "prettier": "^3.8.1",
+    "stylelint": "^17.4.0",
+    "stylelint-config-standard": "^40.0.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.0",
