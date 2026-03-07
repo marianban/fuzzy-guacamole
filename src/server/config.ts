@@ -41,7 +41,11 @@ interface LoadAppConfigOptions {
 export async function loadAppConfig(
   options: LoadAppConfigOptions = {}
 ): Promise<AppConfig> {
-  const configPath = options.configPath ?? process.env.CONFIG_PATH ?? '/data/config.json';
+  const configPath = options.configPath ?? process.env.CONFIG_PATH;
+
+  if (!configPath) {
+    throw new Error('CONFIG_PATH environment variable is required when configPath is not provided');
+  }
 
   let rawContent: string;
   try {

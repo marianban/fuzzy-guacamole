@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -103,5 +103,54 @@ describe('loadAppConfig', () => {
     await expect(loadAppConfig({ configPath })).rejects.toThrow(
       /Config at .* is invalid: .*ssh\.port/
     );
+  });
+
+  it('given_no_explicit_path_when_local_data_config_exists_then_ignores_cwd_data_directory', async () => {
+    const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-config-'));
+    tempDirs.push(tempDir);
+
+    const originalCwd = process.cwd();
+    const originalConfigPath = process.env.CONFIG_PATH;
+    const configPath = path.join(tempDir, 'data', 'config.json');
+    const expectedConfig = createValidConfig();
+
+    await mkdir(path.dirname(configPath), { recursive: true });
+    await writeJsonFile(configPath, expectedConfig);
+
+    process.chdir(tempDir);
+    delete process.env.CONFIG_PATH;
+
+    try {
+      await expect(loadAppConfig()).rejects.toThrow(/CONFIG_PATH environment variable is required/);
+    } finally {
+      process.chdir(originalCwd);
+      if (originalConfigPath === undefined) {
+        delete process.env.CONFIG_PATH;
+      } else {
+        process.env.CONFIG_PATH = originalConfigPath;
+      }
+    }
+  });
+
+  it('given_config_path_env_when_loading_config_then_uses_env_config_path', async () => {
+    const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-config-'));
+    tempDirs.push(tempDir);
+
+    const originalConfigPath = process.env.CONFIG_PATH;
+    const configPath = path.join(tempDir, 'config.json');
+    const expectedConfig = createValidConfig();
+
+    await writeJsonFile(configPath, expectedConfig);
+    process.env.CONFIG_PATH = configPath;
+
+    try {
+      await expect(loadAppConfig()).resolves.toEqual(expectedConfig);
+    } finally {
+      if (originalConfigPath === undefined) {
+        delete process.env.CONFIG_PATH;
+      } else {
+        process.env.CONFIG_PATH = originalConfigPath;
+      }
+    }
   });
 });
