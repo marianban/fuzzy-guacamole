@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import fastifyMultipart from '@fastify/multipart';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
 import { z } from 'zod';
@@ -9,10 +10,14 @@ import {
 } from 'fastify-type-provider-zod';
 
 import type { AppConfig } from './config.js';
+import { createGenerationEventBus } from './generations/events.js';
+import { createGenerationStore } from './generations/store.js';
 import {
   type PresetCatalog,
   createEmptyPresetCatalog
 } from './presets.js';
+import { registerEventRoutes } from './routes/events.js';
+import { registerGenerationRoutes } from './routes/generations.js';
 import { registerPresetRoutes } from './routes/presets.js';
 import { registerStatusRoutes } from './routes/status.js';
 
@@ -44,9 +49,12 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
   void app.register(fastifySwaggerUi, {
     routePrefix: '/openapi'
   });
+  void app.register(fastifyMultipart);
 
   const stateSince = options.stateSince ?? new Date().toISOString();
   const presetCatalog = options.presetCatalog ?? createEmptyPresetCatalog();
+  const generationStore = createGenerationStore();
+  const generationEventBus = createGenerationEventBus();
 
   app.after(() => {
     app.get(
@@ -66,6 +74,13 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     );
     registerStatusRoutes(app, stateSince);
     registerPresetRoutes(app, presetCatalog);
+    registerGenerationRoutes(app, {
+      config: options.config,
+      presetCatalog,
+      store: generationStore,
+      eventBus: generationEventBus
+    });
+    registerEventRoutes(app, generationEventBus);
   });
 
   return app;

@@ -40,7 +40,11 @@ interface LoadAppConfigOptions {
 
 const ENV_TOKEN_PATTERN = /^ENV:([A-Za-z_][A-Za-z0-9_]*)$/;
 
-function resolveEnvTokens(value: unknown, pathParts: string[], configPath: string): unknown {
+function resolveEnvTokens(
+  value: unknown,
+  pathParts: string[],
+  configPath: string
+): unknown {
   if (typeof value === 'string') {
     const match = ENV_TOKEN_PATTERN.exec(value);
     if (!match) {
@@ -48,6 +52,11 @@ function resolveEnvTokens(value: unknown, pathParts: string[], configPath: strin
     }
 
     const envVarName = match[1];
+
+    if (envVarName === undefined) {
+      return value;
+    }
+
     const envValue = process.env[envVarName];
     if (envValue === undefined) {
       const pathLabel = pathParts.join('.');
@@ -65,10 +74,12 @@ function resolveEnvTokens(value: unknown, pathParts: string[], configPath: strin
   }
 
   if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>).map(([key, nestedValue]) => [
-      key,
-      resolveEnvTokens(nestedValue, [...pathParts, key], configPath)
-    ]);
+    const entries = Object.entries(value as Record<string, unknown>).map(
+      ([key, nestedValue]) => [
+        key,
+        resolveEnvTokens(nestedValue, [...pathParts, key], configPath)
+      ]
+    );
     return Object.fromEntries(entries);
   }
 
@@ -81,7 +92,9 @@ export async function loadAppConfig(
   const configPath = options.configPath ?? process.env.CONFIG_PATH;
 
   if (!configPath) {
-    throw new Error('CONFIG_PATH environment variable is required when configPath is not provided');
+    throw new Error(
+      'CONFIG_PATH environment variable is required when configPath is not provided'
+    );
   }
 
   let rawContent: string;

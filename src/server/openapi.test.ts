@@ -23,7 +23,13 @@ describe('openapi documentation', () => {
       '/healthz': expect.any(Object),
       '/api/status': expect.any(Object),
       '/api/presets': expect.any(Object),
-      '/api/presets/{*}': expect.any(Object)
+      '/api/presets/{*}': expect.any(Object),
+      '/api/generations': expect.any(Object),
+      '/api/generations/{generationId}': expect.any(Object),
+      '/api/generations/{generationId}/input': expect.any(Object),
+      '/api/generations/{generationId}/queue': expect.any(Object),
+      '/api/generations/{generationId}/cancel': expect.any(Object),
+      '/api/events/generations': expect.any(Object)
     });
 
     await app.close();

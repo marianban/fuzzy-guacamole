@@ -16,6 +16,8 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
+    "test:api:memory": "vitest run src/server/api.integration.test.ts",
+    "test:api:local": "vitest run src/server/api.integration.test.ts",
     "test:comfy:mock": "vitest run src/server/comfy/client.integration.test.ts",
     "test:comfy:local": "vitest run src/server/comfy/client.integration.test.ts",
     "lint": "eslint . --max-warnings=0 && npm run lint:styles",
@@ -33,6 +35,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@fastify/multipart": "^9.4.0",
     "@fastify/swagger": "^9.7.0",
     "@fastify/swagger-ui": "^5.2.5",
     "@hookform/resolvers": "^5.2.2",
