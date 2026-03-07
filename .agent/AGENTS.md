@@ -23,6 +23,11 @@ This repo currently contains the product specification and agent workflow docs f
 - follow good software engineering practices
 - write clean, maintainable code
 - document important decisions and trade-offs
+- use environment-driven configuration with committed non-secret config files:
+  - commit `data/config.json` with the full config shape visible in git
+  - represent secret/runtime-specific values as `ENV:VARIABLE_NAME` tokens inside `data/config.json`
+  - define token values in `.env` / deployment environment variables (never commit secrets)
+  - keep `.env.example` committed as the required variable contract for local and container environments
 - write tests to ensure code quality and prevent regressions
 - after implementing a feature ensure a good test coverage, check linting and formatting and fix any issues. Then run the app locally to verify the feature works as expected by using chrome devtools mcp. Verify no errors are shown in the console and network tab. In case of warnings evaluate if they should be fixed.
 - for naming tests use gherkin syntax given_when_then format where applicable.

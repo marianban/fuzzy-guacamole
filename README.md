@@ -39,6 +39,14 @@ Expected `/api/status` response shape:
 - `npm run format:write`: apply Prettier formatting
 - `npm run typecheck`: run TypeScript checks for client and server
 
+## Configuration Strategy
+
+- Commit `data/config.json` so the full configuration structure is always visible in git.
+- Use `ENV:VARIABLE_NAME` tokens in `data/config.json` for sensitive or deployment-specific values.
+- Set those variables in `.env` for local development and through environment variables in deployments.
+- Keep `.env.example` committed as the contract of required variables.
+- `CONFIG_PATH` must be set (default local value in `.env.example` is `./data/config.json`).
+
 ## Docker Dev
 
 The compose stack starts:

@@ -153,4 +153,63 @@ describe('loadAppConfig', () => {
       }
     }
   });
+
+  it('given_env_token_in_config_when_env_value_exists_then_resolves_token_before_validation', async () => {
+    const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-config-'));
+    tempDirs.push(tempDir);
+
+    const originalSshUsername = process.env.SSH_USERNAME;
+    const configPath = path.join(tempDir, 'config.json');
+    const configWithToken = {
+      ...createValidConfig(),
+      ssh: {
+        ...createValidConfig().ssh,
+        username: 'ENV:SSH_USERNAME'
+      }
+    };
+
+    await writeJsonFile(configPath, configWithToken);
+    process.env.SSH_USERNAME = 'secure-user';
+
+    try {
+      const loadedConfig = await loadAppConfig({ configPath });
+      expect(loadedConfig.ssh.username).toBe('secure-user');
+    } finally {
+      if (originalSshUsername === undefined) {
+        delete process.env.SSH_USERNAME;
+      } else {
+        process.env.SSH_USERNAME = originalSshUsername;
+      }
+    }
+  });
+
+  it('given_env_token_in_config_when_env_value_missing_then_throws_clear_error', async () => {
+    const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-config-'));
+    tempDirs.push(tempDir);
+
+    const originalSshUsername = process.env.SSH_USERNAME;
+    const configPath = path.join(tempDir, 'config.json');
+    const configWithToken = {
+      ...createValidConfig(),
+      ssh: {
+        ...createValidConfig().ssh,
+        username: 'ENV:SSH_USERNAME'
+      }
+    };
+
+    await writeJsonFile(configPath, configWithToken);
+    delete process.env.SSH_USERNAME;
+
+    try {
+      await expect(loadAppConfig({ configPath })).rejects.toThrow(
+        /Config at .* references missing environment variable SSH_USERNAME at ssh\.username/
+      );
+    } finally {
+      if (originalSshUsername === undefined) {
+        delete process.env.SSH_USERNAME;
+      } else {
+        process.env.SSH_USERNAME = originalSshUsername;
+      }
+    }
+  });
 });

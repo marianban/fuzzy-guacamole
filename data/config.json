@@ -1,0 +1,29 @@
+{
+  "comfyBaseUrl": "http://127.0.0.1:8188",
+  "ssh": {
+    "host": "127.0.0.1",
+    "port": 22,
+    "username": "ENV:SSH_USERNAME",
+    "privateKeyPath": "ENV:SSH_PRIVATE_KEY_PATH"
+  },
+  "remoteStart": {
+    "startComfyCommand": "echo \"Configure remoteStart.startComfyCommand in data/config.json\""
+  },
+  "wol": {
+    "mac": "AA:BB:CC:DD:EE:FF",
+    "broadcast": "255.255.255.255",
+    "port": 9
+  },
+  "paths": {
+    "presets": "data/presets",
+    "inputs": "data/inputs",
+    "outputs": "data/outputs"
+  },
+  "timeouts": {
+    "pcBootMs": 180000,
+    "sshPollMs": 2000,
+    "comfyBootMs": 120000,
+    "healthPollMs": 1000,
+    "historyPollMs": 1000
+  }
+}

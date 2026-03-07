@@ -116,6 +116,13 @@ Current target ComfyUI environment (locked for v1 integration):
 }
 ```
 
+Configuration policy:
+- `/data/config.json` (or the path in `CONFIG_PATH`) is committed and contains the complete config shape.
+- Secret or deployment-specific fields can use token values in the form `ENV:VARIABLE_NAME`.
+- At runtime, token values are replaced with process environment variables before schema validation.
+- Missing token variables are treated as configuration errors.
+- `.env.example` documents required variables; real secret values live in `.env`/deployment env vars and are not committed.
+
 ---
 
 ## 4) Presets (workflow bundles on disk)
