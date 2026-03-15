@@ -17,7 +17,6 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
-    "test:integration:memory": "node scripts/run-integration-tests.mjs memory",
     "test:integration:local": "node scripts/run-integration-tests.mjs local",
     "lint": "eslint . --max-warnings=0 && npm run lint:styles",
     "mermaid:lint": "node scripts/lint-mermaid.mjs",

@@ -34,7 +34,6 @@ Expected `/api/status` response shape:
 - `npm run build`: build client and server into `dist/`
 - `npm run start`: run compiled server from `dist/server/index.js`
 - `npm run test`: run Vitest tests
-- `npm run test:integration:memory`: run API memory + Comfy mock integration tests
 - `npm run test:integration:local`: run API local + Comfy local integration tests
 - `npm run lint`: run ESLint (flat config)
 - `npm run format`: check Prettier formatting

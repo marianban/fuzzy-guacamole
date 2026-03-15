@@ -11,16 +11,14 @@ interface PackageJson {
 }
 
 describe('integration npm scripts', () => {
-  test('given_package_json_when_defining_integration_modes_then_only_two_main_commands_exist', async () => {
+  test('given_package_json_when_defining_integration_modes_then_local_command_exists_and_legacy_commands_are_removed', async () => {
     const currentDir = path.dirname(fileURLToPath(import.meta.url));
     const packageJsonPath = path.resolve(currentDir, '../../package.json');
     const packageJsonRaw = await readFile(packageJsonPath, 'utf8');
     const packageJson = JSON.parse(packageJsonRaw) as PackageJson;
     const scripts = packageJson.scripts ?? {};
 
-    expect(scripts['test:integration:memory']).toBe(
-      'node scripts/run-integration-tests.mjs memory'
-    );
+    expect(scripts['test:integration:memory']).toBeUndefined();
     expect(scripts['test:integration:local']).toBe(
       'node scripts/run-integration-tests.mjs local'
     );
