@@ -35,6 +35,7 @@ Expected `/api/status` response shape:
 - `npm run start`: run compiled server from `dist/server/index.js`
 - `npm run test` or `npm run test:unit`: run unit tests (memory/mocked dependencies)
 - `npm run test:e2e`: run end-to-end tests against local API + local ComfyUI
+- E2E file naming convention: `*.e2e.test.ts` (excluded from unit runs by default)
 - `npm run lint`: run ESLint (flat config)
 - `npm run format`: check Prettier formatting
 - `npm run format:write`: apply Prettier formatting

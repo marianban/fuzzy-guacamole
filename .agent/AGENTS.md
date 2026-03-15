@@ -53,7 +53,11 @@ This repo currently contains the product specification and agent workflow docs f
   - branches: 65%
   - statements: 75%
 - Any intentional coverage gaps should be documented in PR notes with a short rationale.
-- E2E tests run against a real server and client instance
+- E2E tests must use the `*.e2e.test.ts` naming convention.
+- Non-E2E tests must not use the `.e2e.test.ts` suffix.
+- Do not add environment/mode switches inside test files (for example `runIf(...)`, `API_TEST_MODE`, `COMFY_TEST_MODE`, `API_RUN_LOCAL_TESTS`, `COMFY_RUN_LOCAL_TESTS`).
+- Test selection and environment mode must be controlled by runner/global setup scripts in `scripts/` (for example unit runner excludes `.e2e.test.ts`, e2e runner targets `.e2e.test.ts`).
+- E2E tests run against a real server and client instance.
 
 ## Frontend Best Practices (React + TypeScript)
 

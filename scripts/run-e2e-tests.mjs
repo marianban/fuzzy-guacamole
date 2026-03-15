@@ -3,6 +3,8 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+const extraVitestArgs = process.argv.slice(2);
+
 const env = {
   ...process.env,
   API_TEST_MODE: 'local',
@@ -16,12 +18,7 @@ const vitestCliPath = fileURLToPath(vitestCli);
 
 const result = spawnSync(
   process.execPath,
-  [
-    vitestCliPath,
-    'run',
-    'src/server/api.integration.test.ts',
-    'src/server/comfy/client.integration.test.ts'
-  ],
+  [vitestCliPath, 'run', '.e2e.test.ts', ...extraVitestArgs],
   { stdio: 'inherit', env }
 );
 
