@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { resolveDevServerWatchCommand } from './dev-server-command.mjs';
 
 try {
   process.loadEnvFile?.();
@@ -10,7 +11,6 @@ try {
 
 const composeFile = process.env.DEV_DB_COMPOSE_FILE ?? 'docker-compose.dev.yml';
 const mode = process.env.DEV_DB_RESET_ON_STOP === '1' ? 'reset' : 'persist';
-const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 let shuttingDown = false;
 let serverProcess;
@@ -80,7 +80,9 @@ try {
 
   await runCommand('docker', ['compose', ...upArgs]);
 
-  serverProcess = spawn(npmCommand, ['run', 'dev:server:watch'], {
+  const devServerWatchCommand = resolveDevServerWatchCommand();
+
+  serverProcess = spawn(devServerWatchCommand.command, devServerWatchCommand.args, {
     stdio: 'inherit',
     shell: false
   });
