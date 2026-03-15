@@ -44,7 +44,8 @@ Expected `/api/status` response shape:
 Local e2e prerequisites:
 - Start the local API server (`npm run dev:server` or equivalent).
 - Ensure at least one preset exists under `data/presets` (a default `img2img-basic/basic` is included).
-- Start local ComfyUI at `COMFY_BASE_URL` (defaults to `http://127.0.0.1:8188`).
+- Set required e2e env vars in `.env`: `CLIENT_BASE_URL`, `API_BASE_URL`, `COMFY_BASE_URL`, `DATABASE_URL`.
+- Start local ComfyUI at `COMFY_BASE_URL`.
 
 ## Configuration Strategy
 

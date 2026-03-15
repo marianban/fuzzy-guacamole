@@ -3,12 +3,12 @@
 import { Client as PostgresClient } from 'pg';
 import { describe, expect, test } from 'vitest';
 
-const clientBaseUrl = process.env.CLIENT_BASE_URL ?? 'http://127.0.0.1:5173';
-const apiBaseUrl = process.env.API_BASE_URL ?? 'http://127.0.0.1:3000';
-const comfyBaseUrl = process.env.COMFY_BASE_URL ?? 'http://127.0.0.1:8188';
-const databaseUrl =
-  process.env.DATABASE_URL ??
-  'postgres://dev_user:change_me_local_only@127.0.0.1:5432/fuzzy_guacamole_dev';
+import { requireTestEnvVar } from './test-env.js';
+
+const clientBaseUrl = requireTestEnvVar('CLIENT_BASE_URL');
+const apiBaseUrl = requireTestEnvVar('API_BASE_URL');
+const comfyBaseUrl = requireTestEnvVar('COMFY_BASE_URL');
+const databaseUrl = requireTestEnvVar('DATABASE_URL');
 
 describe.sequential('e2e preflight', () => {
   test('given_e2e_run_when_checking_client_then_client_is_running', async () => {

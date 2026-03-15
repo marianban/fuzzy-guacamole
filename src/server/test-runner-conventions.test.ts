@@ -27,6 +27,7 @@ describe('test runner conventions', () => {
     expect(e2eRunnerSource).toContain('false');
     expect(e2eRunnerSource).toContain('--bail');
     expect(e2eRunnerSource).toContain('1');
+    expect(e2eRunnerSource).toContain('loadEnvFile');
     expect(e2eRunnerSource).not.toContain('api.unit.test.ts');
     expect(e2eRunnerSource).not.toContain('client.unit.test.ts');
   });
@@ -48,6 +49,23 @@ describe('test runner conventions', () => {
       expect(source).not.toContain('COMFY_TEST_MODE');
       expect(source).not.toContain('API_RUN_LOCAL_TESTS');
       expect(source).not.toContain('COMFY_RUN_LOCAL_TESTS');
+    }
+  });
+
+  test('given_e2e_files_when_resolving_required_urls_then_no_default_fallbacks_are_embedded', async () => {
+    const currentDir = path.dirname(fileURLToPath(import.meta.url));
+    const files = [
+      path.resolve(currentDir, './00-preflight.e2e.test.ts'),
+      path.resolve(currentDir, './api.e2e.test.ts'),
+      path.resolve(currentDir, './comfy/client.e2e.test.ts')
+    ];
+
+    for (const filePath of files) {
+      const source = await readFile(filePath, 'utf8');
+      expect(source).not.toContain("process.env.CLIENT_BASE_URL ??");
+      expect(source).not.toContain("process.env.API_BASE_URL ??");
+      expect(source).not.toContain("process.env.COMFY_BASE_URL ??");
+      expect(source).not.toContain("process.env.DATABASE_URL ??");
     }
   });
 });

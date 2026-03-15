@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, test } from 'vitest';
 
+import { requireTestEnvVar } from '../test-env.js';
 import {
   ComfyClient,
   extractDeterministicOutputImage,
@@ -34,7 +35,7 @@ interface CapturedFixture {
   };
 }
 
-const baseUrl = process.env.COMFY_BASE_URL ?? 'http://127.0.0.1:8188';
+const baseUrl = requireTestEnvVar('COMFY_BASE_URL');
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFilePath);

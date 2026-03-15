@@ -60,6 +60,9 @@ This repo currently contains the product specification and agent workflow docs f
 - E2E tests run against a real server and client instance.
 - For E2E runs, infrastructure startup is user-owned: client, API server, database, and ComfyUI must be started by the user before the agent runs tests.
 - The agent must not start or stop client/server/database/ComfyUI as part of E2E execution; the agent only runs the E2E test command and reports preflight failures/instructions.
+- Sandbox policy for Codex test execution:
+  - Integration/E2E tests must always be executed outside the Codex sandbox (request escalated permissions for `npm run test:e2e` and targeted `.e2e.test.ts` runs).
+  - Unit tests may be executed inside the sandbox by default, and escalated only when sandbox limitations block execution.
 
 ## Frontend Best Practices (React + TypeScript)
 

@@ -5,8 +5,9 @@ import { z } from 'zod';
 
 import { generationSchema } from '../shared/generations.js';
 import { presetListResponseSchema } from '../shared/presets.js';
+import { requireTestEnvVar } from './test-env.js';
 
-const localBaseUrl = process.env.API_BASE_URL ?? 'http://127.0.0.1:3000';
+const localBaseUrl = requireTestEnvVar('API_BASE_URL');
 
 const openApiDocumentSchema = z.object({
   paths: z.record(z.string(), z.unknown())

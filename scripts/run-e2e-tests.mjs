@@ -3,6 +3,8 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+process.loadEnvFile();
+
 const extraVitestArgs = process.argv.slice(2);
 
 const env = {
