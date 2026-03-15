@@ -51,7 +51,7 @@ describe.sequential('API integration (memory)', () => {
   run(
     'given_memory_server_when_requesting_openapi_then_generation_and_event_routes_are_documented',
     async () => {
-      const response = await app!.inject({
+      const response = await requireApp(app).inject({
         method: 'GET',
         url: '/openapi/json'
       });
@@ -71,23 +71,26 @@ describe.sequential('API integration (memory)', () => {
   run(
     'given_memory_server_when_running_generation_lifecycle_then_create_queue_cancel_and_delete_work',
     async () => {
-      const created = await createGenerationWithInject(app!, 'img2img-basic/basic');
+      const created = await createGenerationWithInject(
+        requireApp(app),
+        'img2img-basic/basic'
+      );
 
-      const queueResponse = await app!.inject({
+      const queueResponse = await requireApp(app).inject({
         method: 'POST',
         url: `/api/generations/${created.id}/queue`
       });
       expect(queueResponse.statusCode).toBe(200);
       expect(queueResponse.json()).toMatchObject({ status: 'queued' });
 
-      const cancelResponse = await app!.inject({
+      const cancelResponse = await requireApp(app).inject({
         method: 'POST',
         url: `/api/generations/${created.id}/cancel`
       });
       expect(cancelResponse.statusCode).toBe(200);
       expect(cancelResponse.json()).toMatchObject({ status: 'canceled' });
 
-      const deleteResponse = await app!.inject({
+      const deleteResponse = await requireApp(app).inject({
         method: 'DELETE',
         url: `/api/generations/${created.id}`
       });
@@ -279,4 +282,14 @@ function createTestCatalog() {
   };
 
   return createPresetCatalog([summary], new Map([[detail.id, detail]]));
+}
+
+function requireApp(
+  app: ReturnType<typeof buildServer> | undefined
+): ReturnType<typeof buildServer> {
+  if (app === undefined) {
+    throw new Error('Server instance was not initialized before test execution.');
+  }
+
+  return app;
 }

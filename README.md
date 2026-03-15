@@ -49,21 +49,31 @@ Expected `/api/status` response shape:
 
 ## Docker Dev
 
-The compose stack starts:
+Local development now starts Postgres automatically when you run the server:
 
-- `db`: Postgres 17
-- `app`: Node 24 container running `npm run dev`
+- `npm run dev` (or `npm run dev:server`)
 
-Run:
+That command runs `docker compose -f docker-compose.dev.yml up -d --wait db` before the API starts.
+When server process exits, it runs `docker compose -f docker-compose.dev.yml down`.
 
-- `docker compose up --build`
+### Postgres Env Variables
 
-Client URL:
+Set in `.env` (see `.env.example`):
 
-- `http://localhost:5173`
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
+- `POSTGRES_DB`
+- `POSTGRES_PORT`
+- `DATABASE_URL`
 
-API URL:
+### Persistence Strategy
 
-- `http://localhost:3000/api/status`
+Two options are supported:
 
-The `app` service mounts `./data` into `/data` for runtime assets.
+1. Reset DB on server stop (`DEV_DB_RESET_ON_STOP=1`)
+2. Keep data in local Docker volume (`DEV_DB_RESET_ON_STOP=0`, default)
+
+Tradeoff summary:
+
+1. Reset mode gives a clean DB every run and avoids stale data, but startup workflows take longer because you lose all data.
+2. Volume mode is faster and keeps local state between runs, but can accumulate stale schema/data and may require occasional manual cleanup.

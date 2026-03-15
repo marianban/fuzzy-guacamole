@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n server,client -c cyan,magenta \"npm:dev:server\" \"npm:dev:client\"",
-    "dev:server": "tsx watch src/server/index.ts",
+    "dev:server": "node scripts/dev-server-with-db.mjs",
+    "dev:server:watch": "tsx watch src/server/index.ts",
     "dev:client": "vite --config src/client/vite.config.ts",
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build --config src/client/vite.config.ts",
