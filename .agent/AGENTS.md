@@ -58,6 +58,8 @@ This repo currently contains the product specification and agent workflow docs f
 - Do not add environment/mode switches inside test files (for example `runIf(...)`, `API_TEST_MODE`, `COMFY_TEST_MODE`, `API_RUN_LOCAL_TESTS`, `COMFY_RUN_LOCAL_TESTS`).
 - Test selection and environment mode must be controlled by runner/global setup scripts in `scripts/` (for example unit runner excludes `.e2e.test.ts`, e2e runner targets `.e2e.test.ts`).
 - E2E tests run against a real server and client instance.
+- For E2E runs, infrastructure startup is user-owned: client, API server, database, and ComfyUI must be started by the user before the agent runs tests.
+- The agent must not start or stop client/server/database/ComfyUI as part of E2E execution; the agent only runs the E2E test command and reports preflight failures/instructions.
 
 ## Frontend Best Practices (React + TypeScript)
 
