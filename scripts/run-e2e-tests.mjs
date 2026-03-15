@@ -18,7 +18,17 @@ const vitestCliPath = fileURLToPath(vitestCli);
 
 const result = spawnSync(
   process.execPath,
-  [vitestCliPath, 'run', '.e2e.test.ts', ...extraVitestArgs],
+  [
+    vitestCliPath,
+    'run',
+    '--fileParallelism',
+    'false',
+    '--bail',
+    '1',
+    'src/server/00-preflight.e2e.test.ts',
+    '.e2e.test.ts',
+    ...extraVitestArgs
+  ],
   { stdio: 'inherit', env }
 );
 

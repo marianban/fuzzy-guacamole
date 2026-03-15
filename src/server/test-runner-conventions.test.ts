@@ -22,6 +22,11 @@ describe('test runner conventions', () => {
     const e2eRunnerSource = await readFile(e2eRunnerPath, 'utf8');
 
     expect(e2eRunnerSource).toContain('.e2e.test.ts');
+    expect(e2eRunnerSource).toContain('00-preflight.e2e.test.ts');
+    expect(e2eRunnerSource).toContain('--fileParallelism');
+    expect(e2eRunnerSource).toContain('false');
+    expect(e2eRunnerSource).toContain('--bail');
+    expect(e2eRunnerSource).toContain('1');
     expect(e2eRunnerSource).not.toContain('api.unit.test.ts');
     expect(e2eRunnerSource).not.toContain('client.unit.test.ts');
   });
@@ -29,6 +34,7 @@ describe('test runner conventions', () => {
   test('given_test_files_when_executed_by_dedicated_runners_then_mode_switches_are_not_embedded_in_tests', async () => {
     const currentDir = path.dirname(fileURLToPath(import.meta.url));
     const files = [
+      path.resolve(currentDir, './00-preflight.e2e.test.ts'),
       path.resolve(currentDir, './api.test.ts'),
       path.resolve(currentDir, './api.e2e.test.ts'),
       path.resolve(currentDir, './comfy/client.mock-replay.test.ts'),
