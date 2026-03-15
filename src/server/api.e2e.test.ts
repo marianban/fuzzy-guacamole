@@ -14,54 +14,45 @@ const openApiDocumentSchema = z.object({
 });
 
 describe.sequential('API e2e (local server)', () => {
-  test(
-    'given_local_server_when_requesting_openapi_then_generation_and_event_routes_are_documented',
-    async () => {
-      const response = await fetch(`${localBaseUrl}/openapi/json`);
-      expect(response.status).toBe(200);
-      const payload = openApiDocumentSchema.parse(await response.json());
-      expect(payload.paths).toMatchObject({
-        '/api/generations': expect.any(Object),
-        '/api/generations/{generationId}': expect.any(Object),
-        '/api/generations/{generationId}/input': expect.any(Object),
-        '/api/generations/{generationId}/queue': expect.any(Object),
-        '/api/generations/{generationId}/cancel': expect.any(Object),
-        '/api/events/generations': expect.any(Object)
-      });
-    }
-  );
+  test('given_local_server_when_requesting_openapi_then_generation_and_event_routes_are_documented', async () => {
+    const response = await fetch(`${localBaseUrl}/openapi/json`);
+    expect(response.status).toBe(200);
+    const payload = openApiDocumentSchema.parse(await response.json());
+    expect(payload.paths).toMatchObject({
+      '/api/generations': expect.any(Object),
+      '/api/generations/{generationId}': expect.any(Object),
+      '/api/generations/{generationId}/input': expect.any(Object),
+      '/api/generations/{generationId}/queue': expect.any(Object),
+      '/api/generations/{generationId}/cancel': expect.any(Object),
+      '/api/events/generations': expect.any(Object)
+    });
+  });
 
-  test(
-    'given_local_server_when_running_generation_lifecycle_then_create_queue_cancel_and_delete_work',
-    async () => {
-      const presetId = await resolveLocalPresetId();
-      const created = await createGenerationWithFetch(localBaseUrl, presetId);
+  test('given_local_server_when_running_generation_lifecycle_then_create_queue_cancel_and_delete_work', async () => {
+    const presetId = await resolveLocalPresetId();
+    const created = await createGenerationWithFetch(localBaseUrl, presetId);
 
-      const queueResponse = await fetch(
-        `${localBaseUrl}/api/generations/${created.id}/queue`,
-        {
-          method: 'POST'
-        }
-      );
-      expect(queueResponse.status).toBe(200);
+    const queueResponse = await fetch(
+      `${localBaseUrl}/api/generations/${created.id}/queue`,
+      {
+        method: 'POST'
+      }
+    );
+    expect(queueResponse.status).toBe(200);
 
-      const cancelResponse = await fetch(
-        `${localBaseUrl}/api/generations/${created.id}/cancel`,
-        {
-          method: 'POST'
-        }
-      );
-      expect(cancelResponse.status).toBe(200);
+    const cancelResponse = await fetch(
+      `${localBaseUrl}/api/generations/${created.id}/cancel`,
+      {
+        method: 'POST'
+      }
+    );
+    expect(cancelResponse.status).toBe(200);
 
-      const deleteResponse = await fetch(
-        `${localBaseUrl}/api/generations/${created.id}`,
-        {
-          method: 'DELETE'
-        }
-      );
-      expect(deleteResponse.status).toBe(204);
-    }
-  );
+    const deleteResponse = await fetch(`${localBaseUrl}/api/generations/${created.id}`, {
+      method: 'DELETE'
+    });
+    expect(deleteResponse.status).toBe(204);
+  });
 });
 
 async function resolveLocalPresetId(): Promise<string> {
