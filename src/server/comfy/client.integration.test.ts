@@ -55,7 +55,7 @@ const outputDirPath = path.resolve(currentDir, '__fixtures__/output');
 const txt2imgTemplatePath = path.resolve(currentDir, '../../../examples/prompts/txt2img.json');
 const img2imgTemplatePath = path.resolve(currentDir, '../../../examples/prompts/img2img.json');
 
-describe.sequential('ComfyClient integration (mock replay)', () => {
+describe.sequential('ComfyClient unit (mock replay)', () => {
   const run = test.runIf(shouldRunMockMode);
 
   run(
@@ -103,7 +103,7 @@ describe.sequential('ComfyClient integration (mock replay)', () => {
   );
 });
 
-describe.sequential('ComfyClient integration (local ComfyUI)', () => {
+describe.sequential('ComfyClient e2e (local ComfyUI)', () => {
   const run = test.runIf(shouldRunLocalMode);
 
   run(

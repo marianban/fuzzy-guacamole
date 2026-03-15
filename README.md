@@ -33,14 +33,14 @@ Expected `/api/status` response shape:
 - `npm run dev`: run Fastify API + Vite client together
 - `npm run build`: build client and server into `dist/`
 - `npm run start`: run compiled server from `dist/server/index.js`
-- `npm run test`: run Vitest tests
-- `npm run test:integration:local`: run API local + Comfy local integration tests
+- `npm run test` or `npm run test:unit`: run unit tests (memory/mocked dependencies)
+- `npm run test:e2e`: run end-to-end tests against local API + local ComfyUI
 - `npm run lint`: run ESLint (flat config)
 - `npm run format`: check Prettier formatting
 - `npm run format:write`: apply Prettier formatting
 - `npm run typecheck`: run TypeScript checks for client and server
 
-Local integration prerequisites:
+Local e2e prerequisites:
 - Start the local API server (`npm run dev:server` or equivalent).
 - Ensure at least one preset exists under `data/presets` (a default `img2img-basic/basic` is included).
 - Start local ComfyUI at `COMFY_BASE_URL` (defaults to `http://127.0.0.1:8188`).

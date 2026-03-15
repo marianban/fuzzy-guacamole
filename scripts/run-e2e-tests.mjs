@@ -3,19 +3,12 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const mode = process.argv[2];
-
-if (mode !== 'memory' && mode !== 'local') {
-  console.error('Usage: node scripts/run-integration-tests.mjs <memory|local>');
-  process.exit(1);
-}
-
 const env = {
   ...process.env,
-  API_TEST_MODE: mode === 'local' ? 'local' : 'memory',
-  COMFY_TEST_MODE: mode === 'local' ? 'local' : 'mock',
-  API_RUN_LOCAL_TESTS: mode === 'local' ? '1' : '0',
-  COMFY_RUN_LOCAL_TESTS: mode === 'local' ? '1' : '0'
+  API_TEST_MODE: 'local',
+  COMFY_TEST_MODE: 'local',
+  API_RUN_LOCAL_TESTS: '1',
+  COMFY_RUN_LOCAL_TESTS: '1'
 };
 
 const vitestCli = new URL('../node_modules/vitest/vitest.mjs', import.meta.url);

@@ -23,7 +23,7 @@ const openApiDocumentSchema = z.object({
   paths: z.record(z.string(), z.unknown())
 });
 
-describe.sequential('API integration (memory)', () => {
+describe.sequential('API unit (memory)', () => {
   const run = test.runIf(shouldRunMemoryMode);
 
   let tempDir = '';
@@ -99,7 +99,7 @@ describe.sequential('API integration (memory)', () => {
   );
 });
 
-describe.sequential('API integration (local server)', () => {
+describe.sequential('API e2e (local server)', () => {
   const run = test.runIf(shouldRunLocalMode);
 
   run(
