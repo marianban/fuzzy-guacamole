@@ -40,6 +40,11 @@ Expected `/api/status` response shape:
 - `npm run format:write`: apply Prettier formatting
 - `npm run typecheck`: run TypeScript checks for client and server
 
+Local integration prerequisites:
+- Start the local API server (`npm run dev:server` or equivalent).
+- Ensure at least one preset exists under `data/presets` (a default `img2img-basic/basic` is included).
+- Start local ComfyUI at `COMFY_BASE_URL` (defaults to `http://127.0.0.1:8188`).
+
 ## Configuration Strategy
 
 - Commit `data/config.json` so the full configuration structure is always visible in git.

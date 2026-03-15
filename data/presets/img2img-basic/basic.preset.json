@@ -1,0 +1,14 @@
+{
+  "id": "img2img-basic/basic",
+  "name": "Img2Img - Basic",
+  "type": "img2img",
+  "template": "prompt.template.json",
+  "defaults": {
+    "prompt": "transform style to european children's book illustration, watercolor, muted pastel palette.",
+    "negativePrompt": "",
+    "steps": 5,
+    "cfg": 4,
+    "seed": 949458187894337,
+    "seedMode": "random"
+  }
+}

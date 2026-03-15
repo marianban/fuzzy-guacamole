@@ -1,0 +1,272 @@
+{
+  "id": "img2img-basic",
+  "type": "img2img",
+  "workflow": {
+    "1": {
+      "inputs": {
+        "vae_name": "qwen_image_vae.safetensors"
+      },
+      "class_type": "VAELoader",
+      "_meta": {
+        "title": "Load VAE"
+      }
+    },
+    "2": {
+      "inputs": {
+        "samples": [
+          "7",
+          0
+        ],
+        "vae": [
+          "1",
+          0
+        ]
+      },
+      "class_type": "VAEDecode",
+      "_meta": {
+        "title": "VAE Decode"
+      }
+    },
+    "3": {
+      "inputs": {
+        "filename_prefix": "ComfyUI",
+        "images": [
+          "2",
+          0
+        ]
+      },
+      "class_type": "SaveImage",
+      "_meta": {
+        "title": "Save Image"
+      }
+    },
+    "4": {
+      "inputs": {
+        "unet_name": "qwen-image-edit-2511-Q4_K_M.gguf"
+      },
+      "class_type": "UnetLoaderGGUF",
+      "_meta": {
+        "title": "Unet Loader (GGUF)"
+      }
+    },
+    "5": {
+      "inputs": {
+        "shift": 3,
+        "model": [
+          "4",
+          0
+        ]
+      },
+      "class_type": "ModelSamplingAuraFlow",
+      "_meta": {
+        "title": "ModelSamplingAuraFlow"
+      }
+    },
+    "6": {
+      "inputs": {
+        "strength": 1,
+        "model": [
+          "5",
+          0
+        ]
+      },
+      "class_type": "CFGNorm",
+      "_meta": {
+        "title": "CFGNorm"
+      }
+    },
+    "7": {
+      "inputs": {
+        "seed": "{{SEED}}",
+        "steps": "{{STEPS}}",
+        "cfg": "{{CFG}}",
+        "sampler_name": "euler",
+        "scheduler": "simple",
+        "denoise": 1,
+        "model": [
+          "6",
+          0
+        ],
+        "positive": [
+          "14",
+          0
+        ],
+        "negative": [
+          "13",
+          0
+        ],
+        "latent_image": [
+          "23",
+          0
+        ]
+      },
+      "class_type": "KSampler",
+      "_meta": {
+        "title": "KSampler"
+      }
+    },
+    "9": {
+      "inputs": {
+        "upscale_method": "lanczos",
+        "width": 1122,
+        "height": 1496,
+        "crop": "center",
+        "image": [
+          "12",
+          0
+        ]
+      },
+      "class_type": "ImageScale",
+      "_meta": {
+        "title": "Upscale Image"
+      }
+    },
+    "12": {
+      "inputs": {
+        "image": "{{INPUT_IMAGE}}"
+      },
+      "class_type": "LoadImage",
+      "_meta": {
+        "title": "Load Image"
+      }
+    },
+    "13": {
+      "inputs": {
+        "prompt": "{{NEG_PROMPT}}",
+        "clip": [
+          "17",
+          0
+        ],
+        "vae": [
+          "1",
+          0
+        ],
+        "image1": [
+          "9",
+          0
+        ]
+      },
+      "class_type": "TextEncodeQwenImageEditPlus",
+      "_meta": {
+        "title": "TextEncodeQwenImageEditPlus"
+      }
+    },
+    "14": {
+      "inputs": {
+        "prompt": "{{PROMPT}}",
+        "clip": [
+          "17",
+          0
+        ],
+        "vae": [
+          "1",
+          0
+        ],
+        "image1": [
+          "9",
+          0
+        ]
+      },
+      "class_type": "TextEncodeQwenImageEditPlus",
+      "_meta": {
+        "title": "TextEncodeQwenImageEditPlus (Positive)"
+      }
+    },
+    "16": {
+      "inputs": {
+        "pixels": [
+          "9",
+          0
+        ],
+        "vae": [
+          "1",
+          0
+        ]
+      },
+      "class_type": "VAEEncode",
+      "_meta": {
+        "title": "VAE Encode"
+      }
+    },
+    "17": {
+      "inputs": {
+        "clip_name": "Qwen2.5-VL-7B-Instruct-UD-Q4_K_XL.gguf",
+        "type": "stable_diffusion"
+      },
+      "class_type": "CLIPLoaderGGUF",
+      "_meta": {
+        "title": "CLIPLoader (GGUF)"
+      }
+    },
+    "19": {
+      "inputs": {
+        "model_name": "4xNomos8kHAT-L_otf.pth"
+      },
+      "class_type": "UpscaleModelLoader",
+      "_meta": {
+        "title": "Load Upscale Model"
+      }
+    },
+    "20": {
+      "inputs": {
+        "upscale_model": [
+          "19",
+          0
+        ],
+        "image": [
+          "22",
+          0
+        ]
+      },
+      "class_type": "ImageUpscaleWithModel",
+      "_meta": {
+        "title": "Upscale Image (using Model)"
+      }
+    },
+    "21": {
+      "inputs": {
+        "filename_prefix": "upscaled",
+        "images": [
+          "20",
+          0
+        ]
+      },
+      "class_type": "SaveImage",
+      "_meta": {
+        "title": "Save Image"
+      }
+    },
+    "22": {
+      "inputs": {
+        "anything": [
+          "2",
+          0
+        ]
+      },
+      "class_type": "easy cleanGpuUsed",
+      "_meta": {
+        "title": "Clean VRAM Used"
+      }
+    },
+    "23": {
+      "inputs": {
+        "anything": [
+          "16",
+          0
+        ]
+      },
+      "class_type": "easy cleanGpuUsed",
+      "_meta": {
+        "title": "Clean VRAM Used"
+      }
+    }
+  },
+  "placeholders": {
+    "{{PROMPT}}": "prompt",
+    "{{NEG_PROMPT}}": "negativePrompt",
+    "{{STEPS}}": "steps",
+    "{{CFG}}": "cfg",
+    "{{SEED}}": "seed",
+    "{{INPUT_IMAGE}}": "inputImagePath"
+  }
+}
