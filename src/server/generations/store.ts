@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import { desc, eq } from 'drizzle-orm';
 
-import type { Generation } from '../../shared/generations.js';
+import {
+  generationStatusSchema,
+  type Generation
+} from '../../shared/generations.js';
 import type { AppDatabase } from '../db/client.js';
 import { generations } from '../db/schema.js';
 
@@ -95,19 +98,7 @@ class PostgresGenerationStore implements GenerationStore {
 
     const rows = await this.#database.db
       .insert(generations)
-      .values({
-        id: generation.id,
-        status: generation.status,
-        presetId: generation.presetId,
-        templateId: generation.templateId,
-        presetParams: generation.presetParams,
-        promptRequest: null,
-        promptResponse: null,
-        queuedAt: generation.queuedAt,
-        error: generation.error,
-        createdAt: generation.createdAt,
-        updatedAt: generation.updatedAt
-      })
+      .values(mapGenerationToInsertValues(generation))
       .returning();
 
     const row = rows[0];
@@ -139,49 +130,30 @@ class PostgresGenerationStore implements GenerationStore {
   }
 
   async save(generation: Generation): Promise<Generation> {
-    const updatedRows = await this.#database.db
-      .update(generations)
-      .set({
-        status: generation.status,
-        presetId: generation.presetId,
-        templateId: generation.templateId,
-        presetParams: generation.presetParams,
-        queuedAt: generation.queuedAt,
-        error: generation.error,
-        createdAt: generation.createdAt,
-        updatedAt: generation.updatedAt
-      })
-      .where(eq(generations.id, generation.id))
-      .returning();
-
-    const updatedRow = updatedRows[0];
-    if (updatedRow !== undefined) {
-      return mapRowToGeneration(updatedRow);
-    }
-
-    const insertedRows = await this.#database.db
+    const savedRows = await this.#database.db
       .insert(generations)
-      .values({
-        id: generation.id,
-        status: generation.status,
-        presetId: generation.presetId,
-        templateId: generation.templateId,
-        presetParams: generation.presetParams,
-        promptRequest: null,
-        promptResponse: null,
-        queuedAt: generation.queuedAt,
-        error: generation.error,
-        createdAt: generation.createdAt,
-        updatedAt: generation.updatedAt
+      .values(mapGenerationToInsertValues(generation))
+      .onConflictDoUpdate({
+        target: generations.id,
+        set: {
+          status: generation.status,
+          presetId: generation.presetId,
+          templateId: generation.templateId,
+          presetParams: generation.presetParams,
+          queuedAt: generation.queuedAt,
+          error: generation.error,
+          createdAt: generation.createdAt,
+          updatedAt: generation.updatedAt
+        }
       })
       .returning();
 
-    const insertedRow = insertedRows[0];
-    if (insertedRow === undefined) {
+    const savedRow = savedRows[0];
+    if (savedRow === undefined) {
       throw new Error(`Failed to save generation "${generation.id}".`);
     }
 
-    return mapRowToGeneration(insertedRow);
+    return mapRowToGeneration(savedRow);
   }
 
   async delete(generationId: string): Promise<boolean> {
@@ -212,7 +184,7 @@ function mapRowToGeneration(
 ): Generation {
   return {
     id: row.id,
-    status: row.status as Generation['status'],
+    status: generationStatusSchema.parse(row.status),
     presetId: row.presetId,
     templateId: row.templateId,
     presetParams: { ...row.presetParams },
@@ -233,4 +205,20 @@ function normalizeNullableTimestamp(value: string | null): string | null {
   }
 
   return normalizeTimestamp(value);
+}
+
+function mapGenerationToInsertValues(generation: Generation) {
+  return {
+    id: generation.id,
+    status: generation.status,
+    presetId: generation.presetId,
+    templateId: generation.templateId,
+    presetParams: generation.presetParams,
+    promptRequest: null,
+    promptResponse: null,
+    queuedAt: generation.queuedAt,
+    error: generation.error,
+    createdAt: generation.createdAt,
+    updatedAt: generation.updatedAt
+  };
 }

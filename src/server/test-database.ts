@@ -28,7 +28,12 @@ export async function createTestDatabaseContext(): Promise<TestDatabaseContext> 
   const schema = `test_${randomUUID().replaceAll('-', '_')}`;
   const adminClient = new Client({ connectionString });
   await adminClient.connect();
-  await adminClient.query(`create schema "${schema}"`);
+  try {
+    await adminClient.query(`create schema "${schema}"`);
+  } catch (error) {
+    await adminClient.end();
+    throw error;
+  }
 
   return {
     createAppDatabase() {

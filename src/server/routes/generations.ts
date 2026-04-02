@@ -157,7 +157,10 @@ export function registerGenerationRoutes(
         });
       }
 
-      const safeFileName = path.basename(filePart.filename ?? 'input.bin');
+      const safeFileName =
+        filePart.filename !== undefined && filePart.filename.length > 0
+          ? path.basename(filePart.filename)
+          : 'input.bin';
       const targetDir = path.resolve(
         options.config.paths.inputs,
         generation.id,
@@ -165,12 +168,6 @@ export function registerGenerationRoutes(
       );
       await mkdir(targetDir, { recursive: true });
       const targetPath = path.resolve(targetDir, safeFileName);
-
-      if (!targetPath.startsWith(targetDir)) {
-        return reply.code(400).send({
-          message: 'Invalid file name.'
-        });
-      }
 
       await pipeline(filePart.file, createWriteStream(targetPath));
 

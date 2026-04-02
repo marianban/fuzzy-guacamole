@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -87,6 +87,41 @@ describe.sequential('API unit (memory)', () => {
         url: `/api/generations/${created.id}`
       });
       expect(deleteResponse.statusCode).toBe(204);
+    }
+  );
+
+  test(
+    'given_empty_upload_filename_when_uploading_input_then_route_falls_back_to_input_bin',
+    async () => {
+      const created = await createGenerationWithInject(
+        requireApp(app),
+        'img2img-basic/basic'
+      );
+      const fileBuffer = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+      const multipart = buildMultipartPayload('', fileBuffer);
+
+      const uploadResponse = await requireApp(app).inject({
+        method: 'POST',
+        url: `/api/generations/${created.id}/input`,
+        headers: {
+          'content-type': `multipart/form-data; boundary=${multipart.boundary}`
+        },
+        payload: multipart.payload
+      });
+
+      expect(uploadResponse.statusCode).toBe(204);
+
+      const detailResponse = await requireApp(app).inject({
+        method: 'GET',
+        url: `/api/generations/${created.id}`
+      });
+      expect(detailResponse.statusCode).toBe(200);
+
+      const detail = generationSchema.parse(detailResponse.json());
+      const inputImagePath = z.string().parse(detail.presetParams.inputImagePath);
+
+      expect(path.basename(inputImagePath)).toBe('input.bin');
+      await expect(readFile(inputImagePath)).resolves.toEqual(fileBuffer);
     }
   );
 });
@@ -182,6 +217,22 @@ function createTestCatalog() {
   };
 
   return createPresetCatalog([summary], new Map([[detail.id, detail]]));
+}
+
+function buildMultipartPayload(fileName: string, fileContent: Buffer) {
+  const boundary = '----fg-test-boundary';
+  const start = Buffer.from(
+    `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n` +
+      'Content-Type: image/png\r\n\r\n',
+    'utf8'
+  );
+  const end = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8');
+
+  return {
+    boundary,
+    payload: Buffer.concat([start, fileContent, end])
+  };
 }
 
 function requireApp(
