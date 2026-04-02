@@ -71,7 +71,7 @@ Implemented routes:
 - `GET /api/generations` -> generation list ordered by `createdAt` descending
 - `GET /api/generations/{generationId}` -> single generation detail
 - `POST /api/generations` -> creates draft generation from preset + params
-- `POST /api/generations/{generationId}/input` -> accepts multipart file upload and stores path in `presetParams.inputImagePath`
+- `POST /api/generations/{generationId}/input` -> accepts multipart file upload, stores path in `presetParams.inputImagePath`, and returns `204`
 - `POST /api/generations/{generationId}/queue` -> transitions generation to `queued` and sets `queuedAt`
 - `POST /api/generations/{generationId}/cancel` -> transitions `queued` generation to `canceled` (other states currently return `409`)
 - `DELETE /api/generations/{generationId}` -> deletes generation unless status is `submitted`

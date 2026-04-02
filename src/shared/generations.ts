@@ -28,10 +28,6 @@ export const createGenerationRequestSchema = z.object({
   presetParams: z.record(z.string(), z.unknown())
 });
 
-export const generationInputUploadResponseSchema = z.object({
-  inputImagePath: z.string().min(1)
-});
-
 export const generationEventSchema = z.object({
   type: z.enum(['upsert', 'deleted']),
   generation: generationSchema.optional(),

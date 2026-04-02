@@ -9,7 +9,6 @@ import { z } from 'zod';
 
 import {
   createGenerationRequestSchema,
-  generationInputUploadResponseSchema,
   generationListResponseSchema,
   generationSchema
 } from '../../shared/generations.js';
@@ -122,7 +121,7 @@ export function registerGenerationRoutes(
         summary: 'Upload generation input image',
         params: generationParamsSchema,
         response: {
-          200: generationInputUploadResponseSchema,
+          204: z.void(),
           400: errorResponseSchema,
           404: errorResponseSchema,
           409: errorResponseSchema,
@@ -189,9 +188,7 @@ export function registerGenerationRoutes(
         generation: updated
       });
 
-      return generationInputUploadResponseSchema.parse({
-        inputImagePath: targetPath
-      });
+      return reply.code(204).send();
     }
   );
 

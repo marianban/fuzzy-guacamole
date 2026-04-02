@@ -283,28 +283,25 @@ describe('generation routes', () => {
       },
       payload: multipart.payload
     });
-    expect(uploadResponse.statusCode).toBe(200);
-    const uploaded = uploadResponse.json() as {
-      inputImagePath: string;
-    };
-    expect(uploaded.inputImagePath).toContain(`${created.id}`);
-    expect(uploaded.inputImagePath).toContain('original');
-
-    const savedContent = await readFile(uploaded.inputImagePath);
-    expect(savedContent.equals(fileBuffer)).toBe(true);
+    expect(uploadResponse.statusCode).toBe(204);
+    expect(uploadResponse.body).toBe('');
+    expect(uploadResponse.headers['content-type']).toBeUndefined();
 
     const detailResponse = await app.inject({
       method: 'GET',
       url: `/api/generations/${created.id}`
     });
     expect(detailResponse.statusCode).toBe(200);
-    expect(detailResponse.json()).toEqual(
-      expect.objectContaining({
-        presetParams: expect.objectContaining({
-          inputImagePath: uploaded.inputImagePath
-        })
-      })
-    );
+    const detail = detailResponse.json() as {
+      presetParams: {
+        inputImagePath: string;
+      };
+    };
+    expect(detail.presetParams.inputImagePath).toContain(`${created.id}`);
+    expect(detail.presetParams.inputImagePath).toContain('original');
+
+    const savedContent = await readFile(detail.presetParams.inputImagePath);
+    expect(savedContent.equals(fileBuffer)).toBe(true);
 
     await app.close();
   });
