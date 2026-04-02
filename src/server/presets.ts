@@ -15,7 +15,7 @@ interface LoadPresetCatalogOptions {
 }
 
 export interface PresetCatalog {
-  list(): readonly PresetSummary[];
+  list(): PresetSummary[];
   getById(presetId: string): PresetDetail | undefined;
 }
 
@@ -28,7 +28,7 @@ class InMemoryPresetCatalog implements PresetCatalog {
     this.#detailsById = detailsById;
   }
 
-  list(): readonly PresetSummary[] {
+  list(): PresetSummary[] {
     return [...this.#summaries];
   }
 

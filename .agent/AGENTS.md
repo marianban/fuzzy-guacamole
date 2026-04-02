@@ -23,6 +23,11 @@ This repo currently contains the product specification and agent workflow docs f
 - follow good software engineering practices
 - write clean, maintainable code
 - document important decisions and trade-offs
+- use environment-driven configuration with committed non-secret config files:
+  - commit `data/config.json` with the full config shape visible in git
+  - represent secret/runtime-specific values as `ENV:VARIABLE_NAME` tokens inside `data/config.json`
+  - define token values in `.env` / deployment environment variables (never commit secrets)
+  - keep `.env.example` committed as the required variable contract for local and container environments
 - write tests to ensure code quality and prevent regressions
 - after implementing a feature ensure a good test coverage, check linting and formatting and fix any issues. Then run the app locally to verify the feature works as expected by using chrome devtools mcp. Verify no errors are shown in the console and network tab. In case of warnings evaluate if they should be fixed.
 - for naming tests use gherkin syntax given_when_then format where applicable.
@@ -48,7 +53,16 @@ This repo currently contains the product specification and agent workflow docs f
   - branches: 65%
   - statements: 75%
 - Any intentional coverage gaps should be documented in PR notes with a short rationale.
-- E2E tests run against a real server and client instance
+- E2E tests must use the `*.e2e.test.ts` naming convention.
+- Non-E2E tests must not use the `.e2e.test.ts` suffix.
+- Do not add environment/mode switches inside test files (for example `runIf(...)`, `API_TEST_MODE`, `COMFY_TEST_MODE`, `API_RUN_LOCAL_TESTS`, `COMFY_RUN_LOCAL_TESTS`).
+- Test selection and environment mode must be controlled by runner/global setup scripts in `scripts/` (for example unit runner excludes `.e2e.test.ts`, e2e runner targets `.e2e.test.ts`).
+- E2E tests run against a real server and client instance.
+- For E2E runs, infrastructure startup is user-owned: client, API server, database, and ComfyUI must be started by the user before the agent runs tests.
+- The agent must not start or stop client/server/database/ComfyUI as part of E2E execution; the agent only runs the E2E test command and reports preflight failures/instructions.
+- Sandbox policy for Codex test execution:
+  - Integration/E2E tests must always be executed outside the Codex sandbox (request escalated permissions for `npm run test:e2e` and targeted `.e2e.test.ts` runs).
+  - Unit tests may be executed inside the sandbox by default, and escalated only when sandbox limitations block execution.
 
 ## Frontend Best Practices (React + TypeScript)
 

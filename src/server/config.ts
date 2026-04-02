@@ -38,10 +38,64 @@ interface LoadAppConfigOptions {
   configPath?: string;
 }
 
+const ENV_TOKEN_PATTERN = /^ENV:([A-Za-z_][A-Za-z0-9_]*)$/;
+
+function resolveEnvTokens(
+  value: unknown,
+  pathParts: string[],
+  configPath: string
+): unknown {
+  if (typeof value === 'string') {
+    const match = ENV_TOKEN_PATTERN.exec(value);
+    if (!match) {
+      return value;
+    }
+
+    const envVarName = match[1];
+
+    if (envVarName === undefined) {
+      return value;
+    }
+
+    const envValue = process.env[envVarName];
+    if (envValue === undefined) {
+      const pathLabel = pathParts.join('.');
+      throw new Error(
+        `Config at ${configPath} references missing environment variable ${envVarName} at ${pathLabel}`
+      );
+    }
+    return envValue;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item, index) =>
+      resolveEnvTokens(item, [...pathParts, String(index)], configPath)
+    );
+  }
+
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>).map(
+      ([key, nestedValue]) => [
+        key,
+        resolveEnvTokens(nestedValue, [...pathParts, key], configPath)
+      ]
+    );
+    return Object.fromEntries(entries);
+  }
+
+  return value;
+}
+
 export async function loadAppConfig(
   options: LoadAppConfigOptions = {}
 ): Promise<AppConfig> {
-  const configPath = options.configPath ?? process.env.CONFIG_PATH ?? '/data/config.json';
+  const configPath = options.configPath ?? process.env.CONFIG_PATH;
+
+  if (!configPath) {
+    throw new Error(
+      'CONFIG_PATH environment variable is required when configPath is not provided'
+    );
+  }
 
   let rawContent: string;
   try {
@@ -61,7 +115,9 @@ export async function loadAppConfig(
     );
   }
 
-  const parsed = appConfigSchema.safeParse(parsedJson);
+  const resolvedConfig = resolveEnvTokens(parsedJson, [], configPath);
+
+  const parsed = appConfigSchema.safeParse(resolvedConfig);
   if (!parsed.success) {
     throw new Error(
       `Config at ${configPath} is invalid: ${parsed.error.issues

@@ -2,6 +2,14 @@ import { buildServer } from './app.js';
 import { loadAppConfig } from './config.js';
 import { loadPresetCatalog } from './presets.js';
 
+try {
+  process.loadEnvFile?.();
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+    throw error;
+  }
+}
+
 const port = Number(process.env.PORT ?? 3000);
 const host = process.env.HOST ?? '0.0.0.0';
 
