@@ -28,11 +28,19 @@ export const createGenerationRequestSchema = z.object({
   presetParams: z.record(z.string(), z.unknown())
 });
 
-export const generationEventSchema = z.object({
-  type: z.enum(['upsert', 'deleted']),
-  generation: generationSchema.optional(),
-  generationId: z.uuid()
-});
+export const generationEventSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('upsert'),
+    generationId: z.uuid(),
+    generation: generationSchema
+  }),
+  z
+    .object({
+      type: z.literal('deleted'),
+      generationId: z.uuid()
+    })
+    .strict()
+]);
 
 export type Generation = z.infer<typeof generationSchema>;
 export type CreateGenerationRequest = z.infer<typeof createGenerationRequestSchema>;
