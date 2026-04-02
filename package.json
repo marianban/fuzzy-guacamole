@@ -9,6 +9,8 @@
     "dev:server": "node scripts/dev-server-with-db.mjs",
     "dev:server:watch": "tsx watch src/server/index.ts",
     "dev:client": "vite --config src/client/vite.config.ts",
+    "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
+    "db:migrate": "tsx scripts/migrate-db.mjs",
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build --config src/client/vite.config.ts",
     "build:server": "tsc -p src/server/tsconfig.json",

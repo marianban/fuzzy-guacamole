@@ -11,7 +11,10 @@ import {
 
 import type { AppConfig } from './config.js';
 import { createGenerationEventBus } from './generations/events.js';
-import { createGenerationStore } from './generations/store.js';
+import {
+  createGenerationStore,
+  type GenerationStore
+} from './generations/store.js';
 import {
   type PresetCatalog,
   createEmptyPresetCatalog
@@ -25,6 +28,7 @@ export interface BuildServerOptions {
   stateSince?: string;
   config?: AppConfig;
   presetCatalog?: PresetCatalog;
+  generationStore?: GenerationStore;
 }
 
 export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
@@ -53,7 +57,8 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
 
   const stateSince = options.stateSince ?? new Date().toISOString();
   const presetCatalog = options.presetCatalog ?? createEmptyPresetCatalog();
-  const generationStore = createGenerationStore();
+  const generationStore =
+    options.generationStore ?? createGenerationStore();
   const generationEventBus = createGenerationEventBus();
 
   app.after(() => {

@@ -3,6 +3,14 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+try {
+  process.loadEnvFile?.();
+} catch (error) {
+  if (error?.code !== 'ENOENT') {
+    throw error;
+  }
+}
+
 const extraVitestArgs = process.argv.slice(2);
 
 const env = {

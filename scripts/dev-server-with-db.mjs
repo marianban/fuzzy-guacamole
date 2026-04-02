@@ -58,6 +58,10 @@ async function shutdownDatabase() {
   }
 }
 
+async function runDatabaseMigrations() {
+  await runCommand(resolveMigrationCommand().command, resolveMigrationCommand().args);
+}
+
 async function gracefulShutdown(signal) {
   if (shuttingDown) {
     return;
@@ -79,6 +83,7 @@ try {
   const upArgs = buildDockerComposeArgs('up');
 
   await runCommand('docker', ['compose', ...upArgs]);
+  await runDatabaseMigrations();
 
   const devServerWatchCommand = resolveDevServerWatchCommand();
 
@@ -101,4 +106,18 @@ try {
   console.error('Failed to start dev database:', error);
   await shutdownDatabase();
   process.exit(1);
+}
+
+function resolveMigrationCommand() {
+  if (process.platform === 'win32') {
+    return {
+      command: 'cmd.exe',
+      args: ['/d', '/s', '/c', 'npm.cmd', 'run', 'db:migrate']
+    };
+  }
+
+  return {
+    command: 'npm',
+    args: ['run', 'db:migrate']
+  };
 }

@@ -49,7 +49,8 @@ export function registerGenerationRoutes(
         }
       }
     },
-    async () => generationListResponseSchema.parse(options.store.list())
+    async () =>
+      generationListResponseSchema.parse(await options.store.list())
   );
 
   typed.get(
@@ -66,7 +67,7 @@ export function registerGenerationRoutes(
       }
     },
     async (request, reply) => {
-      const generation = options.store.getById(request.params.generationId);
+      const generation = await options.store.getById(request.params.generationId);
       if (generation === undefined) {
         return reply.code(404).send({
           message: `Generation "${request.params.generationId}" was not found.`
@@ -98,7 +99,7 @@ export function registerGenerationRoutes(
           .send({ message: `Preset "${request.body.presetId}" was not found.` });
       }
 
-      const generation = options.store.create({
+      const generation = await options.store.create({
         presetId: request.body.presetId,
         templateId: preset.templateId,
         presetParams: request.body.presetParams
@@ -130,7 +131,7 @@ export function registerGenerationRoutes(
       }
     },
     async (request, reply) => {
-      const generation = options.store.getById(request.params.generationId);
+      const generation = await options.store.getById(request.params.generationId);
       if (generation === undefined) {
         return reply.code(404).send({
           message: `Generation "${request.params.generationId}" was not found.`
@@ -181,7 +182,7 @@ export function registerGenerationRoutes(
         },
         updatedAt: new Date().toISOString()
       };
-      options.store.save(updated);
+      await options.store.save(updated);
       options.eventBus.publish({
         type: 'upsert',
         generationId: updated.id,
@@ -207,7 +208,7 @@ export function registerGenerationRoutes(
       }
     },
     async (request, reply) => {
-      const generation = options.store.getById(request.params.generationId);
+      const generation = await options.store.getById(request.params.generationId);
       if (generation === undefined) {
         return reply.code(404).send({
           message: `Generation "${request.params.generationId}" was not found.`
@@ -228,7 +229,7 @@ export function registerGenerationRoutes(
         updatedAt: now,
         error: null
       };
-      options.store.save(updated);
+      await options.store.save(updated);
       options.eventBus.publish({
         type: 'upsert',
         generationId: updated.id,
@@ -254,7 +255,7 @@ export function registerGenerationRoutes(
       }
     },
     async (request, reply) => {
-      const generation = options.store.getById(request.params.generationId);
+      const generation = await options.store.getById(request.params.generationId);
       if (generation === undefined) {
         return reply.code(404).send({
           message: `Generation "${request.params.generationId}" was not found.`
@@ -267,7 +268,7 @@ export function registerGenerationRoutes(
           status: 'canceled' as const,
           updatedAt: new Date().toISOString()
         };
-        options.store.save(updated);
+        await options.store.save(updated);
         options.eventBus.publish({
           type: 'upsert',
           generationId: updated.id,
@@ -297,7 +298,7 @@ export function registerGenerationRoutes(
       }
     },
     async (request, reply) => {
-      const generation = options.store.getById(request.params.generationId);
+      const generation = await options.store.getById(request.params.generationId);
       if (generation === undefined) {
         return reply.code(404).send({
           message: `Generation "${request.params.generationId}" was not found.`
@@ -310,7 +311,7 @@ export function registerGenerationRoutes(
         });
       }
 
-      options.store.delete(generation.id);
+      await options.store.delete(generation.id);
       options.eventBus.publish({
         type: 'deleted',
         generationId: generation.id

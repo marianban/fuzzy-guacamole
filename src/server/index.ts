@@ -1,5 +1,7 @@
 import { buildServer } from './app.js';
 import { loadAppConfig } from './config.js';
+import { createDatabase } from './db/client.js';
+import { createPostgresGenerationStore } from './generations/store.js';
 import { loadPresetCatalog } from './presets.js';
 
 try {
@@ -18,7 +20,15 @@ try {
   const presetCatalog = await loadPresetCatalog({
     presetsDir: config.paths.presets
   });
-  const app = buildServer({ config, presetCatalog });
+  const database = createDatabase();
+  const app = buildServer({
+    config,
+    presetCatalog,
+    generationStore: createPostgresGenerationStore(database)
+  });
+  app.addHook('onClose', async () => {
+    await database.close();
+  });
 
   const stopSignals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
   for (const signal of stopSignals) {

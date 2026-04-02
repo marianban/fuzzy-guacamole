@@ -2,7 +2,19 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { resolveDevServerWatchCommand } from '../../scripts/dev-server-command.mjs';
+interface DevServerWatchCommand {
+  command: string;
+  args: string[];
+}
+
+const { resolveDevServerWatchCommand } = (await import(
+  // @ts-expect-error The helper script is plain .mjs; the expected shape is declared inline in this test.
+  '../../scripts/dev-server-command.mjs'
+)) as {
+  resolveDevServerWatchCommand: (
+    platform?: string
+  ) => DevServerWatchCommand;
+};
 
 describe('resolveDevServerWatchCommand', () => {
   test('given_win32_platform_when_resolving_command_then_it_uses_cmd_exe_to_run_npm_cmd', () => {
