@@ -72,6 +72,7 @@ https://www.npmjs.com/package/eslint-plugin-react
   - /data/presets/
   - /data/inputs/
   - /data/outputs/
+  - /data/logs/
 
 Current target ComfyUI environment (locked for v1 integration):
 - ComfyUI `0.8.2`
@@ -381,6 +382,42 @@ Generation fails on:
 Retries (v1):
 - One retry is allowed for transient failures (network/timeouts) during upload/submit/history polling.
 - Non-transient failures (validation errors, explicit Comfy execution error) do not retry.
+
+## 12.1) Logging and diagnostics
+
+Backend logging requirements:
+- Use Fastify's Pino-based logger as the single backend logging implementation.
+- Write a human-readable log file for direct developer inspection. Default path is `./data/logs/backend.log` and can be overridden with `LOG_FILE_PATH` (for container deployments this should typically point into `/data/logs/`).
+- Keep stdout/stderr usable for container log collection; file output is the primary developer-facing diagnostic artifact.
+- Log level is configurable through `LOG_LEVEL` and defaults to `info`.
+
+Request logging requirements:
+- Every completed API request must log:
+  - request id
+  - method
+  - matched route
+  - raw URL
+  - status code
+  - total request time
+- Request logs should include summarized input metadata that helps diagnostics without duplicating full persisted payloads.
+- Prefer stable references over full payload duplication, for example:
+  - `generationId`
+  - `presetId`
+  - `templateId`
+  - `prompt_id`
+  - input file path / stored input reference
+  - parameter key lists when full values are already stored elsewhere
+
+Workflow logging requirements:
+- Important workflow state changes must emit explicit logs with domain identifiers, for example generation created, queued, canceled, deleted, prompt submitted, output stored.
+- Rejected operations that are expected but noteworthy (missing entity, invalid state transition, invalid request shape, unavailable dependency) must be logged at `warn`.
+- Exceptions must be logged at `error` or `fatal` with stack traces and relevant request/workflow context.
+- Process-level failures such as startup failures, uncaught exceptions, and unhandled promise rejections must be logged before shutdown.
+
+Formatting requirements:
+- Log file formatting must optimize for direct readability by developers reviewing the file manually.
+- Timestamps must be easy to scan.
+- Request ids must remain visible so developers can correlate request-completion logs with workflow/error logs.
 
 ---
 

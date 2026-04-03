@@ -3,7 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
@@ -69,6 +69,10 @@ export function registerGenerationRoutes(
     async (request, reply) => {
       const generation = await options.store.getById(request.params.generationId);
       if (generation === undefined) {
+        logGenerationWarning(request, 'generation lookup failed', {
+          generationId: request.params.generationId,
+          warningCode: 'generation_not_found'
+        });
         return reply.code(404).send({
           message: `Generation "${request.params.generationId}" was not found.`
         });
@@ -94,6 +98,13 @@ export function registerGenerationRoutes(
     async (request, reply) => {
       const preset = options.presetCatalog.getById(request.body.presetId);
       if (preset === undefined) {
+        request.log.warn(
+          {
+            presetId: request.body.presetId,
+            warningCode: 'preset_not_found'
+          },
+          'generation creation rejected'
+        );
         return reply
           .code(404)
           .send({ message: `Preset "${request.body.presetId}" was not found.` });
@@ -109,6 +120,14 @@ export function registerGenerationRoutes(
         generationId: generation.id,
         generation
       });
+      request.log.info(
+        {
+          generationId: generation.id,
+          presetId: generation.presetId,
+          templateId: generation.templateId
+        },
+        'generation created'
+      );
 
       return reply.code(201).send(generationSchema.parse(generation));
     }
@@ -133,18 +152,31 @@ export function registerGenerationRoutes(
     async (request, reply) => {
       const generation = await options.store.getById(request.params.generationId);
       if (generation === undefined) {
+        logGenerationWarning(request, 'generation input rejected', {
+          generationId: request.params.generationId,
+          warningCode: 'generation_not_found'
+        });
         return reply.code(404).send({
           message: `Generation "${request.params.generationId}" was not found.`
         });
       }
 
       if (generation.status === 'queued' || generation.status === 'submitted') {
+        logGenerationWarning(request, 'generation input rejected', {
+          generationId: generation.id,
+          status: generation.status,
+          warningCode: 'generation_input_not_allowed'
+        });
         return reply.code(409).send({
           message: `Generation "${generation.id}" cannot accept input in status "${generation.status}".`
         });
       }
 
       if (options.config === undefined) {
+        logGenerationWarning(request, 'generation input rejected', {
+          generationId: generation.id,
+          warningCode: 'config_missing'
+        });
         return reply.code(503).send({
           message: 'Input upload is unavailable because config is missing.'
         });
@@ -152,6 +184,10 @@ export function registerGenerationRoutes(
 
       const filePart = await request.file();
       if (filePart === undefined) {
+        logGenerationWarning(request, 'generation input rejected', {
+          generationId: generation.id,
+          warningCode: 'input_file_missing'
+        });
         return reply.code(400).send({
           message: 'Multipart field "file" is required.'
         });
@@ -185,6 +221,13 @@ export function registerGenerationRoutes(
         generationId: updated.id,
         generation: updated
       });
+      request.log.info(
+        {
+          generationId: updated.id,
+          inputImagePath: targetPath
+        },
+        'generation input stored'
+      );
 
       return reply.code(204).send();
     }
@@ -207,12 +250,21 @@ export function registerGenerationRoutes(
     async (request, reply) => {
       const generation = await options.store.getById(request.params.generationId);
       if (generation === undefined) {
+        logGenerationWarning(request, 'generation queue rejected', {
+          generationId: request.params.generationId,
+          warningCode: 'generation_not_found'
+        });
         return reply.code(404).send({
           message: `Generation "${request.params.generationId}" was not found.`
         });
       }
 
       if (generation.status === 'queued' || generation.status === 'submitted') {
+        logGenerationWarning(request, 'generation queue rejected', {
+          generationId: generation.id,
+          status: generation.status,
+          warningCode: 'generation_queue_not_allowed'
+        });
         return reply.code(409).send({
           message: `Generation "${generation.id}" cannot be queued in status "${generation.status}".`
         });
@@ -232,6 +284,14 @@ export function registerGenerationRoutes(
         generationId: updated.id,
         generation: updated
       });
+      request.log.info(
+        {
+          generationId: updated.id,
+          queuedAt: updated.queuedAt,
+          status: updated.status
+        },
+        'generation queued'
+      );
 
       return generationSchema.parse(updated);
     }
@@ -254,6 +314,10 @@ export function registerGenerationRoutes(
     async (request, reply) => {
       const generation = await options.store.getById(request.params.generationId);
       if (generation === undefined) {
+        logGenerationWarning(request, 'generation cancel rejected', {
+          generationId: request.params.generationId,
+          warningCode: 'generation_not_found'
+        });
         return reply.code(404).send({
           message: `Generation "${request.params.generationId}" was not found.`
         });
@@ -271,9 +335,21 @@ export function registerGenerationRoutes(
           generationId: updated.id,
           generation: updated
         });
+        request.log.info(
+          {
+            generationId: updated.id,
+            status: updated.status
+          },
+          'generation canceled'
+        );
         return generationSchema.parse(updated);
       }
 
+      logGenerationWarning(request, 'generation cancel rejected', {
+        generationId: generation.id,
+        status: generation.status,
+        warningCode: 'generation_cancel_not_allowed'
+      });
       return reply.code(409).send({
         message: `Generation "${generation.id}" cannot be canceled in status "${generation.status}".`
       });
@@ -297,12 +373,21 @@ export function registerGenerationRoutes(
     async (request, reply) => {
       const generation = await options.store.getById(request.params.generationId);
       if (generation === undefined) {
+        logGenerationWarning(request, 'generation delete rejected', {
+          generationId: request.params.generationId,
+          warningCode: 'generation_not_found'
+        });
         return reply.code(404).send({
           message: `Generation "${request.params.generationId}" was not found.`
         });
       }
 
       if (generation.status === 'submitted') {
+        logGenerationWarning(request, 'generation delete rejected', {
+          generationId: generation.id,
+          status: generation.status,
+          warningCode: 'generation_delete_not_allowed'
+        });
         return reply.code(409).send({
           message: `Generation "${generation.id}" cannot be deleted while submitted.`
         });
@@ -313,8 +398,22 @@ export function registerGenerationRoutes(
         type: 'deleted',
         generationId: generation.id
       });
+      request.log.info(
+        {
+          generationId: generation.id
+        },
+        'generation deleted'
+      );
 
       return reply.code(204).send(null);
     }
   );
+}
+
+function logGenerationWarning(
+  request: FastifyRequest,
+  message: string,
+  context: Record<string, unknown>
+): void {
+  request.log.warn(context, message);
 }

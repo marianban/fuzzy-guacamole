@@ -1,4 +1,7 @@
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, {
+  type FastifyBaseLogger,
+  type FastifyInstance
+} from 'fastify';
 import fastifyMultipart from '@fastify/multipart';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
@@ -19,6 +22,11 @@ import {
   type PresetCatalog,
   createEmptyPresetCatalog
 } from './presets.js';
+import {
+  createServerLogger,
+  registerRequestLogging,
+  type ServerLoggerOptions
+} from './logging.js';
 import { registerEventRoutes } from './routes/events.js';
 import { registerGenerationRoutes } from './routes/generations.js';
 import { registerPresetRoutes } from './routes/presets.js';
@@ -29,14 +37,19 @@ export interface BuildServerOptions {
   config?: AppConfig;
   presetCatalog?: PresetCatalog;
   generationStore?: GenerationStore;
+  logger?: ServerLoggerOptions;
+  loggerInstance?: FastifyBaseLogger;
 }
 
 export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
   const app = Fastify({
-    logger: true
+    disableRequestLogging: true,
+    loggerInstance:
+      options.loggerInstance ?? createServerLogger(options.logger)
   });
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
+  registerRequestLogging(app);
 
   void app.register(fastifySwagger, {
     openapi: {
