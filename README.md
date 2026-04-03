@@ -33,7 +33,7 @@ Expected `/api/status` response shape:
 - `npm run dev`: run Fastify API + Vite client together
 - `npm run build`: build client and server into `dist/`
 - `npm run start`: run compiled server from `dist/server/index.js`
-- `npm run test` or `npm run test:unit`: run unit tests (memory/mocked dependencies)
+- `npm run test`: run unit tests (memory/mocked dependencies)
 - `npm run test:e2e`: run end-to-end tests against local API + local ComfyUI
 - E2E file naming convention: `*.e2e.test.ts` (excluded from unit runs by default)
 - `npm run lint`: run ESLint (flat config)

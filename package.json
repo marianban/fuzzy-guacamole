@@ -17,7 +17,6 @@
     "start": "node dist/server/index.js",
     "typecheck": "tsc -p src/client/tsconfig.json --noEmit && tsc -p src/server/tsconfig.json --noEmit",
     "test": "node scripts/run-unit-tests.mjs",
-    "test:unit": "node scripts/run-unit-tests.mjs",
     "test:coverage": "node scripts/run-unit-tests.mjs --coverage",
     "test:watch": "vitest",
     "test:e2e": "node scripts/run-e2e-tests.mjs",
