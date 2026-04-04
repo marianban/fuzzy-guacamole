@@ -1,0 +1,50 @@
+# UX Principles
+
+- User interfaces should be based on user mental models rather than implementation
+models.
+- Goal-directed interactions reflect user mental models.
+- Don’t make the user feel stupid.
+- Define what the product will do before you design how the product will do it.
+- In the early stages of design, pretend the interface is magic.
+- The computer does the work, and the person does the thinking.
+- Software should behave like a considerate human being.
+- If it’s worth it to the user to do it, it’s worth it to the application to remember it.
+- Optimize sovereign applications for full-screen use.
+- Sovereign interfaces should feature a conservative visual style.
+- Sovereign applications should exploit rich input.
+- Maximize document views within sovereign applications.
+- Optimize for intermediates.
+- Inflect the interface for typical navigation.
+- No matter how cool your interface is, less of it would be better.
+- Don’t use dialogs to report normalcy.
+- Ask forgiveness, not permission.
+- Eliminate excise wherever possible.
+- Don’t make users ask for permission.
+- All idioms must be learned; good idioms need to be learned only once.
+- Rich visual feedback is the key to successful direct manipulation.
+- Visually communicate pliancy whenever possible.
+- An error may not be your application’s fault, but it is your application’s responsibility.
+- Save documents and settings automatically.
+- Visually distinguish elements that behave differently.
+- Visually communicate function and behavior.
+- Take things away until the design breaks, and then put that last thing back in.
+- Visually show what; textually tell which.
+- Obey standards unless there is a truly superior alternative.
+- A dialog box is another room; have a good reason to go there.
+- Provide functions in the window where they are used.
+- Disable items when they are not applicable.
+- Use consistent visual symbols on related commands.
+- Toolbars give experienced users fast access to frequently used functions.
+- Use ToolTips with all toolbar and iconic controls.
+- Support both mouse and keyboard use for navigation and selection tasks.
+- Use cursor hinting to show the meanings of metakeys.
+- The selection state should be visually evident and unambiguous
+- Drop candidates must visually indicate their receptivity.
+- The drag cursor must visually identify the source object.
+- Put primary interactions in the primary window
+- Dialogs are appropriate for functions that are out of the main interaction flow
+- Never use transitory dialogs as error messages, alerts, or confirmations.
+- Make errors impossible
+- Do; don’t ask
+- Make all actions reversible.
+- Provide modeless feedback to help users avoid mistakes

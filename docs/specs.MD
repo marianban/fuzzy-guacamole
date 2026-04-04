@@ -273,6 +273,10 @@ Recommended response shape (v1):
 - before/after toggle (for img2img, on hover it shows the original input image, otherwise shows the current image. If clicked, then shows drawable divider to compare the two)
 - Selection tool (user can select region of image he wants to edit, then it sends for editing only that part of the image. Then it is edited and composited back to the original image. The composition should be done that before merging the edited part the edges should be blurred to avoid hard edges in the final image.)
 
+### UX Principles
+
+see: `docs/ux-principles.md`
+
 ---
 
 ## 7) Generation Lifecycle
