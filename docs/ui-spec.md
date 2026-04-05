@@ -110,7 +110,9 @@ Required controls:
 
 Status area:
 - Global status indicator showing `Starting`/`Online`/`Offline`
-- Optional compact hardware summary when online (GPU name/free VRAM if available)
+- Compact hardware summary when online (GPU name/free VRAM if available)
+
+All actions should be represented with clear crisp icons with accessible tooltips and ARIA labels.
 
 ## 7.3 Center workspace: Canvas
 
@@ -128,12 +130,15 @@ Common controls:
 - Pan
 - Fit-to-screen
 - Optional pixel inspector readout on hover (design-ready, implementation optional)
+- Controls placed at bottom of canvas to avoid obscuring image content.
 
 Selection editing mode (`img2img`):
 - Region selection overlay with resize handles.
 - Clear visual affordance for selected bounds.
 - Output composited back with softened edge blending (specified behavior).
 
+im2img and txt2img are all done in the same canvas, no need to special mode switch or indicators. The user can seamlessly transition between modes. For example starting with txt2img and then iterating on output with edit prompts.
+ 
 ## 7.4 Right rail: Control panel
 
 Form hierarchy:
@@ -143,6 +148,7 @@ Form hierarchy:
   - Negative prompt
   - Seed mode (`random`/`fixed`)
   - Seed value input (enabled only when fixed)
+  - Advanced parameters shown in badges in format Label:value (e.g. `Steps:50`, `CFG:7.5`). User can click badge to edit value in place.
 
 Action area:
 - Primary: `Generate` (or `Rerun` if not draft)
@@ -153,6 +159,7 @@ Bottom: log panel
 - Modeless, non-blocking diagnostics stream
 - Timestamped lines with severity coloring
 - Copy log action
+- Showing only most recent logs
 
 ## 8. Generation lifecycle UX mapping
 
@@ -288,3 +295,74 @@ Do not design for:
 - Preset editor authoring UI
 - Internet-facing security flows
 - Multi-output galleries per run
+
+## 17. Colors
+
+Background 1 (Backgrounds): #11130C
+Background 2 (Backgrounds): #151A10
+Interactive components 1 (Pairs with Text 1, 2 labels): #1F2917
+Interactive components 2 (Pairs with Text 1, 2 labels): #29371D
+Interactive components 3 (Pairs with Text 1, 2 labels): #334423
+Borders and separator 1 (Pairs with Background 1, 2, Interactive components 1, 2, 3): #3D522A
+Borders and separator 2 (Pairs with Background 1, 2, Interactive components 1, 2, 3): #496231
+Borders and separator 3 (Pairs with Background 1, 2, Interactive components 1, 2, 3): #577538
+
+Solid colors: Solid backgrounds, buttons
+Solid colors 1 (Solid backgrounds, buttons
+,Pairs with Dark text): #BDEE63
+Solid colors 2 (Solid backgrounds, buttons
+,Pairs with Dark text): #D4FF70
+
+Accessible text 1 (Secondary text, links, Pairs with
+Background colors): #BDE56C
+Accessible text 2 (High-contrast text, Pairs with
+Background colors): #D4FF70
+
+### Color usage rules
+
+- Lighter variations on background color for raised controls
+- Darker variations on the background color for inset controls
+
+Disabled: lighter variation
+Hover: darker variation
+Normal: base variation
+
+When designing controls for dark mode try to make things subtlety lighter than the background but don' make them too bright.
+
+## 18. Typography + Sizing
+
+Choose a clean and simple geometric sans typeface. Examples: Jost, Proxima Nova, Metropolis, Clear Sans, Protipo, Supreme
+
+5 Main text sizes:
+- Heading 1: 24px, 600 weight
+- Main: 16px
+- Secondary: 14px
+- Label: Similar to Main/Secondary but uppercase and weighter
+
+## 19. Alignment, Spacing and consistency
+
+- virtually every element is aligned or centered with at least one other element
+- icons are aligned by center of pixel mass
+- padded elements are aligned by their most visually prominent edge
+- different sized texts are aligned by their baseline
+- spacing between elements in group is less than spacing around groups
+- whitespace is used to highlight focal points on the screen
+- The squint test: when squinting your eyes or blurring the design, consistent "sister elements" are easily identifiable
+- When performing a squint test, all elements attract as much attention as their importance warrants - no more, no less.
+- Repeated elements are appropriately lightened
+- Color is used judiciously and consistently
+- Infrequently used or unimportant elements are lightened or hidden
+- Conditionally used elements are hidden until it is clear that the user needs them - progressive disclosure
+
+## 20. Things to not do
+
+- No unaligned elements
+- No system fonts
+- No overused fonts Open Sans, Inter, SF Pro, Roboto, etc.
+- No thin or light weights - bold weights are easier to look good
+- No extra colors - if one hue is enough, don't use two. If two if enough, don't use three...
+- No ultra wide form controls
+- No form control inconsistency - Consistent heights, widths, colors, borders, radii etc as much as possible
+- No unlabeled icons unless it's universally recognized (e.g. magnifying glass for zoom, trash can for delete, etc.)
+- No mismatched icon & labels. Icons should match other elements (including text) in weight, color and general feel.
+- No dark borders. Borders, outlines and dividing rules should almost always be lighter than you first expect.
