@@ -1,6 +1,6 @@
 # UI Interface Specification
 
-Product: Comfy Frontend Orchestrator
+Product: Comfy Frontend Orchestrator - ComfyDeck
 Audience: Product/UX designers preparing final visual UI
 Date: April 4, 2026
 
@@ -53,7 +53,7 @@ Three-column desktop layout (full-screen):
 3. Right rail: Control panel + action area + logs
 
 Top bar spans all columns:
-- Logo/product
+- Logo/product - ComfyDeck
 - Undo/Redo
 - Before/After controls (`img2img`)
 - Selection tool toggle
@@ -75,6 +75,23 @@ State behavior:
 1. `Starting` uses full-page loader (required by product spec).
 2. `Offline` preserves current draft content locally and explains next recovery action.
 3. Transitions are animated subtly (fade/slide 150-250ms).
+
+## 6.1 Screen states
+
+Design the primary workspace for these user-visible screen states:
+
+1. Loading state (`Starting`)
+  - User point of view: "I just opened the app and need immediate confirmation that the workspace is loading and connecting. I should understand that the system is not ready yet, not that it is broken."
+2. Blank state (no generation yet)
+  - User point of view: "I have not generated anything yet, so I need a clear first step. The screen should guide me toward choosing a preset, entering a prompt, and optionally uploading an image without feeling empty or intimidating."
+3. In-progress state (`queued` or `submitted`)
+  - User point of view: "My request is in motion and I need to know whether it is waiting or actively running. I should be able to track progress, keep my context, and cancel if needed."
+4. Ideal state (`completed` with image generated)
+  - User point of view: "My image is ready and should become the center of attention immediately. I need to review it, compare it, inspect details, and iterate again without losing momentum."
+5. Error state (`failed` or operational error)
+  - User point of view: "Something went wrong, such as a network issue or backend failure, but I should not lose my work. The screen should explain what happened in plain language and show the next safe action, such as retrying, reconnecting, or checking logs."
+6. Offline recovery state (`Offline`)
+  - User point of view: "The app lost connection, but my draft and current setup should still feel preserved. I need to understand what is unavailable right now and what will happen when the connection returns."
 
 ## 7. Screen and panel specifications
 
