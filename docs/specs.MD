@@ -496,8 +496,8 @@ Recommended response shape (v1):
 
 ### Distinctive, production-grade frontend interfaces with high design quality
 
-### Left panel -- Generations
-- + New generation (client-only draft) (At top)
+### Bottom history panel -- Recent generations
+- Recent generations/history is docked at the bottom of the workspace (not in a left panel)
 - List of generations (latest first)
   - each generation item: thumbnail 128x128 (output or placeholder), createdAt (relative after a week absolute)
 
@@ -513,6 +513,7 @@ Recommended response shape (v1):
 
 ### Canvas
 - responsive area filling remaining space
+- top-left action in the main image area: `+ New generation` (client-only draft)
 - zoom + pan
 - `img2img`: single input drop zone, after generation shows output image. In edit mode user can iterate on image. input->output->input...
 - `txt2img`: shows output image after generation

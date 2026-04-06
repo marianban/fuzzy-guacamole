@@ -27,7 +27,7 @@ Visual thesis: A restrained, tool-like dark studio surface with strong typograph
 Content plan:
 1. Orientation layer (system status, context, active generation identity)
 2. Work layer (canvas + controls)
-3. Persistence layer (generation list and logs)
+3. Persistence layer (recent generations history + logs)
 4. Commit layer (generate/cancel/rerun/delete)
 
 Interaction thesis:
@@ -47,12 +47,12 @@ Interaction thesis:
 
 ## 5. Information architecture
 
-Three-column desktop layout (full-screen):
-1. Left rail: Generations list + New Generation
-2. Center: Canvas workspace (primary)
-3. Right rail: Control panel + action area + logs
+Desktop layout (full-screen):
+1. Center: Canvas workspace (primary) with `+ New generation` anchored at the top-left of the main image area
+2. Right rail: Control panel + action area + logs
+3. Bottom dock: Recent generations history
 
-Top bar spans all columns:
+Top bar spans the workspace:
 - Logo/product - ComfyDeck
 - Undo/Redo
 - Before/After controls (`img2img`)
@@ -61,7 +61,8 @@ Top bar spans all columns:
 
 Mobile/tablet behavior:
 - Single-column stacked views with sticky top bar.
-- Left and right rails collapse into bottom sheet/drawer patterns.
+- Right rail collapses into a drawer pattern.
+- Recent generations history remains reachable from the bottom as a sheet/dock pattern.
 - Canvas remains the first visible working surface.
 
 ## 6. Global system states
@@ -95,21 +96,20 @@ Design the primary workspace for these user-visible screen states:
 
 ## 7. Screen and panel specifications
 
-## 7.1 Left rail: Generations
+## 7.1 Bottom dock: Recent generations
 
 Required elements:
-- Primary button: `+ New generation` (client-side draft creation)
-- Scrollable list, newest first
+- Scrollable recent-generations history, newest first
 - Item content:
   - 128x128 thumbnail (output if present, otherwise preset-based placeholder)
   - Preset name
   - Status chip (`draft`, `queued`, `submitted`, `completed`, `failed`, `canceled`)
   - Timestamp rule: relative within 7 days, absolute after 7 days
 
-Row interactions:
+Item interactions:
 1. Single click selects active generation.
-2. Keyboard up/down moves selection.
-3. Context actions available on active row: rerun, delete.
+2. Arrow-key navigation moves selection through the visible history items.
+3. Context actions available on the active item: rerun, delete.
 
 Selection styling must be unambiguous.
 
@@ -143,6 +143,7 @@ Behavior by mode:
   - After run, show output image.
 
 Common controls:
+- `+ New generation` anchored at the top-left of the main image area
 - Zoom in/out/reset
 - Pan
 - Fit-to-screen

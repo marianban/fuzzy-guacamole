@@ -32,10 +32,11 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-03-01) Synced ExecPlan to updated `.agent/AGENTS.md` post-feature quality gate: focused feature-level tests, required E2E coverage for changed behavior, exploratory testing, and real server/client startup verification.
 - [x] (2026-03-01) Implemented first preset slice: validated config loader (`/data/config.json`), preset catalog loader (`/data/presets/{templateId}/preset.template.json` + `*.preset.json`), and Fastify preset routes (`GET /api/presets`, `GET /api/presets/{presetId}` via wildcard path).
 - [x] (2026-04-06) Reviewed and updated ExecPlan for the new preset field model: `model.json` now defines localized control-panel fields/categories, workflow placeholders reference `{{fieldId}}`, and runtime-only values like uploaded input-image references remain outside `model.json.fields`.
+- [x] (2026-04-06) Synced this ExecPlan to the latest UI docs: recent generations/history now lives in a bottom dock, while `+ New generation` stays in the top-left of the main image area.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + REST endpoints (`GET /api/status`, `GET /api/presets`, `GET /api/presets/{presetId}`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
-- [ ] (YYYY-MM-DD) Implement UI (top bar + left generations + control panel + canvas) + generation creation/queue/upload/cancel + status loader gate.
+- [ ] (YYYY-MM-DD) Implement UI (top bar + main canvas + right control panel + bottom recent-generations history) + generation creation/queue/upload/cancel + status loader gate.
 - [ ] (YYYY-MM-DD) Implement `GET /api/events/generations` SSE stream + UI live updates + integration tests against local ComfyUI (with mock fallback for deterministic CI).
 - [ ] (YYYY-MM-DD) Harden edge cases (timeouts, retries, idempotence), polish UX, and document local/dev runbook.
 
@@ -407,9 +408,6 @@ Work:
     - Include before/after behavior for img2img: hover temporarily shows original input, and click toggles an interactive split-view divider for direct comparison.
     - Include a selection tool for img2img region edits: selected region is edited and composited back into the base image with blurred edges to avoid hard seams.
     - Undo/Redo should apply to the user's local "draft editing" history: prompt text plus the currently staged image in the canvas (input/output) so undo restores both together.
-  - Left panel (generations):
-    - A `+ New generation` button at the top (client-only draft; does not hit the backend).
-    - List generations (latest first), each with a 128x128 thumbnail (output or placeholder) and a created-at timestamp (relative for recent items; after ~1 week show an absolute date).
   - Control panel:
     - Preset dropdown.
     - Dynamically rendered categories and fields from `model.json`.
@@ -419,13 +417,17 @@ Work:
     - Logs panel at the bottom.
     - Build forms with `react-hook-form` and `@hookform/resolvers` using Zod schemas for validation.
   - Canvas (fills remaining space):
+    - A `+ New generation` button anchored at the top-left of the main image area (client-only draft; does not hit the backend).
     - img2img: single input drop zone; after generation shows output image; in edit mode allow iterating output -> new input (input -> output -> input...).
     - txt2img: shows output image after generation.
+  - Bottom history dock:
+    - Recent generations list (latest first), each with a 128x128 thumbnail (output or placeholder) and a created-at timestamp (relative for recent items; after ~1 week show an absolute date).
+    - Selecting an item loads that generation into the main workspace; rerun/delete affordances remain available from the active generation context.
   - Use Radix Themes for base UI components and wrap the app in `<Theme appearance="dark">...</Theme>` so the default appearance is dark.
 - Implement client data fetching:
-  - Use SWR fetchers for API calls.
-  - Load `GET /api/status` and show a full-page loader until state is `Online`.
-  - Load `GET /api/presets` and `GET /api/generations`.
+- Use SWR fetchers for API calls.
+- Load `GET /api/status` and show a full-page loader until state is `Online`.
+- Load `GET /api/presets` and `GET /api/generations`.
 - Implement user flows:
   - "+ New generation" creates a client-only draft state.
   - Generate:
@@ -660,6 +662,7 @@ Plan change note:
 - (2026-01-25) Updated this ExecPlan to reflect `docs/specs.MD` changes: ComfyUI polling uses `GET /api/history_v2/{prompt_id}` with `/history/{prompt_id}` fallback and explicit readiness rules.
 - (2026-01-25) Updated this ExecPlan to reflect `docs/specs.MD` UI at the time: Radix UI requirement, prompt editor placement in the center panel, and the right-side control/log layout (Generate/Cancel + logs at bottom).
 - (2026-02-01) Updated this ExecPlan to reflect `docs/specs.MD` UI changes: top bar (logo + undo/redo), separate control panel (includes prompt textarea + Delete), canvas iteration model (img2img input->output->input), and richer generation list items (thumbnail + createdAt formatting).
+- (2026-04-06) Updated this ExecPlan to reflect the latest UI docs: recent generations/history moved from the left panel to a bottom dock, while `+ New generation` remains in the top-left of the main image area.
 - (2026-02-07) Updated this ExecPlan to reflect the `docs/specs.MD` stack at that time: Vite React SPA + Fastify/tRPC/Zod backend (not TanStack Start), plus v1 UI scope for img2img before/after comparison and region selection with blurred-edge compositing.
 - (2026-02-07) Updated this ExecPlan to reflect `docs/specs.MD` section 18 project structure: root `src/` layout with `src/server`, `src/client`, and `src/shared`.
 - (2026-02-08) Updated this ExecPlan to reflect latest `docs/specs.MD` + `.agent/AGENTS.md`: explicit `react-hook-form` + resolver usage for forms, test-first/separate-step expectations, and Chrome Devtools validation requirements after implementation.
