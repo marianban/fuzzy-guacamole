@@ -57,7 +57,7 @@ export async function loadPresetCatalog(
 
   for (const templateDirName of templateDirs) {
     const templateDirPath = path.resolve(options.presetsDir, templateDirName);
-    const templatePath = path.resolve(templateDirPath, 'prompt.template.json');
+    const templatePath = path.resolve(templateDirPath, 'preset.template.json');
     const template = workflowTemplateSchema.parse(await loadJsonFile(templatePath));
 
     if (template.id !== templateDirName) {
@@ -172,7 +172,7 @@ function assertTemplateFileReference(options: AssertTemplateFileReferenceOptions
   }
   if (path.normalize(resolvedTemplatePath) !== path.normalize(options.templatePath)) {
     throw new Error(
-      `Preset ${options.presetPath} template "${options.presetTemplateFile}" must reference prompt.template.json in the same folder.`
+      `Preset ${options.presetPath} template "${options.presetTemplateFile}" must reference preset.template.json in the same folder.`
     );
   }
 }

@@ -59,7 +59,7 @@ function createCatalog() {
     name: 'Img2Img - Basic',
     type: 'img2img' as const,
     templateId: 'img2img-basic',
-    templateFile: 'prompt.template.json',
+    templateFile: 'preset.template.json',
     defaults: {
       prompt: 'default prompt'
     }

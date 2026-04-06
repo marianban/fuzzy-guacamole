@@ -30,7 +30,7 @@ describe('preset loading and routes', () => {
     const templateDir = path.join(presetsRoot, 'img2img-basic');
     await mkdir(templateDir, { recursive: true });
 
-    await writeJsonFile(path.join(templateDir, 'prompt.template.json'), {
+    await writeJsonFile(path.join(templateDir, 'preset.template.json'), {
       id: 'img2img-basic',
       type: 'img2img',
       workflow: {
@@ -53,7 +53,7 @@ describe('preset loading and routes', () => {
       id: 'img2img-basic/basic',
       name: 'Img2Img - Basic',
       type: 'img2img',
-      template: 'prompt.template.json',
+      template: 'preset.template.json',
       defaults: {
         prompt: 'soft cinematic lighting',
         seedMode: 'random'
@@ -67,7 +67,7 @@ describe('preset loading and routes', () => {
         name: 'Img2Img - Basic',
         type: 'img2img',
         templateId: 'img2img-basic',
-        templateFile: 'prompt.template.json',
+        templateFile: 'preset.template.json',
         defaults: {
           prompt: 'soft cinematic lighting',
           seedMode: 'random'
@@ -106,7 +106,7 @@ describe('preset loading and routes', () => {
     const templateDir = path.join(presetsRoot, 'txt2img-basic');
     await mkdir(templateDir, { recursive: true });
 
-    await writeJsonFile(path.join(templateDir, 'prompt.template.json'), {
+    await writeJsonFile(path.join(templateDir, 'preset.template.json'), {
       id: 'txt2img-basic',
       type: 'txt2img',
       workflow: {},
@@ -117,7 +117,7 @@ describe('preset loading and routes', () => {
       id: 'txt2img-basic/basic',
       name: 'Broken preset',
       type: 'img2img',
-      template: 'prompt.template.json',
+      template: 'preset.template.json',
       defaults: {}
     });
 
@@ -132,7 +132,7 @@ describe('preset loading and routes', () => {
     const templateDir = path.join(presetsRoot, 'img2img-basic');
     await mkdir(templateDir, { recursive: true });
 
-    await writeJsonFile(path.join(templateDir, 'prompt.template.json'), {
+    await writeJsonFile(path.join(templateDir, 'preset.template.json'), {
       id: 'img2img-basic',
       type: 'img2img',
       workflow: {},
@@ -143,7 +143,7 @@ describe('preset loading and routes', () => {
       id: 'img2img-basic/basic',
       name: 'Img2Img - Basic',
       type: 'img2img',
-      template: 'prompt.template.json',
+      template: 'preset.template.json',
       defaults: {}
     });
 

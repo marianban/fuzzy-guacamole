@@ -131,7 +131,7 @@ Configuration policy:
 ### 4.1 Structure
 ```
 /data/presets/img2img-basic/
-  |- prompt.template.json
+  |- preset.template.json
   |- basic.preset.json
   `- advanced.preset.json
 ```
@@ -140,7 +140,7 @@ Folder naming rule:
 - Folder name is `templateId` (for example `img2img-basic`).
 - One template can have multiple preset variants (`1:N` relation).
 
-### 4.2 prompt.template.json
+### 4.2 preset.template.json
 ```json
 {
   "id": "img2img-basic",
@@ -167,7 +167,7 @@ Template rules:
   "id": "img2img-basic/basic",
   "name": "Img2Img - Basic",
   "type": "img2img",
-  "template": "prompt.template.json",
+  "template": "preset.template.json",
   "defaults": {
     "prompt": "soft cinematic lighting",
     "negativePrompt": "",
@@ -191,11 +191,11 @@ v1 supports:
 
 ### 4.5 Placeholder application (simple templating)
 
-Workflows are treated as JSON templates with placeholder tokens (e.g. `{{PROMPT}}`) placed inside `prompt.template.json`.
+Workflows are treated as JSON templates with placeholder tokens (e.g. `{{PROMPT}}`) placed inside `preset.template.json`.
 
 Implementation rules:
 1. Load selected `*.preset.json`.
-2. Resolve and load preset `template` (`prompt.template.json`) as JSON (not as a raw string).
+2. Resolve and load preset `template` (`preset.template.json`) as JSON (not as a raw string).
 3. Recursively walk `template.workflow` values.
 4. For any string value:
    - If it contains a placeholder token, replace occurrences with the corresponding parameter value.
@@ -213,7 +213,7 @@ Validation rules (v1):
 - Current implementation validation scope:
   - `examples/prompts/img2img.json`
   - `examples/prompts/txt2img.json`
-- These example prompts are source workflows used to build `prompt.template.json` files by replacing concrete values with placeholders.
+- These example prompts are source workflows used to build `preset.template.json` files by replacing concrete values with placeholders.
 - For `examples/prompts/img2img.json`, v1 canonical final output is SaveImage node `3` (ignore upscaled SaveImage node `21` for initial release).
 
 ---
