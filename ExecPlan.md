@@ -31,6 +31,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-03-01) Synced ExecPlan to `.agent/AGENTS.md` TDD requirements: strict red-green-refactor flow, explicit fail-first verification, and minimum coverage thresholds.
 - [x] (2026-03-01) Synced ExecPlan to updated `.agent/AGENTS.md` post-feature quality gate: focused feature-level tests, required E2E coverage for changed behavior, exploratory testing, and real server/client startup verification.
 - [x] (2026-03-01) Implemented first preset slice: validated config loader (`/data/config.json`), preset catalog loader (`/data/presets/{templateId}/preset.template.json` + `*.preset.json`), and Fastify preset routes (`GET /api/presets`, `GET /api/presets/{presetId}` via wildcard path).
+- [x] (2026-04-06) Reviewed and updated ExecPlan for the new preset field model: `model.json` now defines localized control-panel fields/categories, workflow placeholders reference `{{fieldId}}`, and runtime-only values like uploaded input-image references remain outside `model.json.fields`.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + REST endpoints (`GET /api/status`, `GET /api/presets`, `GET /api/presets/{presetId}`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
@@ -113,9 +114,10 @@ Repository state today:
 
 Core domain definitions (use these terms consistently in code and docs):
 
-- Template: A workflow template stored as `/data/presets/<templateId>/preset.template.json`, containing `id`, `type`, `workflow`, and `placeholders`.
-- Preset: A variant config stored as `/data/presets/<templateId>/*.preset.json`, containing metadata/default values and required `template` reference (v1: `preset.template.json` in same folder).
-- Placeholder token: A string like `{{PROMPT}}` embedded in `preset.template.json` workflow values. Tokens are replaced with user-provided values at queue time.
+- Template: A workflow template stored as `/data/presets/<templateId>/preset.template.json`, containing `id`, `type`, and `workflow`.
+- Model: A control-panel field model stored as `/data/presets/<templateId>/model.json`, containing `templateId`, localized `categories`, and localized `fields` with validation/control metadata.
+- Preset: A variant config stored as `/data/presets/<templateId>/*.preset.json`, containing metadata/default values and required `template` + `model` references.
+- Placeholder token: A string like `{{prompt}}` embedded in `preset.template.json` workflow values. For control-panel values, tokens reference `model.json.fields[].id` directly and are replaced with resolved runtime values at queue time.
 - Generation: A persisted record representing a configured thing to run. It can be queued and re-run multiple times. In v1, we do not model runs/attempts as a separate table.
 - Run: One execution of a generation that produces exactly one output image.
 - Statuses: `draft`, `queued`, `submitted`, `completed`, `failed`, `canceled` (as defined in the spec).
@@ -231,10 +233,15 @@ Work:
   - On startup, load once and fail fast with a clear error if invalid/missing.
 - Implement preset loading in `src/server/presets.ts`:
   - List directories under `paths.presets`.
-  - For each directory (`templateId`), read `preset.template.json` once and `*.preset.json` variants.
-  - Validate template shape: `id`, `type` in `{img2img, txt2img}`, `workflow`, `placeholders`.
-  - Validate preset shape: `id`, `name`, `type`, `template`, `defaults`.
+  - For each directory (`templateId`), read `preset.template.json`, `model.json`, and `*.preset.json` variants.
+  - Validate template shape: `id`, `type` in `{img2img, txt2img}`, `workflow`.
+  - Validate model shape: `templateId`, optional localized `categories[]`, and localized `fields[]` with `id`, `fieldType`, `label`, `validation`, `control`, and optional `categoryId`, `description`, `default`, `order`, `visibility`.
+  - Validate preset shape: `id`, `name`, `type`, `template`, `model`, `defaults`.
   - Enforce `preset.template` file exists and `preset.type === template.type`.
+  - Enforce `preset.model` file exists and resolves to `model.json` in the same folder.
+  - Enforce `model.templateId === template.id === templateId`.
+  - Enforce every control-panel placeholder token used in `template.workflow` resolves to exactly one `model.json.fields[].id`.
+  - Allow runtime-only params such as uploaded input image references to exist outside `model.json.fields`.
   - Enforce `preset.id` format `{templateId}/{presetName}`.
 - Implement Fastify REST routes under `src/server/routes/`:
   - `src/server/routes/status.ts`:
@@ -249,7 +256,7 @@ Work:
         - `devices[]`: `name`, `type`, `vram_total`, `vram_free` (when provided)
   - `src/server/routes/presets.ts`:
     - `GET /api/presets` returns a list of presets (metadata only, exclude full workflow by default).
-    - `GET /api/presets/{presetId}` returns preset metadata + the stored workflow template (or a separate endpoint if size is a concern).
+    - `GET /api/presets/{presetId}` returns preset metadata + the stored workflow template + resolved `model.json` so the client can render the control panel dynamically.
 - Add/update OpenAPI docs for implemented routes:
   - Define `GET /api/status`, `GET /api/presets`, and `GET /api/presets/{presetId}` in the OpenAPI document with response schemas and status codes.
 - Implement Comfy health probing (no generation submission yet) in `src/server/comfy/client.ts`:
@@ -319,13 +326,15 @@ Goal: The worker processes queued generations one at a time and produces a saved
 Work:
 
 - Implement placeholder expansion in `src/server/workflows/expandPlaceholders.ts` exactly as specified in `docs/specs.MD`:
-  - Load selected `*.preset.json`, resolve `preset.template`, then load `preset.template.json` as JSON.
+  - Load selected `*.preset.json`, resolve `preset.template` and `preset.model`, then load `preset.template.json` and `model.json` as JSON.
+  - Resolve control-panel values using field ids from `model.json` plus preset defaults and user-entered params.
   - Recursively walk `template.workflow` values.
   - For strings:
     - If the entire string equals a token, replace with the raw value (so numbers/booleans can remain typed).
     - If token appears within a larger string, replace with the stringified value.
-  - Use placeholder mapping from template-level `placeholders`.
-  - Validation: fail queueing if any placeholder token in template workflow has no value available, if preset/template types mismatch, or if preset template file is missing.
+  - Use direct `{{fieldId}}` references for control-panel placeholders instead of a template-level placeholder map.
+  - Support runtime-only params such as uploaded input image references outside `model.json.fields`.
+  - Validation: fail queueing if any control-panel placeholder token in template workflow has no matching field definition or no resolved value, if preset/template/model types mismatch, or if preset template/model files are missing.
 - Implement a worker in `src/server/worker/worker.ts`:
   - A single loop that wakes periodically (or is event-driven) to find the oldest queued generation.
   - Transition `queued -> submitted` at the moment it is handed to ComfyUI.
@@ -403,8 +412,9 @@ Work:
     - List generations (latest first), each with a 128x128 thumbnail (output or placeholder) and a created-at timestamp (relative for recent items; after ~1 week show an absolute date).
   - Control panel:
     - Preset dropdown.
-    - Prompt textarea.
-    - Advanced: negative prompt, seed mode + seed.
+    - Dynamically rendered categories and fields from `model.json`.
+    - Localized labels/descriptions/placeholders/options resolved from the active locale.
+    - Conditional field visibility driven by field metadata (for example seed only when `seedMode=fixed`).
     - Actions: Generate (also used for re-runs), Cancel, Delete.
     - Logs panel at the bottom.
     - Build forms with `react-hook-form` and `@hookform/resolvers` using Zod schemas for validation.
@@ -521,8 +531,9 @@ Acceptance is behavioral and must be provable without reading code:
   - `GET /api/status` returns JSON with `state` in `{ "Online", "Offline", "Starting" }` and a `since` timestamp.
   - When `Online`, it also returns best-effort `comfy` fields derived from `GET {comfyBaseUrl}/api/system_stats` (`comfyuiVersion`, `pytorchVersion`, `devices[]`).
 - Presets:
-  - Place one template folder at `/data/presets/img2img-basic/` with `preset.template.json` and at least one preset variant (for example `basic.preset.json`).
+  - Place one template folder at `/data/presets/img2img-basic/` with `preset.template.json`, `model.json`, and at least one preset variant (for example `basic.preset.json`).
   - `GET /api/presets` returns an entry with `id=img2img-basic/basic`.
+  - `GET /api/presets/{presetId}` returns the resolved template plus the resolved `model.json`.
 - Generations:
   - `POST /api/generations` returns a new `id` and status `draft`.
   - `POST /api/generations/{generationId}/queue` transitions it to `queued`.
@@ -594,7 +605,9 @@ Current evidence:
 - Preset/template packaging decision confirmed (2026-03-01):
     Presets are variants under a template folder: `/data/presets/{templateId}/preset.template.json` + `*.preset.json`.
     Presets must include `template` and use `id={templateId}/{presetName}`.
-    Template-level `placeholders` are shared by all presets in that folder.
+    `model.json` defines shared localized control-panel fields/categories for all presets in that folder.
+    Workflow placeholders for control-panel values reference `{{fieldId}}` directly.
+    Runtime-only values such as uploaded input image references remain outside `model.json.fields`.
 - Current prompt-validation scope (2026-02-22):
     `examples/prompts/img2img.json` and `examples/prompts/txt2img.json`.
 - Validation commands (2026-02-22):
@@ -662,3 +675,4 @@ Plan change note:
 - (2026-03-01) Updated this ExecPlan to reflect latest `docs/specs.MD` API requirement: all REST and SSE app endpoints must be documented in the OpenAPI Specification.
 - (2026-03-01) Updated this ExecPlan to reflect `.agent/AGENTS.md` testing requirements: strict fail-first TDD flow, outcome-focused tests, required regression tests for bugfixes, and explicit coverage thresholds.
 - (2026-03-01) Updated this ExecPlan to reflect `.agent/AGENTS.md` post-feature quality-gate requirements: focused feature-level test execution, mandatory E2E coverage for changed behavior, exploratory testing, and clean startup verification for real server/client processes.
+- (2026-04-06) Updated this ExecPlan to reflect the latest `docs/specs.MD` preset field contract: `model.json` now owns localized control-panel categories/fields, control-panel workflow placeholders use direct `{{fieldId}}` references, preset details must expose the resolved model, and runtime-only values such as uploaded input-image references stay outside `model.json.fields`.
