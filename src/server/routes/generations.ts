@@ -15,6 +15,12 @@ import {
 import type { AppConfig } from '../config.js';
 import type { GenerationEventBus } from '../generations/events.js';
 import type { GenerationStore } from '../generations/store.js';
+import {
+  PresetParamsValidationError,
+  validateCreatePresetParams,
+  validateQueuePresetParams
+} from '../preset-params-validator.js';
+import { resolvePresetParams } from '../preset-params-resolver.js';
 import type { PresetCatalog } from '../presets.js';
 
 const generationParamsSchema = z.object({
@@ -49,8 +55,7 @@ export function registerGenerationRoutes(
         }
       }
     },
-    async () =>
-      generationListResponseSchema.parse(await options.store.list())
+    async () => generationListResponseSchema.parse(await options.store.list())
   );
 
   typed.get(
@@ -90,6 +95,7 @@ export function registerGenerationRoutes(
         summary: 'Create generation',
         body: createGenerationRequestSchema,
         response: {
+          400: errorResponseSchema,
           201: generationSchema,
           404: errorResponseSchema
         }
@@ -108,6 +114,28 @@ export function registerGenerationRoutes(
         return reply
           .code(404)
           .send({ message: `Preset "${request.body.presetId}" was not found.` });
+      }
+
+      try {
+        const resolvedParams = resolvePresetParams({
+          preset,
+          userParams: request.body.presetParams
+        });
+        validateCreatePresetParams({
+          preset,
+          rawParams: request.body.presetParams,
+          resolvedParams
+        });
+      } catch (error) {
+        if (error instanceof PresetParamsValidationError) {
+          logGenerationWarning(request, 'generation creation rejected', {
+            presetId: request.body.presetId,
+            warningCode: 'generation_validation_failed',
+            validationIssue: error.message
+          });
+          return reply.code(400).send({ message: error.message });
+        }
+        throw error;
       }
 
       const generation = await options.store.create({
@@ -241,6 +269,7 @@ export function registerGenerationRoutes(
         summary: 'Queue generation',
         params: generationParamsSchema,
         response: {
+          400: errorResponseSchema,
           200: generationSchema,
           404: errorResponseSchema,
           409: errorResponseSchema
@@ -268,6 +297,53 @@ export function registerGenerationRoutes(
         return reply.code(409).send({
           message: `Generation "${generation.id}" cannot be queued in status "${generation.status}".`
         });
+      }
+
+      const preset = options.presetCatalog.getById(generation.presetId);
+      if (preset === undefined) {
+        logGenerationWarning(request, 'generation queue rejected', {
+          generationId: generation.id,
+          presetId: generation.presetId,
+          warningCode: 'preset_not_found'
+        });
+        return reply.code(404).send({
+          message: `Preset "${generation.presetId}" was not found.`
+        });
+      }
+
+      try {
+        const modelFieldIds = new Set(preset.model.fields.map((field) => field.id));
+        const userParams: Record<string, unknown> = {};
+        const systemParams: Record<string, unknown> = {};
+
+        for (const [key, value] of Object.entries(generation.presetParams)) {
+          if (modelFieldIds.has(key)) {
+            userParams[key] = value;
+          } else {
+            systemParams[key] = value;
+          }
+        }
+
+        const resolvedParams = resolvePresetParams({
+          preset,
+          userParams,
+          systemParams
+        });
+        validateQueuePresetParams({
+          preset,
+          resolvedParams,
+          runtimeParamKeys: Object.keys(systemParams)
+        });
+      } catch (error) {
+        if (error instanceof PresetParamsValidationError) {
+          logGenerationWarning(request, 'generation queue rejected', {
+            generationId: generation.id,
+            warningCode: 'generation_queue_validation_failed',
+            validationIssue: error.message
+          });
+          return reply.code(400).send({ message: error.message });
+        }
+        throw error;
       }
 
       const now = new Date().toISOString();

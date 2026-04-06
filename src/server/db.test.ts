@@ -350,6 +350,43 @@ function createTestCatalog() {
 
   const detail = {
     ...summary,
+    model: {
+      templateId: 'img2img-basic',
+      categories: [
+        {
+          id: 'main',
+          label: {
+            en: 'Main'
+          },
+          order: 10,
+          presentation: {
+            collapsible: false,
+            defaultExpanded: true
+          }
+        }
+      ],
+      fields: [
+        {
+          id: 'prompt',
+          fieldType: 'string' as const,
+          categoryId: 'main',
+          order: 10,
+          label: {
+            en: 'Prompt'
+          },
+          default: 'default prompt',
+          validation: {
+            required: true,
+            maxLength: 4000
+          },
+          control: {
+            type: 'input' as const,
+            multiline: true,
+            rows: 4
+          }
+        }
+      ]
+    },
     template: {
       id: 'img2img-basic',
       type: 'img2img' as const,

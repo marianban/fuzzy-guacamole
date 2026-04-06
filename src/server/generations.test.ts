@@ -67,6 +67,64 @@ function createCatalog() {
 
   const detail = {
     ...summary,
+    model: {
+      templateId: 'img2img-basic',
+      categories: [
+        {
+          id: 'main',
+          label: {
+            en: 'Main'
+          },
+          order: 10,
+          presentation: {
+            collapsible: false,
+            defaultExpanded: true
+          }
+        }
+      ],
+      fields: [
+        {
+          id: 'prompt',
+          fieldType: 'string' as const,
+          categoryId: 'main',
+          order: 10,
+          label: {
+            en: 'Prompt'
+          },
+          default: 'default prompt',
+          validation: {
+            required: true,
+            maxLength: 4000
+          },
+          control: {
+            type: 'input' as const,
+            multiline: true,
+            rows: 4
+          }
+        },
+        {
+          id: 'steps',
+          fieldType: 'integer' as const,
+          categoryId: 'main',
+          order: 20,
+          label: {
+            en: 'Steps'
+          },
+          default: 30,
+          validation: {
+            required: true,
+            min: 1,
+            max: 100
+          },
+          control: {
+            type: 'slider' as const,
+            min: 1,
+            max: 100,
+            step: 1
+          }
+        }
+      ]
+    },
     template: {
       id: 'img2img-basic',
       type: 'img2img' as const,
@@ -74,6 +132,73 @@ function createCatalog() {
         '1': {
           class_type: 'PromptNode',
           inputs: { prompt: '{{prompt}}' }
+        }
+      }
+    }
+  };
+
+  return createPresetCatalog([summary], new Map([[detail.id, detail]]));
+}
+
+function createCatalogRequiringInput() {
+  const summary = {
+    id: 'img2img-basic/basic',
+    name: 'Img2Img - Basic',
+    type: 'img2img' as const,
+    templateId: 'img2img-basic',
+    templateFile: 'preset.template.json',
+    defaults: {
+      prompt: 'default prompt'
+    }
+  };
+
+  const detail = {
+    ...summary,
+    model: {
+      templateId: 'img2img-basic',
+      categories: [
+        {
+          id: 'main',
+          label: {
+            en: 'Main'
+          },
+          order: 10,
+          presentation: {
+            collapsible: false,
+            defaultExpanded: true
+          }
+        }
+      ],
+      fields: [
+        {
+          id: 'prompt',
+          fieldType: 'string' as const,
+          categoryId: 'main',
+          order: 10,
+          label: {
+            en: 'Prompt'
+          },
+          validation: {
+            required: true,
+            maxLength: 4000
+          },
+          control: {
+            type: 'input' as const
+          }
+        }
+      ]
+    },
+    template: {
+      id: 'img2img-basic',
+      type: 'img2img' as const,
+      workflow: {
+        '1': {
+          class_type: 'PromptNode',
+          inputs: { prompt: '{{prompt}}' }
+        },
+        '12': {
+          class_type: 'LoadImage',
+          inputs: { image: '{{inputImagePath}}' }
         }
       }
     }
@@ -299,6 +424,73 @@ describe('generation routes', () => {
 
     const savedContent = await readFile(detail.presetParams.inputImagePath);
     expect(savedContent.equals(fileBuffer)).toBe(true);
+
+    await app.close();
+  });
+
+  it('given_invalid_model_field_value_when_creating_generation_then_request_is_rejected', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+
+    const app = buildServer({
+      config,
+      presetCatalog: createCatalog()
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/generations',
+      payload: {
+        presetId: 'img2img-basic/basic',
+        presetParams: {
+          prompt: 'hello',
+          steps: 'fast'
+        }
+      }
+    });
+
+    expect(createResponse.statusCode).toBe(400);
+    expect(createResponse.json()).toMatchObject({
+      message: expect.stringMatching(/steps/i)
+    });
+
+    await app.close();
+  });
+
+  it('given_missing_runtime_only_input_when_queueing_generation_then_request_is_rejected', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+
+    const app = buildServer({
+      config,
+      presetCatalog: createCatalogRequiringInput()
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/generations',
+      payload: {
+        presetId: 'img2img-basic/basic',
+        presetParams: {
+          prompt: 'queue me'
+        }
+      }
+    });
+    const created = createResponse.json() as { id: string };
+
+    const queueResponse = await app.inject({
+      method: 'POST',
+      url: `/api/generations/${created.id}/queue`
+    });
+
+    expect(queueResponse.statusCode).toBe(400);
+    expect(queueResponse.json()).toMatchObject({
+      message: expect.stringMatching(/inputImagePath/i)
+    });
 
     await app.close();
   });

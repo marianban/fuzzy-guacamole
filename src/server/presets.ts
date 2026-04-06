@@ -1,5 +1,5 @@
 import type { Dirent } from 'node:fs';
-import { access, readdir, readFile } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -9,6 +9,9 @@ import {
   presetDetailSchema,
   workflowTemplateSchema
 } from '../shared/presets.js';
+import { loadPresetModel } from './preset-model-loader.js';
+import { validatePresetModelBundle } from './preset-model-validator.js';
+import { loadPresetJsonFile } from './preset-json-file.js';
 
 interface LoadPresetCatalogOptions {
   presetsDir: string;
@@ -58,7 +61,8 @@ export async function loadPresetCatalog(
   for (const templateDirName of templateDirs) {
     const templateDirPath = path.resolve(options.presetsDir, templateDirName);
     const templatePath = path.resolve(templateDirPath, 'preset.template.json');
-    const template = workflowTemplateSchema.parse(await loadJsonFile(templatePath));
+    const template = workflowTemplateSchema.parse(await loadPresetJsonFile(templatePath));
+    const { model, modelPath } = await loadPresetModel({ templateDirPath });
 
     if (template.id !== templateDirName) {
       throw new Error(
@@ -74,7 +78,7 @@ export async function loadPresetCatalog(
 
     for (const presetFileName of presetFileNames) {
       const presetPath = path.resolve(templateDirPath, presetFileName);
-      const preset = presetDefinitionSchema.parse(await loadJsonFile(presetPath));
+      const preset = presetDefinitionSchema.parse(await loadPresetJsonFile(presetPath));
 
       assertPresetIdForTemplate(preset.id, templateDirName);
       assertTemplateFileReference({
@@ -83,12 +87,15 @@ export async function loadPresetCatalog(
         presetTemplateFile: preset.template,
         presetPath
       });
-
-      if (preset.type !== template.type) {
-        throw new Error(
-          `Preset type mismatch for ${presetPath}: preset "${preset.type}" does not match template "${template.type}".`
-        );
-      }
+      validatePresetModelBundle({
+        templateDirName,
+        templatePath,
+        template,
+        presetPath,
+        preset,
+        modelPath,
+        model
+      });
 
       const summary: PresetSummary = {
         id: preset.id,
@@ -101,7 +108,8 @@ export async function loadPresetCatalog(
 
       const detail = presetDetailSchema.parse({
         ...summary,
-        template
+        template,
+        model
       });
 
       if (detailsById.has(detail.id)) {
@@ -173,26 +181,6 @@ function assertTemplateFileReference(options: AssertTemplateFileReferenceOptions
   if (path.normalize(resolvedTemplatePath) !== path.normalize(options.templatePath)) {
     throw new Error(
       `Preset ${options.presetPath} template "${options.presetTemplateFile}" must reference preset.template.json in the same folder.`
-    );
-  }
-}
-
-async function loadJsonFile(filePath: string): Promise<unknown> {
-  let content: string;
-  try {
-    await access(filePath);
-    content = await readFile(filePath, 'utf8');
-  } catch (error) {
-    throw new Error(
-      `Failed to read preset file ${filePath}: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-
-  try {
-    return JSON.parse(content) as unknown;
-  } catch (error) {
-    throw new Error(
-      `Preset file ${filePath} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }

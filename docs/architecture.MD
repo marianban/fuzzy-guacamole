@@ -10,11 +10,11 @@ flowchart LR
   Vite["Vite Dev Server<br/>src/client/vite.config.ts"]
   API["Fastify API<br/>src/server/app.ts"]
   SharedStatus["Shared Status Contract<br/>src/shared/status.ts"]
-  SharedPresets["Shared Preset Contract<br/>src/shared/presets.ts"]
+  SharedPresets["Shared Preset + Model Contract<br/>src/shared/presets.ts"]
   SharedGenerations["Shared Generation Contract<br/>src/shared/generations.ts"]
   Startup["Server Startup<br/>src/server/index.ts"]
   Config["Config Loader<br/>src/server/config.ts"]
-  Presets["Preset Loader<br/>src/server/presets.ts"]
+  Presets["Preset Catalog Builder<br/>src/server/presets.ts"]
   GenerationStore["In-memory Generation Store<br/>src/server/generations/store.ts"]
   GenerationEvents["Generation Event Bus<br/>src/server/generations/events.ts"]
 
@@ -55,9 +55,9 @@ flowchart TD
   Build --> OpenApiUi["GET /openapi"]
   Status --> Payload["state: Starting<br/>since: startup timestamp"]
   PresetsList --> PresetPayload["preset summaries only"]
-  PresetsDetail --> PresetDetailPayload["preset summary + template workflow"]
-  GenerationCreate --> GenerationPayload["status=draft<br/>templateId resolved from preset"]
-  GenerationQueue --> QueueTransition["draft/completed/failed/canceled -> queued"]
+  PresetsDetail --> PresetDetailPayload["preset summary + template workflow + model metadata"]
+  GenerationCreate --> GenerationPayload["status=draft<br/>templateId resolved from preset<br/>model-backed param validation"]
+  GenerationQueue --> QueueTransition["validate resolved params + workflow tokens<br/>draft/completed/failed/canceled -> queued"]
   GenerationCancel --> CancelTransition["queued -> canceled<br/>other states -> 409"]
   GenerationUpload --> InputPersist["multipart image persisted to<br/>/data/inputs/{generationId}/original/"]
   GenerationEvents --> LiveUpdates["live-only upsert/deleted events"]
@@ -67,12 +67,12 @@ Implemented routes:
 - `GET /healthz` -> `{ ok: true }`
 - `GET /api/status` -> status payload validated via shared Zod schema
 - `GET /api/presets` -> preset metadata list loaded from disk at startup
-- `GET /api/presets/{presetId}` -> wildcard-backed route (`/api/presets/*`) returning metadata + resolved template
+- `GET /api/presets/{presetId}` -> wildcard-backed route (`/api/presets/*`) returning metadata + resolved template + resolved `model.json`
 - `GET /api/generations` -> generation list ordered by `createdAt` descending
 - `GET /api/generations/{generationId}` -> single generation detail
-- `POST /api/generations` -> creates draft generation from preset + params
+- `POST /api/generations` -> creates draft generation from preset + params after model-driven validation/default resolution
 - `POST /api/generations/{generationId}/input` -> accepts multipart file upload, stores path in `presetParams.inputImagePath`, and returns `204`
-- `POST /api/generations/{generationId}/queue` -> transitions generation to `queued` and sets `queuedAt`
+- `POST /api/generations/{generationId}/queue` -> validates resolved preset/runtime params plus workflow template tokens, then transitions generation to `queued` and sets `queuedAt`
 - `POST /api/generations/{generationId}/cancel` -> transitions `queued` generation to `canceled` (other states currently return `409`)
 - `DELETE /api/generations/{generationId}` -> deletes generation unless status is `submitted`
 - `GET /api/events/generations` -> SSE stream for live generation upsert/deleted notifications

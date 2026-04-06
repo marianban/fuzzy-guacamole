@@ -1,13 +1,24 @@
 // @vitest-environment node
 
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
 import { generationSchema } from '../shared/generations.js';
-import { presetListResponseSchema } from '../shared/presets.js';
+import {
+  presetDetailSchema,
+  presetListResponseSchema,
+  presetSummarySchema
+} from '../shared/presets.js';
 import { requireTestEnvVar } from './test-env.js';
 
 const localBaseUrl = requireTestEnvVar('API_BASE_URL');
+const img2imgInputFixturePath = path.resolve(
+  process.cwd(),
+  'src/server/comfy/__fixtures__/input/tiny.png'
+);
 
 const openApiDocumentSchema = z.object({
   paths: z.record(z.string(), z.unknown())
@@ -29,8 +40,12 @@ describe.sequential('API e2e (local server)', () => {
   });
 
   test('given_local_server_when_running_generation_lifecycle_then_create_queue_cancel_and_delete_work', async () => {
-    const presetId = await resolveLocalPresetId();
-    const created = await createGenerationWithFetch(localBaseUrl, presetId);
+    const preset = await resolveLocalPreset();
+    const created = await createGenerationWithFetch(localBaseUrl, preset.id);
+
+    if (preset.type === 'img2img') {
+      await uploadGenerationInputWithFetch(localBaseUrl, created.id);
+    }
 
     const queueResponse = await fetch(
       `${localBaseUrl}/api/generations/${created.id}/queue`,
@@ -55,9 +70,21 @@ describe.sequential('API e2e (local server)', () => {
   });
 });
 
-async function resolveLocalPresetId(): Promise<string> {
+async function resolveLocalPreset(): Promise<z.infer<typeof presetSummarySchema>> {
   if (process.env.API_LOCAL_PRESET_ID) {
-    return process.env.API_LOCAL_PRESET_ID;
+    const response = await fetch(
+      `${localBaseUrl}/api/presets/${encodeURIComponent(process.env.API_LOCAL_PRESET_ID)}`
+    );
+    expect(response.status).toBe(200);
+    const preset = presetDetailSchema.parse(await response.json());
+    return {
+      id: preset.id,
+      name: preset.name,
+      type: preset.type,
+      templateId: preset.templateId,
+      templateFile: preset.templateFile,
+      defaults: preset.defaults
+    };
   }
 
   const response = await fetch(`${localBaseUrl}/api/presets`);
@@ -71,7 +98,8 @@ async function resolveLocalPresetId(): Promise<string> {
       'No presets found in local environment. Configure presets or set API_LOCAL_PRESET_ID.'
     );
   }
-  return firstPreset.id;
+
+  return firstPreset;
 }
 
 async function createGenerationWithFetch(
@@ -92,4 +120,20 @@ async function createGenerationWithFetch(
   });
   expect(response.status).toBe(201);
   return generationSchema.parse(await response.json());
+}
+
+async function uploadGenerationInputWithFetch(
+  baseUrl: string,
+  generationId: string
+): Promise<void> {
+  const payload = new FormData();
+  const inputBuffer = await readFile(img2imgInputFixturePath);
+  payload.set('file', new Blob([inputBuffer], { type: 'image/png' }), 'tiny.png');
+
+  const response = await fetch(`${baseUrl}/api/generations/${generationId}/input`, {
+    method: 'POST',
+    body: payload
+  });
+
+  expect(response.status).toBe(204);
 }

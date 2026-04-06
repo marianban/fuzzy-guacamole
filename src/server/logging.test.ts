@@ -37,213 +37,195 @@ describe.sequential('server logging', () => {
 
   afterEach(async () => {
     await Promise.all(
-      tempDirs.splice(0).map((tempDir) =>
-        rm(tempDir, { recursive: true, force: true })
-      )
+      tempDirs.splice(0).map((tempDir) => rm(tempDir, { recursive: true, force: true }))
     );
   });
 
-  test(
-    'given_generation_creation_when_request_completes_then_logs_timing_and_generation_reference',
-    async () => {
-      const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-logging-'));
-      tempDirs.push(tempDir);
-      const logs = createLogCollector();
-      const app = buildServer({
-        config: await loadTestConfig(tempDir),
-        presetCatalog: createTestCatalog(),
-        logger: {
-          level: 'info',
-          stream: logs.stream
-        }
-      } as BuildServerOptions);
+  test('given_generation_creation_when_request_completes_then_logs_timing_and_generation_reference', async () => {
+    const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-logging-'));
+    tempDirs.push(tempDir);
+    const logs = createLogCollector();
+    const app = buildServer({
+      config: await loadTestConfig(tempDir),
+      presetCatalog: createTestCatalog(),
+      logger: {
+        level: 'info',
+        stream: logs.stream
+      }
+    } as BuildServerOptions);
 
-      try {
-        const response = await app.inject({
-          method: 'POST',
-          url: '/api/generations',
-          payload: {
-            presetId: 'img2img-basic/basic',
-            presetParams: {
-              prompt: 'logging test prompt'
-            }
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/generations',
+        payload: {
+          presetId: 'img2img-basic/basic',
+          presetParams: {
+            prompt: 'logging test prompt'
           }
-        });
+        }
+      });
 
-        expect(response.statusCode).toBe(201);
-        await logs.flush();
+      expect(response.statusCode).toBe(201);
+      await logs.flush();
 
-        const generation = generationSchema.parse(response.json());
-        const entries = logs.readEntries();
+      const generation = generationSchema.parse(response.json());
+      const entries = logs.readEntries();
 
-        expect(entries).toContainEqual(
-          expect.objectContaining({
-            msg: 'generation created',
-            generationId: generation.id,
+      expect(entries).toContainEqual(
+        expect.objectContaining({
+          msg: 'generation created',
+          generationId: generation.id,
+          presetId: 'img2img-basic/basic',
+          templateId: 'img2img-basic'
+        })
+      );
+      expect(entries).toContainEqual(
+        expect.objectContaining({
+          msg: 'request completed',
+          method: 'POST',
+          route: '/api/generations',
+          statusCode: 201,
+          body: expect.objectContaining({
             presetId: 'img2img-basic/basic',
-            templateId: 'img2img-basic'
-          })
-        );
-        expect(entries).toContainEqual(
-          expect.objectContaining({
-            msg: 'request completed',
-            method: 'POST',
-            route: '/api/generations',
-            statusCode: 201,
-            body: expect.objectContaining({
-              presetId: 'img2img-basic/basic',
-              presetParamKeys: ['prompt']
-            }),
-            responseTimeMs: expect.any(Number)
-          })
-        );
-      } finally {
-        await app.close();
-      }
+            presetParamKeys: ['prompt']
+          }),
+          responseTimeMs: expect.any(Number)
+        })
+      );
+    } finally {
+      await app.close();
     }
-  );
+  });
 
-  test(
-    'given_input_upload_when_file_is_stored_then_logs_generation_and_input_path_reference',
-    async () => {
-      const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-logging-'));
-      tempDirs.push(tempDir);
-      const logs = createLogCollector();
-      const app = buildServer({
-        config: await loadTestConfig(tempDir),
-        presetCatalog: createTestCatalog(),
-        logger: {
-          level: 'info',
-          stream: logs.stream
-        }
-      } as BuildServerOptions);
-
-      try {
-        const generation = await createGenerationWithInject(app);
-        const fileBuffer = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-        const multipart = buildMultipartPayload('source.png', fileBuffer);
-
-        const uploadResponse = await app.inject({
-          method: 'POST',
-          url: `/api/generations/${generation.id}/input`,
-          headers: {
-            'content-type': `multipart/form-data; boundary=${multipart.boundary}`
-          },
-          payload: multipart.payload
-        });
-
-        expect(uploadResponse.statusCode).toBe(204);
-
-        const detailResponse = await app.inject({
-          method: 'GET',
-          url: `/api/generations/${generation.id}`
-        });
-        const detail = generationSchema.parse(detailResponse.json());
-        const inputImagePath = z
-          .string()
-          .parse(detail.presetParams.inputImagePath);
-
-        await logs.flush();
-
-        expect(logs.readEntries()).toContainEqual(
-          expect.objectContaining({
-            msg: 'generation input stored',
-            generationId: generation.id,
-            inputImagePath
-          })
-        );
-        await expect(readFile(inputImagePath)).resolves.toEqual(fileBuffer);
-      } finally {
-        await app.close();
+  test('given_input_upload_when_file_is_stored_then_logs_generation_and_input_path_reference', async () => {
+    const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-logging-'));
+    tempDirs.push(tempDir);
+    const logs = createLogCollector();
+    const app = buildServer({
+      config: await loadTestConfig(tempDir),
+      presetCatalog: createTestCatalog(),
+      logger: {
+        level: 'info',
+        stream: logs.stream
       }
+    } as BuildServerOptions);
+
+    try {
+      const generation = await createGenerationWithInject(app);
+      const fileBuffer = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+      const multipart = buildMultipartPayload('source.png', fileBuffer);
+
+      const uploadResponse = await app.inject({
+        method: 'POST',
+        url: `/api/generations/${generation.id}/input`,
+        headers: {
+          'content-type': `multipart/form-data; boundary=${multipart.boundary}`
+        },
+        payload: multipart.payload
+      });
+
+      expect(uploadResponse.statusCode).toBe(204);
+
+      const detailResponse = await app.inject({
+        method: 'GET',
+        url: `/api/generations/${generation.id}`
+      });
+      const detail = generationSchema.parse(detailResponse.json());
+      const inputImagePath = z.string().parse(detail.presetParams.inputImagePath);
+
+      await logs.flush();
+
+      expect(logs.readEntries()).toContainEqual(
+        expect.objectContaining({
+          msg: 'generation input stored',
+          generationId: generation.id,
+          inputImagePath
+        })
+      );
+      await expect(readFile(inputImagePath)).resolves.toEqual(fileBuffer);
+    } finally {
+      await app.close();
     }
-  );
+  });
 
-  test(
-    'given_missing_generation_when_queueing_then_logs_warning_with_generation_reference',
-    async () => {
-      const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-logging-'));
-      tempDirs.push(tempDir);
-      const logs = createLogCollector();
-      const app = buildServer({
-        config: await loadTestConfig(tempDir),
-        presetCatalog: createTestCatalog(),
-        logger: {
-          level: 'info',
-          stream: logs.stream
-        }
-      } as BuildServerOptions);
-
-      try {
-        const generationId = '11111111-1111-4111-8111-111111111111';
-        const response = await app.inject({
-          method: 'POST',
-          url: `/api/generations/${generationId}/queue`
-        });
-
-        expect(response.statusCode).toBe(404);
-        await logs.flush();
-
-        expect(logs.readEntries()).toContainEqual(
-          expect.objectContaining({
-            msg: 'generation queue rejected',
-            generationId,
-            warningCode: 'generation_not_found'
-          })
-        );
-      } finally {
-        await app.close();
+  test('given_missing_generation_when_queueing_then_logs_warning_with_generation_reference', async () => {
+    const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-logging-'));
+    tempDirs.push(tempDir);
+    const logs = createLogCollector();
+    const app = buildServer({
+      config: await loadTestConfig(tempDir),
+      presetCatalog: createTestCatalog(),
+      logger: {
+        level: 'info',
+        stream: logs.stream
       }
+    } as BuildServerOptions);
+
+    try {
+      const generationId = '11111111-1111-4111-8111-111111111111';
+      const response = await app.inject({
+        method: 'POST',
+        url: `/api/generations/${generationId}/queue`
+      });
+
+      expect(response.statusCode).toBe(404);
+      await logs.flush();
+
+      expect(logs.readEntries()).toContainEqual(
+        expect.objectContaining({
+          msg: 'generation queue rejected',
+          generationId,
+          warningCode: 'generation_not_found'
+        })
+      );
+    } finally {
+      await app.close();
     }
-  );
+  });
 
-  test(
-    'given_store_failure_when_creating_generation_then_logs_exception_details',
-    async () => {
-      const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-logging-'));
-      tempDirs.push(tempDir);
-      const logs = createLogCollector();
-      const app = buildServer({
-        config: await loadTestConfig(tempDir),
-        presetCatalog: createTestCatalog(),
-        generationStore: createFailingGenerationStore(),
-        logger: {
-          level: 'info',
-          stream: logs.stream
-        }
-      } as BuildServerOptions);
+  test('given_store_failure_when_creating_generation_then_logs_exception_details', async () => {
+    const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-logging-'));
+    tempDirs.push(tempDir);
+    const logs = createLogCollector();
+    const app = buildServer({
+      config: await loadTestConfig(tempDir),
+      presetCatalog: createTestCatalog(),
+      generationStore: createFailingGenerationStore(),
+      logger: {
+        level: 'info',
+        stream: logs.stream
+      }
+    } as BuildServerOptions);
 
-      try {
-        const response = await app.inject({
-          method: 'POST',
-          url: '/api/generations',
-          payload: {
-            presetId: 'img2img-basic/basic',
-            presetParams: {
-              prompt: 'logging failure prompt'
-            }
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/generations',
+        payload: {
+          presetId: 'img2img-basic/basic',
+          presetParams: {
+            prompt: 'logging failure prompt'
           }
-        });
+        }
+      });
 
-        expect(response.statusCode).toBe(500);
-        await logs.flush();
+      expect(response.statusCode).toBe(500);
+      await logs.flush();
 
-        const errorLog = logs
-          .readEntries()
-          .find((entry) => entry.msg === 'request failed');
+      const errorLog = logs.readEntries().find((entry) => entry.msg === 'request failed');
 
-        expect(errorLog).toEqual(
-          expect.objectContaining({
-            method: 'POST',
-            route: '/api/generations'
-          })
-        );
-        expect(errorLog?.err?.message).toContain('generation store unavailable');
-      } finally {
-        await app.close();
-      }
+      expect(errorLog).toEqual(
+        expect.objectContaining({
+          method: 'POST',
+          route: '/api/generations'
+        })
+      );
+      expect(errorLog?.err?.message).toContain('generation store unavailable');
+    } finally {
+      await app.close();
     }
-  );
+  });
 });
 
 function createLogCollector() {
@@ -369,6 +351,43 @@ function createTestCatalog() {
 
   const detail = {
     ...summary,
+    model: {
+      templateId: 'img2img-basic',
+      categories: [
+        {
+          id: 'main',
+          label: {
+            en: 'Main'
+          },
+          order: 10,
+          presentation: {
+            collapsible: false,
+            defaultExpanded: true
+          }
+        }
+      ],
+      fields: [
+        {
+          id: 'prompt',
+          fieldType: 'string' as const,
+          categoryId: 'main',
+          order: 10,
+          label: {
+            en: 'Prompt'
+          },
+          default: 'default prompt',
+          validation: {
+            required: true,
+            maxLength: 4000
+          },
+          control: {
+            type: 'input' as const,
+            multiline: true,
+            rows: 4
+          }
+        }
+      ]
+    },
     template: {
       id: 'img2img-basic',
       type: 'img2img' as const,

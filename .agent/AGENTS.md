@@ -22,6 +22,7 @@ This repo currently contains the product specification and agent workflow docs f
 
 - follow good software engineering practices
 - write clean, maintainable code
+- prefer thin orchestration/composition modules; when a change introduces distinct concerns such as file loading, structural validation, value resolution, or HTTP translation, extract them into dedicated modules organized by responsibility instead of growing route handlers, bootstrap files, or catalog builders into mixed-purpose code
 - document important decisions and trade-offs
 - use environment-driven configuration with committed non-secret config files:
   - commit `data/config.json` with the full config shape visible in git

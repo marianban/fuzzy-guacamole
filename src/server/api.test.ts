@@ -40,90 +40,81 @@ describe.sequential('API unit (memory)', () => {
     }
   });
 
-  test(
-    'given_memory_server_when_requesting_openapi_then_generation_and_event_routes_are_documented',
-    async () => {
-      const response = await requireApp(app).inject({
-        method: 'GET',
-        url: '/openapi/json'
-      });
-      expect(response.statusCode).toBe(200);
-      const payload = openApiDocumentSchema.parse(response.json());
-      expect(payload.paths).toMatchObject({
-        '/api/generations': expect.any(Object),
-        '/api/generations/{generationId}': expect.any(Object),
-        '/api/generations/{generationId}/input': expect.any(Object),
-        '/api/generations/{generationId}/queue': expect.any(Object),
-        '/api/generations/{generationId}/cancel': expect.any(Object),
-        '/api/events/generations': expect.any(Object)
-      });
-    }
-  );
+  test('given_memory_server_when_requesting_openapi_then_generation_and_event_routes_are_documented', async () => {
+    const response = await requireApp(app).inject({
+      method: 'GET',
+      url: '/openapi/json'
+    });
+    expect(response.statusCode).toBe(200);
+    const payload = openApiDocumentSchema.parse(response.json());
+    expect(payload.paths).toMatchObject({
+      '/api/generations': expect.any(Object),
+      '/api/generations/{generationId}': expect.any(Object),
+      '/api/generations/{generationId}/input': expect.any(Object),
+      '/api/generations/{generationId}/queue': expect.any(Object),
+      '/api/generations/{generationId}/cancel': expect.any(Object),
+      '/api/events/generations': expect.any(Object)
+    });
+  });
 
-  test(
-    'given_memory_server_when_running_generation_lifecycle_then_create_queue_cancel_and_delete_work',
-    async () => {
-      const created = await createGenerationWithInject(
-        requireApp(app),
-        'img2img-basic/basic'
-      );
+  test('given_memory_server_when_running_generation_lifecycle_then_create_queue_cancel_and_delete_work', async () => {
+    const created = await createGenerationWithInject(
+      requireApp(app),
+      'img2img-basic/basic'
+    );
 
-      const queueResponse = await requireApp(app).inject({
-        method: 'POST',
-        url: `/api/generations/${created.id}/queue`
-      });
-      expect(queueResponse.statusCode).toBe(200);
-      expect(queueResponse.json()).toMatchObject({ status: 'queued' });
+    const queueResponse = await requireApp(app).inject({
+      method: 'POST',
+      url: `/api/generations/${created.id}/queue`
+    });
+    expect(queueResponse.statusCode).toBe(200);
+    expect(queueResponse.json()).toMatchObject({ status: 'queued' });
 
-      const cancelResponse = await requireApp(app).inject({
-        method: 'POST',
-        url: `/api/generations/${created.id}/cancel`
-      });
-      expect(cancelResponse.statusCode).toBe(200);
-      expect(cancelResponse.json()).toMatchObject({ status: 'canceled' });
+    const cancelResponse = await requireApp(app).inject({
+      method: 'POST',
+      url: `/api/generations/${created.id}/cancel`
+    });
+    expect(cancelResponse.statusCode).toBe(200);
+    expect(cancelResponse.json()).toMatchObject({ status: 'canceled' });
 
-      const deleteResponse = await requireApp(app).inject({
-        method: 'DELETE',
-        url: `/api/generations/${created.id}`
-      });
-      expect(deleteResponse.statusCode).toBe(204);
-    }
-  );
+    const deleteResponse = await requireApp(app).inject({
+      method: 'DELETE',
+      url: `/api/generations/${created.id}`
+    });
+    expect(deleteResponse.statusCode).toBe(204);
+  });
 
-  test(
-    'given_empty_upload_filename_when_uploading_input_then_route_falls_back_to_input_bin',
-    async () => {
-      const created = await createGenerationWithInject(
-        requireApp(app),
-        'img2img-basic/basic'
-      );
-      const fileBuffer = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-      const multipart = buildMultipartPayload('', fileBuffer);
+  test('given_empty_upload_filename_when_uploading_input_then_route_falls_back_to_input_bin', async () => {
+    const created = await createGenerationWithInject(
+      requireApp(app),
+      'img2img-basic/basic'
+    );
+    const fileBuffer = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    const multipart = buildMultipartPayload('', fileBuffer);
 
-      const uploadResponse = await requireApp(app).inject({
-        method: 'POST',
-        url: `/api/generations/${created.id}/input`,
-        headers: {
-          'content-type': `multipart/form-data; boundary=${multipart.boundary}`
-        },
-        payload: multipart.payload
-      });
+    const uploadResponse = await requireApp(app).inject({
+      method: 'POST',
+      url: `/api/generations/${created.id}/input`,
+      headers: {
+        'content-type': `multipart/form-data; boundary=${multipart.boundary}`
+      },
+      payload: multipart.payload
+    });
 
-      expect(uploadResponse.statusCode).toBe(204);
+    expect(uploadResponse.statusCode).toBe(204);
 
-      const detailResponse = await requireApp(app).inject({
-        method: 'GET',
-        url: `/api/generations/${created.id}`
-      });
-      expect(detailResponse.statusCode).toBe(200);
+    const detailResponse = await requireApp(app).inject({
+      method: 'GET',
+      url: `/api/generations/${created.id}`
+    });
+    expect(detailResponse.statusCode).toBe(200);
 
-      const detail = generationSchema.parse(detailResponse.json());
-      const inputImagePath = z.string().parse(detail.presetParams.inputImagePath);
+    const detail = generationSchema.parse(detailResponse.json());
+    const inputImagePath = z.string().parse(detail.presetParams.inputImagePath);
 
-      expect(path.basename(inputImagePath)).toBe('input.bin');
-      await expect(readFile(inputImagePath)).resolves.toEqual(fileBuffer);
-    }
-  );
+    expect(path.basename(inputImagePath)).toBe('input.bin');
+    await expect(readFile(inputImagePath)).resolves.toEqual(fileBuffer);
+  });
 });
 
 async function createGenerationWithInject(
@@ -201,6 +192,43 @@ function createTestCatalog() {
 
   const detail = {
     ...summary,
+    model: {
+      templateId: 'img2img-basic',
+      categories: [
+        {
+          id: 'main',
+          label: {
+            en: 'Main'
+          },
+          order: 10,
+          presentation: {
+            collapsible: false,
+            defaultExpanded: true
+          }
+        }
+      ],
+      fields: [
+        {
+          id: 'prompt',
+          fieldType: 'string' as const,
+          categoryId: 'main',
+          order: 10,
+          label: {
+            en: 'Prompt'
+          },
+          default: 'default prompt',
+          validation: {
+            required: true,
+            maxLength: 4000
+          },
+          control: {
+            type: 'input' as const,
+            multiline: true,
+            rows: 4
+          }
+        }
+      ]
+    },
     template: {
       id: 'img2img-basic',
       type: 'img2img' as const,
