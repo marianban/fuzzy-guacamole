@@ -92,7 +92,7 @@ export const presetModelFieldSchema = z
   .object({
     id: z.string().min(1),
     fieldType: z.enum(['string', 'integer', 'number', 'enum']),
-    categoryId: z.string().min(1),
+    categoryId: z.string().min(1).optional(),
     order: z.number().int(),
     label: localizedTextSchema,
     description: localizedTextSchema.optional(),

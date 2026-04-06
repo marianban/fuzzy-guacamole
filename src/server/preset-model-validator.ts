@@ -54,7 +54,7 @@ export function validatePresetModelBundle(
     }
     fieldIds.add(field.id);
 
-    if (!categoryIds.has(field.categoryId)) {
+    if (field.categoryId !== undefined && !categoryIds.has(field.categoryId)) {
       throw new Error(
         `Model field "${field.id}" in ${options.modelPath} has categoryId "${field.categoryId}" that does not reference an existing categoryId.`
       );

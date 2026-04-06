@@ -286,6 +286,63 @@ describe('preset loading and routes', () => {
     );
   });
 
+  it('given_model_field_without_category_when_loading_catalog_then_loader_succeeds', async () => {
+    const presetsRoot = await mkdtemp(path.join(tmpdir(), 'fg-presets-'));
+    tempDirs.push(presetsRoot);
+    const templateDir = path.join(presetsRoot, 'img2img-basic');
+    await mkdir(templateDir, { recursive: true });
+
+    await writeJsonFile(path.join(templateDir, 'preset.template.json'), {
+      id: 'img2img-basic',
+      type: 'img2img',
+      workflow: {
+        '14': {
+          class_type: 'PromptNode',
+          inputs: { prompt: '{{prompt}}' }
+        }
+      }
+    });
+
+    await writeJsonFile(path.join(templateDir, 'basic.preset.json'), {
+      id: 'img2img-basic/basic',
+      name: 'Img2Img - Basic',
+      type: 'img2img',
+      template: 'preset.template.json',
+      defaults: {}
+    });
+
+    await writeJsonFile(path.join(templateDir, 'model.json'), {
+      templateId: 'img2img-basic',
+      categories: [],
+      fields: [
+        {
+          id: 'prompt',
+          fieldType: 'string',
+          order: 10,
+          label: {
+            en: 'Prompt'
+          },
+          default: '',
+          validation: {
+            required: true
+          },
+          control: {
+            type: 'input'
+          }
+        }
+      ]
+    });
+
+    const catalog = await loadPresetCatalog({ presetsDir: presetsRoot });
+
+    expect(catalog.list()).toHaveLength(1);
+    expect(catalog.getById('img2img-basic/basic')?.model.fields).toMatchObject([
+      {
+        id: 'prompt'
+      }
+    ]);
+  });
+
   it('given_list_result_when_mutated_then_catalog_state_is_not_modified', async () => {
     const presetsRoot = await mkdtemp(path.join(tmpdir(), 'fg-presets-'));
     tempDirs.push(presetsRoot);
