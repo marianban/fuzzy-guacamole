@@ -151,9 +151,9 @@ Folder naming rule:
 ```
 
 Template rules:
-- `workflow` is an exported ComfyUI workflow JSON with field-id placeholder tokens.
+- `workflow` is an exported ComfyUI workflow JSON with field-id template tokens.
 - `preset.template.json` contains workflow structure only.
-- Placeholder field metadata is defined in `model.json`, not inline in the template.
+- Field metadata is defined in `model.json`, not inline in the template.
 
 ### 4.3 model.json
 ```json
@@ -342,7 +342,7 @@ Model rules:
 - `templateId` must match the preset folder name and `preset.template.json.id`.
 - `categories` define optional UI groups. Category labels are localized.
 - `fields` define control-panel field metadata for the bundle.
-- Workflow placeholders for control-panel values use field ids directly with the syntax `{{fieldId}}` (for example `{{prompt}}`, `{{steps}}`).
+- Workflow template tokens for control-panel values use field ids directly with the syntax `{{fieldId}}` (for example `{{prompt}}`, `{{steps}}`).
 - Non-control-panel runtime values such as uploaded input image references are not currently modeled in `model.json`.
 - `label` is required for every field and category and must support localization.
 - `description` is optional localized helper text.
@@ -371,7 +371,7 @@ Model rules:
 - `order` controls rendering order within the category.
 - `visibility` is optional and allows declarative conditional fields (for example seed only when `seedMode === fixed`).
 - `id` must be unique within a bundle and is the canonical key used by:
-  - workflow placeholders
+  - workflow template tokens
   - preset defaults
   - runtime generation params
 - A field may exist without being referenced by the workflow if it is needed for UI-only behavior or derived runtime logic.
@@ -409,7 +409,7 @@ Preset rules:
 - `model` is required and must point to `model.json` in the same preset folder (vNext preset contract).
 - `id` format is `{templateId}/{presetName}` to avoid collisions across folders.
 - Presets provide preset-specific defaults/overrides only.
-- Control-panel placeholder definitions and UI metadata live in `model.json`.
+- Control-panel field metadata lives in `model.json`.
 - Default value resolution order:
   1. Runtime user-entered value
   2. System-assigned value (for example uploaded input image path)
@@ -422,28 +422,28 @@ v1 supports:
 - `img2img`
 - `txt2img`
 
-### 4.6 Placeholder application and validation
+### 4.6 Template token application and validation
 
-Workflows are treated as JSON templates with field-id placeholder tokens (for example `{{prompt}}`) placed inside `preset.template.json`.
+Workflows are treated as JSON templates with field-id template tokens (for example `{{prompt}}`) placed inside `preset.template.json`.
 
 Implementation rules:
 1. Load selected `*.preset.json`.
 2. Resolve and load preset `template` (`preset.template.json`) as JSON (not as a raw string).
 3. Resolve and load preset `model` (`model.json`).
 4. Validate model integrity before queueing:
-   - every control-panel placeholder token used in `template.workflow` must resolve to exactly one `fields[].id`
+   - every control-panel template token used in `template.workflow` must resolve to exactly one `fields[].id`
    - every `categoryId` must reference an existing category
    - preset `type`, template `type`, and model `templateId` must resolve to the same bundle
 5. Resolve runtime parameter values using the default precedence defined above.
 6. Validate runtime values against `model.json.fields[].validation`.
 7. Recursively walk `template.workflow` values.
 8. For any string value:
-   - If it contains a placeholder token, replace occurrences with the corresponding parameter value.
+   - If it contains a template token, replace occurrences with the corresponding parameter value.
    - If the entire string equals the token, replace with the raw value (so numbers can stay numbers).
    - If the token is embedded in a larger string, replace with the stringified value.
 
 Validation rules (v1):
-- At queue time, fail if any control-panel placeholder token exists in the template workflow but does not reference a field id from `model.json`.
+- At queue time, fail if any control-panel template token exists in the template workflow but does not reference a field id from `model.json`.
 - Fail if any required field resolves to no value.
 - Fail if preset `type` and template `type` do not match.
 - Fail if preset `template` file is missing.
@@ -462,7 +462,7 @@ UI generation rules:
 - Current implementation validation scope:
   - `examples/prompts/img2img.json`
   - `examples/prompts/txt2img.json`
-- These example prompts are source workflows used to build `preset.template.json` files by replacing concrete values with `{{fieldId}}` placeholders.
+- These example prompts are source workflows used to build `preset.template.json` files by replacing concrete values with `{{fieldId}}` template tokens.
 - For `examples/prompts/img2img.json`, v1 canonical final output is SaveImage node `3` (ignore upscaled SaveImage node `21` for initial release).
 
 ---

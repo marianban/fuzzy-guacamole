@@ -57,8 +57,8 @@ Definition of done:
 ## P1. Implement workflow materialization, queue-time validation, and prompt persistence
 
 Why this is missing:
-- Preset templates and placeholders are loaded, but no server path applies them to build a final Comfy workflow.
-- Queueing does not validate required placeholder values or resolve preset defaults.
+- Preset templates are loaded, but no server path applies template tokens to build a final Comfy workflow.
+- Queueing does not validate required template-token values or resolve preset defaults.
 - The database schema already has `prompt_request` and `prompt_response`, but the store always writes `null` to both columns.
 
 Current evidence:
@@ -71,10 +71,10 @@ Current evidence:
 
 Work expected in the PR:
 - Merge preset defaults with generation params in a dedicated server-side execution builder.
-- Validate placeholder completeness and type-preserving replacement before submission.
+- Validate template-token completeness and type-preserving replacement before submission.
 - Handle img2img-specific input requirements and seed/seed-mode normalization.
 - Persist the rendered prompt payload and the Comfy submission response for later inspection/debugging.
-- Add focused tests around placeholder replacement, missing params, and prompt persistence.
+- Add focused tests around template-token replacement, missing params, and prompt persistence.
 
 Definition of done:
 - The server can deterministically turn a stored generation into a valid Comfy submission payload.

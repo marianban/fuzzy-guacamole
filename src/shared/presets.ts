@@ -5,8 +5,7 @@ export const presetTypeSchema = z.enum(['img2img', 'txt2img']);
 export const workflowTemplateSchema = z.object({
   id: z.string().min(1),
   type: presetTypeSchema,
-  workflow: z.record(z.string(), z.unknown()),
-  placeholders: z.record(z.string(), z.string().min(1))
+  workflow: z.record(z.string(), z.unknown())
 });
 
 export const presetDefinitionSchema = z.object({

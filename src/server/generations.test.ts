@@ -73,11 +73,8 @@ function createCatalog() {
       workflow: {
         '1': {
           class_type: 'PromptNode',
-          inputs: { prompt: '{{PROMPT}}' }
+          inputs: { prompt: '{{prompt}}' }
         }
-      },
-      placeholders: {
-        '{{PROMPT}}': 'prompt'
       }
     }
   };

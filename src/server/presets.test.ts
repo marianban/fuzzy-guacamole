@@ -36,16 +36,12 @@ describe('preset loading and routes', () => {
       workflow: {
         '12': {
           class_type: 'LoadImage',
-          inputs: { image: '{{INPUT_IMAGE}}' }
+          inputs: { image: '{{inputImagePath}}' }
         },
         '14': {
           class_type: 'PromptNode',
-          inputs: { prompt: '{{PROMPT}}' }
+          inputs: { prompt: '{{prompt}}' }
         }
-      },
-      placeholders: {
-        '{{PROMPT}}': 'prompt',
-        '{{INPUT_IMAGE}}': 'inputImagePath'
       }
     });
 
@@ -109,8 +105,7 @@ describe('preset loading and routes', () => {
     await writeJsonFile(path.join(templateDir, 'preset.template.json'), {
       id: 'txt2img-basic',
       type: 'txt2img',
-      workflow: {},
-      placeholders: {}
+      workflow: {}
     });
 
     await writeJsonFile(path.join(templateDir, 'basic.preset.json'), {
@@ -135,8 +130,7 @@ describe('preset loading and routes', () => {
     await writeJsonFile(path.join(templateDir, 'preset.template.json'), {
       id: 'img2img-basic',
       type: 'img2img',
-      workflow: {},
-      placeholders: {}
+      workflow: {}
     });
 
     await writeJsonFile(path.join(templateDir, 'basic.preset.json'), {

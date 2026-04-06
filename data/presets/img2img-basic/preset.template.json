@@ -77,9 +77,9 @@
     },
     "7": {
       "inputs": {
-        "seed": "{{SEED}}",
-        "steps": "{{STEPS}}",
-        "cfg": "{{CFG}}",
+        "seed": "{{seed}}",
+        "steps": "{{steps}}",
+        "cfg": "{{cfg}}",
         "sampler_name": "euler",
         "scheduler": "simple",
         "denoise": 1,
@@ -123,7 +123,7 @@
     },
     "12": {
       "inputs": {
-        "image": "{{INPUT_IMAGE}}"
+        "image": "{{inputImagePath}}"
       },
       "class_type": "LoadImage",
       "_meta": {
@@ -132,7 +132,7 @@
     },
     "13": {
       "inputs": {
-        "prompt": "{{NEG_PROMPT}}",
+        "prompt": "{{negativePrompt}}",
         "clip": [
           "17",
           0
@@ -153,7 +153,7 @@
     },
     "14": {
       "inputs": {
-        "prompt": "{{PROMPT}}",
+        "prompt": "{{prompt}}",
         "clip": [
           "17",
           0
@@ -260,13 +260,5 @@
         "title": "Clean VRAM Used"
       }
     }
-  },
-  "placeholders": {
-    "{{PROMPT}}": "prompt",
-    "{{NEG_PROMPT}}": "negativePrompt",
-    "{{STEPS}}": "steps",
-    "{{CFG}}": "cfg",
-    "{{SEED}}": "seed",
-    "{{INPUT_IMAGE}}": "inputImagePath"
   }
 }
