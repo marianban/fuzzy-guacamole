@@ -74,6 +74,12 @@ This repo currently contains the product specification and agent workflow docs f
 - Minimize global state; lift state only when needed; keep server/client boundaries clear.
 - Handle loading/error/empty states explicitly; never leave UI in ambiguous states.
 - Use CSS modules for styling; keep class names consistent and avoid ad-hoc inline styles.
+- Variant props should use union types: `variant: 'primary' | 'secondary'`
+- `src\client\src\components` - should be mapped to `#root/components` in the project structure when using
+- Never hardcode hex colors - use `var(--color-*)` tokens
+- Custom styles go in component-level CSS modules
+- No relative imports beyond parent directory
+- Extract magic numbers/values to named constants. If same constant is used in multiple places, extract to a shared constants.ts module.
 
 
 ## MCPs to use for Implementation
@@ -85,3 +91,18 @@ Wallaby MCP server should be used by the agent to check test status, inspect cov
 ## Skills
 
 Use skills from `.agents/skills/` when implementing features.
+
+## Frontend
+
+### Folder Structure Guidelines
+
+- `src\client\src\components` - shared components that are not specific to a single page or feature
+- `src\client\src\features` - feature-specific components, hooks, and styles organized by feature domain
+- `src\client\src\layouts` - shared layout components that define page structure (headers, footers, sidebars)
+- `src\client\src\utils` - shared utility functions and helpers
+- `src\client\src\pages` - top-level page components that compose features and layouts into complete pages
+- `src\client\src\api` - API client code for communicating with the backend server
+- `src\client\src\i18n` - localization files and setup for react-i18next
+- `src\client\src\styles` - global styles, CSS variables, and design tokens
+
+# FE Development Guidelines
