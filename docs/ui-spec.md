@@ -33,7 +33,7 @@ Content plan:
 Interaction thesis:
 1. Direct manipulation first: canvas-centric interactions and immediate visual feedback.
 2. Modeless operation: avoid interruptive dialogs for normal flow.
-3. Progressive reveal: only surface advanced controls when needed.
+3. Progressive reveal: only surface advanced control categories when needed, driven by preset metadata rather than hardcoded UI rules.
 
 ## 4. UX principles applied (mandatory)
 
@@ -158,14 +158,29 @@ im2img and txt2img are all done in the same canvas, no need to special mode swit
  
 ## 7.4 Right rail: Control panel
 
+The control panel is dynamically generated from the selected preset bundle `model.json`.
+
 Form hierarchy:
 1. Preset selector (required)
-2. Prompt (required, multiline)
-3. Advanced section (collapsible, default collapsed):
-  - Negative prompt
-  - Seed mode (`random`/`fixed`)
-  - Seed value input (enabled only when fixed)
-  - Advanced parameters shown in badges in format Label:value (e.g. `Steps:50`, `CFG:7.5`). User can click badge to edit value in place.
+2. Dynamic category sections in configured order
+3. Dynamic fields inside each category in configured order
+
+Category behavior:
+- Category title comes from localized `categories[].label`.
+- Categories may be always visible or collapsible based on metadata.
+- "Advanced Parameters" is not a hardcoded section; it is a category defined by the preset model.
+
+Field behavior:
+- All `model.json.fields[]` render in the right rail.
+- Field labels, descriptions, placeholders, and select-option labels must use localized values from the preset model.
+- Client locale fallback should follow the product spec locale resolution order.
+- Required/optional state and validation feedback come from the field metadata.
+- Control rendering is metadata-driven:
+  - `input` renders single-line or multiline input based on config
+  - `select` renders a dropdown/listbox using localized options
+  - `slider` renders bounded numeric slider controls
+  - `range` is reserved for bounded range editing when defined by a preset
+- Conditional visibility/enabled behavior (for example `seed` shown only when `seedMode = fixed`) comes from field metadata, not hardcoded UI branching.
 
 Action area:
 - Primary: `Generate` (or `Rerun` if not draft)
@@ -220,6 +235,12 @@ Error UX rules:
 - No modal interruptions for expected operational errors.
 - Keep user in context; provide inline, local error messages near affected action.
 - Every error must include next step: retry, change state, or inspect logs.
+
+Preset-model edge states:
+1. Category label missing in active locale.
+2. Field metadata invalid or unsupported for a control type.
+3. Placeholder exists in workflow but no matching field id exists in `model.json`.
+4. Field exists in `model.json` but is hidden because its visibility condition is not met.
 
 ## 10. Motion and feedback
 

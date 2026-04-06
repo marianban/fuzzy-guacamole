@@ -132,6 +132,7 @@ Configuration policy:
 ```
 /data/presets/img2img-basic/
   |- preset.template.json
+  |- model.json
   |- basic.preset.json
   `- advanced.preset.json
 ```
@@ -145,29 +146,254 @@ Folder naming rule:
 {
   "id": "img2img-basic",
   "type": "img2img",
-  "workflow": {},
-  "placeholders": {
-    "{{PROMPT}}": "prompt",
-    "{{NEG_PROMPT}}": "negativePrompt",
-    "{{STEPS}}": "steps",
-    "{{CFG}}": "cfg",
-    "{{SEED}}": "seed",
-    "{{INPUT_IMAGE}}": "inputImagePath"
-  }
+  "workflow": {}
 }
 ```
 
 Template rules:
-- `workflow` is an exported ComfyUI workflow JSON with placeholder tokens.
-- `placeholders` defines the token -> parameter mapping for all presets of this template.
+- `workflow` is an exported ComfyUI workflow JSON with field-id placeholder tokens.
+- `preset.template.json` contains workflow structure only.
+- Placeholder field metadata is defined in `model.json`, not inline in the template.
 
-### 4.3 *.preset.json
+### 4.3 model.json
+```json
+{
+  "templateId": "img2img-basic",
+  "categories": [
+    {
+      "id": "main",
+      "label": {
+        "en": "Main",
+        "sk": "Hlavne"
+      },
+      "order": 10,
+      "presentation": {
+        "collapsible": false,
+        "defaultExpanded": true
+      }
+    },
+    {
+      "id": "advanced",
+      "label": {
+        "en": "Advanced Parameters",
+        "sk": "Pokrocile parametre"
+      },
+      "order": 20,
+      "presentation": {
+        "collapsible": true,
+        "defaultExpanded": false
+      }
+    }
+  ],
+  "fields": [
+    {
+      "id": "prompt",
+      "fieldType": "string",
+      "categoryId": "main",
+      "order": 10,
+      "label": {
+        "en": "Prompt",
+        "sk": "Prompt"
+      },
+      "description": {
+        "en": "Primary instruction for the generation.",
+        "sk": "Hlavna instrukcia pre generovanie."
+      },
+      "default": "",
+      "validation": {
+        "required": true,
+        "maxLength": 4000
+      },
+      "control": {
+        "type": "input",
+        "multiline": true,
+        "rows": 4,
+        "placeholder": {
+          "en": "Describe the image you want to generate",
+          "sk": "Popiste obrazok, ktory chcete vygenerovat"
+        }
+      }
+    },
+    {
+      "id": "negativePrompt",
+      "fieldType": "string",
+      "categoryId": "advanced",
+      "order": 20,
+      "label": {
+        "en": "Negative Prompt",
+        "sk": "Negativny prompt"
+      },
+      "default": "",
+      "validation": {
+        "required": false,
+        "maxLength": 4000
+      },
+      "control": {
+        "type": "input",
+        "multiline": true,
+        "rows": 3
+      }
+    },
+    {
+      "id": "steps",
+      "fieldType": "integer",
+      "categoryId": "advanced",
+      "order": 30,
+      "label": {
+        "en": "Steps",
+        "sk": "Kroky"
+      },
+      "default": 30,
+      "validation": {
+        "required": true,
+        "min": 1,
+        "max": 100
+      },
+      "control": {
+        "type": "slider",
+        "min": 1,
+        "max": 100,
+        "step": 1
+      }
+    },
+    {
+      "id": "cfg",
+      "fieldType": "number",
+      "categoryId": "advanced",
+      "order": 40,
+      "label": {
+        "en": "CFG",
+        "sk": "CFG"
+      },
+      "default": 7,
+      "validation": {
+        "required": true,
+        "min": 1,
+        "max": 20
+      },
+      "control": {
+        "type": "slider",
+        "min": 1,
+        "max": 20,
+        "step": 0.5
+      }
+    },
+    {
+      "id": "seedMode",
+      "fieldType": "enum",
+      "categoryId": "advanced",
+      "order": 50,
+      "label": {
+        "en": "Seed Mode",
+        "sk": "Rezim seedu"
+      },
+      "default": "random",
+      "validation": {
+        "required": true
+      },
+      "control": {
+        "type": "select",
+        "options": [
+          {
+            "value": "random",
+            "label": {
+              "en": "Random",
+              "sk": "Nahodny"
+            }
+          },
+          {
+            "value": "fixed",
+            "label": {
+              "en": "Fixed",
+              "sk": "Pevny"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "seed",
+      "fieldType": "integer",
+      "categoryId": "advanced",
+      "order": 60,
+      "label": {
+        "en": "Seed",
+        "sk": "Seed"
+      },
+      "validation": {
+        "required": false,
+        "min": 0
+      },
+      "visibility": {
+        "field": "seedMode",
+        "equals": "fixed"
+      },
+      "control": {
+        "type": "input",
+        "inputMode": "numeric"
+      }
+    }
+  ]
+}
+```
+
+Model rules:
+- `model.json` is required for every preset bundle.
+- `templateId` must match the preset folder name and `preset.template.json.id`.
+- `categories` define optional UI groups. Category labels are localized.
+- `fields` define control-panel field metadata for the bundle.
+- Workflow placeholders for control-panel values use field ids directly with the syntax `{{fieldId}}` (for example `{{prompt}}`, `{{steps}}`).
+- Non-control-panel runtime values such as uploaded input image references are not currently modeled in `model.json`.
+- `label` is required for every field and category and must support localization.
+- `description` is optional localized helper text.
+- `fieldType` defines the underlying value shape, validation, and serialization. Initial supported values:
+  - `string`
+  - `integer`
+  - `number`
+  - `boolean`
+  - `enum`
+  - `image`
+- `control` is required for every field.
+- Initial supported `control.type` values:
+  - `input`
+  - `select`
+  - `slider`
+  - `range`
+- Control-specific metadata:
+  - `input`: may define `multiline`, `rows`, `inputMode`, `maxLength`, `placeholder`
+  - `select`: must define `options[]` with `value` and localized `label`
+  - `slider`: must define `min`, `max`, and may define `step`
+  - `range`: reserved for bounded numeric range editing and follows the same numeric metadata contract as `slider`
+- `validation.required` is mandatory on every field.
+- Additional validation keys are field-type dependent and can include `min`, `max`, `minLength`, `maxLength`, `pattern`.
+- `default` is optional bundle-level fallback metadata for the field.
+- `categoryId` is optional. Fields without a category render in the default top-level group.
+- `order` controls rendering order within the category.
+- `visibility` is optional and allows declarative conditional fields (for example seed only when `seedMode === fixed`).
+- `id` must be unique within a bundle and is the canonical key used by:
+  - workflow placeholders
+  - preset defaults
+  - runtime generation params
+- A field may exist without being referenced by the workflow if it is needed for UI-only behavior or derived runtime logic.
+- Runtime-only generation params that are not edited in the control panel may exist outside `model.json.fields`.
+
+Localization rules:
+- Localized values use an object keyed by BCP 47 language tags (for example `en`, `en-US`, `sk`).
+- Client fallback order:
+  1. Exact locale match (for example `sk-SK`)
+  2. Base language match (for example `sk`)
+  3. `en`
+  4. First available localized value
+  5. Field/category `id` as a last-resort fallback
+
+### 4.4 *.preset.json
 ```json
 {
   "id": "img2img-basic/basic",
   "name": "Img2Img - Basic",
   "type": "img2img",
   "template": "preset.template.json",
+  "model": "model.json",
   "defaults": {
     "prompt": "soft cinematic lighting",
     "negativePrompt": "",
@@ -180,40 +406,63 @@ Template rules:
 
 Preset rules:
 - `template` is required and must point to a template file in the same preset folder (v1).
+- `model` is required and must point to `model.json` in the same preset folder (vNext preset contract).
 - `id` format is `{templateId}/{presetName}` to avoid collisions across folders.
-- Presets provide parameter defaults/overrides only; placeholder definitions live in template.
+- Presets provide preset-specific defaults/overrides only.
+- Control-panel placeholder definitions and UI metadata live in `model.json`.
+- Default value resolution order:
+  1. Runtime user-entered value
+  2. System-assigned value (for example uploaded input image path)
+  3. `*.preset.json.defaults`
+  4. `model.json.fields[].default`
 
-### 4.4 Supported preset types
+### 4.5 Supported preset types
 
 v1 supports:
 - `img2img`
 - `txt2img`
 
-### 4.5 Placeholder application (simple templating)
+### 4.6 Placeholder application and validation
 
-Workflows are treated as JSON templates with placeholder tokens (e.g. `{{PROMPT}}`) placed inside `preset.template.json`.
+Workflows are treated as JSON templates with field-id placeholder tokens (for example `{{prompt}}`) placed inside `preset.template.json`.
 
 Implementation rules:
 1. Load selected `*.preset.json`.
 2. Resolve and load preset `template` (`preset.template.json`) as JSON (not as a raw string).
-3. Recursively walk `template.workflow` values.
-4. For any string value:
+3. Resolve and load preset `model` (`model.json`).
+4. Validate model integrity before queueing:
+   - every control-panel placeholder token used in `template.workflow` must resolve to exactly one `fields[].id`
+   - every `categoryId` must reference an existing category
+   - preset `type`, template `type`, and model `templateId` must resolve to the same bundle
+5. Resolve runtime parameter values using the default precedence defined above.
+6. Validate runtime values against `model.json.fields[].validation`.
+7. Recursively walk `template.workflow` values.
+8. For any string value:
    - If it contains a placeholder token, replace occurrences with the corresponding parameter value.
    - If the entire string equals the token, replace with the raw value (so numbers can stay numbers).
    - If the token is embedded in a larger string, replace with the stringified value.
 
 Validation rules (v1):
-- At queue time, fail if any placeholder token exists in the template workflow but has no value.
+- At queue time, fail if any control-panel placeholder token exists in the template workflow but does not reference a field id from `model.json`.
+- Fail if any required field resolves to no value.
 - Fail if preset `type` and template `type` do not match.
 - Fail if preset `template` file is missing.
+- Fail if preset `model` file is missing.
 - Do not validate models/assets on the ComfyUI machine; if the workflow fails, surface the error.
 
-### 4.6 Initial validated workflow templates (2026-02-22)
+UI generation rules:
+- The control panel is generated from `model.json.fields`.
+- Fields are grouped by `categoryId` and ordered by `order`.
+- Category headings come from localized `categories[].label`.
+- Advanced sections are not hardcoded; they are just categories with presentation metadata.
+- Non-control runtime values such as uploaded input images are handled outside `model.json.fields`.
+
+### 4.7 Initial validated workflow templates (2026-02-22)
 
 - Current implementation validation scope:
   - `examples/prompts/img2img.json`
   - `examples/prompts/txt2img.json`
-- These example prompts are source workflows used to build `preset.template.json` files by replacing concrete values with placeholders.
+- These example prompts are source workflows used to build `preset.template.json` files by replacing concrete values with `{{fieldId}}` placeholders.
 - For `examples/prompts/img2img.json`, v1 canonical final output is SaveImage node `3` (ignore upscaled SaveImage node `21` for initial release).
 
 ---
@@ -254,10 +503,11 @@ Recommended response shape (v1):
 
 ### Control panel
 - Preset dropdown
-- Prompt textarea
-- Advanced:
-  - Negative prompt
-  - Seed mode + seed
+- Dynamic control categories from `model.json`
+- Dynamic controls generated from `fields[]`
+- Localized labels/descriptions/placeholders/options resolved from the active locale
+- Validation and required state driven by `fields[].validation`
+- Conditional fields and advanced sections driven by category/visibility metadata, not hardcoded logic
 - Generate (used for reruns too), Cancel, Delete
 - at bottom shows logs
 
@@ -266,6 +516,7 @@ Recommended response shape (v1):
 - zoom + pan
 - `img2img`: single input drop zone, after generation shows output image. In edit mode user can iterate on image. input->output->input...
 - `txt2img`: shows output image after generation
+- Input upload and other canvas interactions are handled outside `model.json.fields`
 
 ### Top bar
 - Logo
@@ -449,6 +700,8 @@ Notes:
 - SSE events are live-only in v1 (no replay/catch-up); they emit basic generation status updates and optional progress when available.
 - `+ New generation` is client-only and does not hit the backend.
 - `presetId` uses `{templateId}/{presetName}` format (for example `img2img-basic/basic`).
+- `GET /api/presets/{presetId}` must expose the resolved template plus the resolved preset `model.json` so the client can build the control panel dynamically.
+- Preset parameter payloads are keyed by `fieldId` from `model.json`.
 - On Generate, the UI creates the server-side generation (`POST /api/generations`), then:
   - `img2img`: upload input (`POST /api/generations/{generationId}/input`), then queue (`POST /api/generations/{generationId}/queue`)
   - `txt2img`: queue directly (`POST /api/generations/{generationId}/queue`)
