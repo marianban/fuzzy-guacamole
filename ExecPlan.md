@@ -33,10 +33,11 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-03-01) Implemented first preset slice: validated config loader (`/data/config.json`), preset catalog loader (`/data/presets/{templateId}/preset.template.json` + `*.preset.json`), and Fastify preset routes (`GET /api/presets`, `GET /api/presets/{presetId}` via wildcard path).
 - [x] (2026-04-06) Reviewed and updated ExecPlan for the new preset field model: `model.json` now defines localized control-panel fields/categories, workflow template tokens reference `{{fieldId}}`, and runtime-only values like uploaded input-image references remain outside `model.json.fields`.
 - [x] (2026-04-06) Synced this ExecPlan to the latest UI docs: recent generations/history now lives in a bottom dock, while `+ New generation` stays in the top-left of the main image area.
+- [x] (2026-04-06) Synced this ExecPlan to the latest localization stack requirement in `docs/specs.MD`: client localization must use `react-i18next` (with `i18next`) and follow the preset locale fallback behavior.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + REST endpoints (`GET /api/status`, `GET /api/presets`, `GET /api/presets/{presetId}`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
-- [ ] (YYYY-MM-DD) Implement UI (top bar + main canvas + right control panel + bottom recent-generations history) + generation creation/queue/upload/cancel + status loader gate.
+- [ ] (YYYY-MM-DD) Implement UI (top bar + main canvas + right control panel + bottom recent-generations history) + generation creation/queue/upload/cancel + status loader gate + `react-i18next` localization wiring.
 - [ ] (YYYY-MM-DD) Implement `GET /api/events/generations` SSE stream + UI live updates + integration tests against local ComfyUI (with mock fallback for deterministic CI).
 - [ ] (YYYY-MM-DD) Harden edge cases (timeouts, retries, idempotence), polish UX, and document local/dev runbook.
 
@@ -92,6 +93,9 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - Decision: Treat backend-persisted files under `/data/outputs/{generationId}/...` as the only canonical generation outputs, even when ComfyUI stores files elsewhere internally.
   Rationale: Keeps product behavior deterministic across Comfy builds and decouples UI/history from Comfy filesystem conventions.
   Date/Author: 2026-02-22 / User + Codex (GPT-5)
+- Decision: Standardize client localization on `react-i18next` + `i18next` and keep locale resolution consistent with preset localization fallback rules in `docs/specs.MD`.
+  Rationale: The app now needs one explicit localization runtime for static UI copy and dynamic preset metadata so language behavior is deterministic across the control panel and future UI copy additions.
+  Date/Author: 2026-04-06 / Codex (GPT-5.3)
 - Decision (superseded): Use Postgres with a minimal SQL migration runner checked into the repo.
   Rationale: Avoided heavy ORM lock-in while keeping schema changes explicit and reproducible for novices.
   Date/Author: 2026-01-24 / Codex (GPT-5.2)
@@ -123,6 +127,7 @@ Core domain definitions (use these terms consistently in code and docs):
 - Run: One execution of a generation that produces exactly one output image.
 - Statuses: `draft`, `queued`, `submitted`, `completed`, `failed`, `canceled` (as defined in the spec).
 - App status state: `Starting`, `Online`, `Offline` (as returned by `GET /api/status`).
+- Active locale: The current UI language tag used by `react-i18next` (for example `en`, `en-US`, `sk`) to resolve both static UI strings and localized preset/model metadata.
 - Worker loop: A single background loop that picks the oldest queued generation (by `queuedAt`) and executes it end-to-end, one at a time.
 - Wake-on-LAN (WOL): Sending a "magic packet" to wake the remote ComfyUI machine, then polling until ComfyUI is healthy.
 - SSE events stream: Live-only updates over `GET /api/events/generations` using `text/event-stream` and browser `EventSource`.
@@ -140,7 +145,7 @@ Constraints:
 
 Engineering and workflow expectations (keep this section aligned with `.agent/AGENTS.md`):
 
-- Stack: Node.js 24, Vite + React + TypeScript (classic SPA; no SSR), Fastify REST + SSE + Zod for API contracts, SWR for client data fetching, CSS modules, Radix UI (Radix Themes + primitives), `react-hook-form` + `@hookform/resolvers` for forms, Postgres + Drizzle ORM, Docker.
+- Stack: Node.js 24, Vite + React + TypeScript (classic SPA; no SSR), Fastify REST + SSE + Zod for API contracts, SWR for client data fetching, `react-i18next` + `i18next` for localization, CSS modules, Radix UI (Radix Themes + primitives), `react-hook-form` + `@hookform/resolvers` for forms, Postgres + Drizzle ORM, Docker.
 - Config: file-based only (`/data/config.json`) for Comfy URL, WOL target, SSH connection + remote start command, paths, and timeouts.
 - Tooling: Vitest + Testing Library + jsdom; ESLint new flat config format aligned to TypeScript-ESLint (`strict` + `stylistic`) plus `eslint-plugin-react-hooks` flat recommended config and `eslint-plugin-react`; Prettier for formatting.
 - Testing: follow TDD strictly for behavior changes (red-green-refactor): write tests first, run them to verify expected failure before implementation, then implement minimal code to pass.
@@ -190,6 +195,7 @@ Work:
   - Enforce boundaries: no direct `src/client` <-> `src/server` imports; shared contracts live in `src/shared`.
 - Add tooling:
   - Vitest + jsdom + Testing Library (`@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`).
+  - Client localization runtime using `react-i18next` + `i18next` with initialization in the client entrypoint and translation resources stored under `src/client/src/i18n/`.
   - ESLint + Prettier:
     - ESLint flat config based on TypeScript-ESLint getting-started guidance (`strict` + `stylistic`) with React Hooks flat recommended config and React plugin registration.
     - Prettier formatting (format before marking work complete).
@@ -404,6 +410,8 @@ Goal: The UI matches the v1 layout and can drive the full lifecycle: create gene
 Work:
 
 - UI layout in `src/client/App.tsx` (or equivalent root layout):
+  - Initialize localization in `src/client/src/main.tsx` (or an imported bootstrap module) using `react-i18next` and `i18next` before app render.
+  - Maintain translation resources for app chrome copy (top bar labels, button text, empty states, errors, logs panel headings) and use translation keys instead of hard-coded UI strings.
   - Top bar: logo + Undo/Redo buttons.
     - Include before/after behavior for img2img: hover temporarily shows original input, and click toggles an interactive split-view divider for direct comparison.
     - Include a selection tool for img2img region edits: selected region is edited and composited back into the base image with blurred edges to avoid hard seams.
@@ -411,7 +419,7 @@ Work:
   - Control panel:
     - Preset dropdown.
     - Dynamically rendered categories and fields from `model.json`.
-    - Localized labels/descriptions/placeholders/options resolved from the active locale.
+    - Localized labels/descriptions/placeholders/options resolved from the active locale via shared locale-resolution rules (exact match -> base language -> `en` -> first available value).
     - Conditional field visibility driven by field metadata (for example seed only when `seedMode=fixed`).
     - Actions: Generate (also used for re-runs), Cancel, Delete.
     - Logs panel at the bottom.
@@ -428,6 +436,10 @@ Work:
 - Use SWR fetchers for API calls.
 - Load `GET /api/status` and show a full-page loader until state is `Online`.
 - Load `GET /api/presets` and `GET /api/generations`.
+- Add locale behavior:
+  - Default initial locale to browser language when available, with fallback to `en`.
+  - Provide a deterministic locale switch path (query param, persisted setting, or explicit in-app selector) and use it consistently in all localization lookups.
+  - Ensure dynamic preset/model localized fields and static UI translation keys react to runtime locale changes without page reload.
 - Implement user flows:
   - "+ New generation" creates a client-only draft state.
   - Generate:
@@ -455,6 +467,7 @@ Acceptance:
   - Wait for Online gate, select a preset, set prompt in the control panel, upload input (img2img), click Generate, and see an output.
   - Use Undo/Redo to step through prompt+canvas history while iterating on a generation draft.
   - Use img2img before/after compare (hover preview and click-to-split mode) and region selection editing with blended-edge compositing.
+  - Change locale and see both static UI strings and dynamic preset/model labels update with the documented fallback order.
   - Cancel while queued/submitted and observe status update live.
   - Re-run a completed generation and get a new output file.
 
@@ -476,6 +489,7 @@ IMPORTANT: follow the spec layout under `src/` with `client/`, `server/`, and `s
 2) Add test tooling (frontend):
 
     npm add -D vitest jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event
+  npm add i18next react-i18next
     npm add react-hook-form @hookform/resolvers zod
 
 Expected: `npm test` (after adding a config and at least one test) reports passing.
@@ -548,6 +562,8 @@ Acceptance is behavioral and must be provable without reading code:
   - Generations list updates via `GET /api/events/generations` (SSE transport) when statuses change.
   - Completed generations show output preview and allow re-run.
   - For img2img, before/after compare and region selection edit/composite behavior are functional and visually consistent.
+  - Static UI copy is translated through `react-i18next` resources and changes when locale changes.
+  - Dynamic preset/model strings use the same active locale and fallback order (`exact -> base -> en -> first available`).
 - OpenAPI documentation:
   - Every app API endpoint listed in `docs/specs.MD` section 13 is present in the OpenAPI document.
   - OpenAPI includes request/response schemas and expected status/error codes for each endpoint, including `text/event-stream` details for SSE.
@@ -562,6 +578,7 @@ Tests (minimum bar):
   - Example CI/mock command: ``$env:COMFY_TEST_MODE='mock'; npm run test -- src/server/comfy/client.integration.test.ts``.
   - Fail before implementation, pass after.
 - UI tests for key interactions (create draft, select preset, generate disabled/enabled states, cancel button visibility).
+- UI localization tests for locale switching and fallback behavior (`exact locale`, `base locale`, `en`, then first available localized value).
 - For each new behavior change, add/extend tests in a separate step, run focused tests for the changed feature (not only broad full-suite runs), and, when practical, make the new test fail before implementation.
 - For each new/changed feature, add and run E2E tests that capture the same user flow end-to-end.
 - After tests/lint/format pass for a feature, run exploratory testing and verify both real app processes start cleanly (`npm run dev:server` and `npm run dev:client`) with no blocking runtime errors in logs, browser console, or network traffic.
@@ -635,6 +652,7 @@ Required libraries/tech:
 
 - Node.js 24, TypeScript.
 - Vite React SPA (`src/client`) plus Fastify REST/SSE server (`src/server`) with Zod validation and SWR on the client.
+- `react-i18next` + `i18next` for localization of static UI copy and integration with localized preset/model metadata.
 - Radix UI for UI components, using Radix Themes for theming and wrapping the app in `<Theme appearance="dark">...</Theme>`.
 - `react-hook-form` + `@hookform/resolvers` for client form handling and schema-based validation.
 - Postgres + Drizzle ORM (with `pg` driver), with migrations stored in-repo as `.sql`.
@@ -679,3 +697,4 @@ Plan change note:
 - (2026-03-01) Updated this ExecPlan to reflect `.agent/AGENTS.md` testing requirements: strict fail-first TDD flow, outcome-focused tests, required regression tests for bugfixes, and explicit coverage thresholds.
 - (2026-03-01) Updated this ExecPlan to reflect `.agent/AGENTS.md` post-feature quality-gate requirements: focused feature-level test execution, mandatory E2E coverage for changed behavior, exploratory testing, and clean startup verification for real server/client processes.
 - (2026-04-06) Updated this ExecPlan to reflect the latest `docs/specs.MD` preset field contract: `model.json` now owns localized control-panel categories/fields, control-panel workflow template tokens use direct `{{fieldId}}` references, preset details must expose the resolved model, and runtime-only values such as uploaded input-image references stay outside `model.json.fields`.
+- (2026-04-06) Updated this ExecPlan to reflect the latest `docs/specs.MD` localization runtime requirement: client-side localization now uses `react-i18next` + `i18next`, including explicit locale fallback behavior for both static UI copy and dynamic preset/model metadata.

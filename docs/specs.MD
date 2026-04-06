@@ -27,7 +27,7 @@ Terminology:
 
 - Runtime: Node.js 24
 - Framework: React, TypeScript (classic SPA no SSR needed), vite + react-ts template
- zod, swr for data fetching on the client
+ zod, swr for data fetching on the client, react-i18next for localization
 - Server: Fastify, REST for API and SSE for events + zod for validation, drizzle ORM for Postgres
 - Linting/formatting: ESLint (use new flat config format), use https://typescript-eslint.io/getting-started + Prettier
 plugins: https://www.npmjs.com/package/eslint-plugin-react-hooks
