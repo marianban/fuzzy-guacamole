@@ -5,8 +5,6 @@ import type {
 } from '../shared/presets.js';
 
 export interface ValidatePresetModelBundleOptions {
-  templateDirName: string;
-  templatePath: string;
   template: WorkflowTemplate;
   presetPath: string;
   preset: PresetDefinition;
@@ -17,18 +15,6 @@ export interface ValidatePresetModelBundleOptions {
 export function validatePresetModelBundle(
   options: ValidatePresetModelBundleOptions
 ): void {
-  if (options.model.templateId !== options.template.id) {
-    throw new Error(
-      `Model templateId mismatch for ${options.modelPath}: expected "${options.template.id}" but got "${options.model.templateId}".`
-    );
-  }
-
-  if (options.model.templateId !== options.templateDirName) {
-    throw new Error(
-      `Model templateId mismatch for ${options.modelPath}: expected folder "${options.templateDirName}" but got "${options.model.templateId}".`
-    );
-  }
-
   if (options.preset.type !== options.template.type) {
     throw new Error(
       `Preset type mismatch for ${options.presetPath}: preset "${options.preset.type}" does not match template "${options.template.type}".`

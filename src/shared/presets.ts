@@ -19,7 +19,6 @@ export const presetDefinitionSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   type: presetTypeSchema,
-  template: z.string().min(1),
   defaults: z.record(z.string(), z.unknown())
 });
 
@@ -185,7 +184,6 @@ export const presetModelFieldSchema = z
   });
 
 export const presetModelSchema = z.object({
-  templateId: z.string().min(1),
   categories: z.array(presetModelCategorySchema),
   fields: z.array(presetModelFieldSchema)
 });

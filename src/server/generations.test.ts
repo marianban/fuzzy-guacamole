@@ -68,7 +68,6 @@ function createCatalog() {
   const detail = {
     ...summary,
     model: {
-      templateId: 'img2img-basic',
       categories: [
         {
           id: 'main',
@@ -155,7 +154,6 @@ function createCatalogRequiringInput() {
   const detail = {
     ...summary,
     model: {
-      templateId: 'img2img-basic',
       categories: [
         {
           id: 'main',

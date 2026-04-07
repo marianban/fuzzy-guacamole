@@ -43,6 +43,7 @@ This repo currently contains the product specification and agent workflow docs f
 - Prefer small, deterministic tests; avoid timing-sensitive flakiness.
 - Follow Test-Driven Development principles
 - Add/extend tests with every behavior change; bugfixes require a regression test.
+- Do not keep or add tests for removed fields, APIs, or behaviors. When a feature is deleted from the contract, delete stale tests and stale fixture data instead of adding tests like "without removedField succeeds". If you notice such a test during development, remove it.
 - For UI: use `@testing-library/react` with user-visible queries (`getByRole`, `getByLabelText`), and drive interactions with `user-event`.
 - Assert outcomes/side effects (rendered text, disabled states, network calls) rather than implementation details.
 - Keep test setup minimal (helpers/factories are fine); reset shared state between tests.

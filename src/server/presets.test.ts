@@ -49,7 +49,6 @@ describe('preset loading and routes', () => {
       id: 'img2img-basic/basic',
       name: 'Img2Img - Basic',
       type: 'img2img',
-      template: 'preset.template.json',
       defaults: {
         prompt: 'soft cinematic lighting',
         seedMode: 'random'
@@ -57,7 +56,6 @@ describe('preset loading and routes', () => {
     });
 
     await writeJsonFile(path.join(templateDir, 'model.json'), {
-      templateId: 'img2img-basic',
       categories: [
         {
           id: 'main',
@@ -126,7 +124,6 @@ describe('preset loading and routes', () => {
       id: 'img2img-basic/basic',
       templateId: 'img2img-basic',
       model: {
-        templateId: 'img2img-basic',
         categories: [
           {
             id: 'main'
@@ -148,6 +145,110 @@ describe('preset loading and routes', () => {
     await app.close();
   });
 
+  it('given_bundle_without_explicit_template_links_when_loading_catalog_then_template_metadata_is_derived_from_folder_convention', async () => {
+    const presetsRoot = await mkdtemp(path.join(tmpdir(), 'fg-presets-'));
+    tempDirs.push(presetsRoot);
+    const templateDir = path.join(presetsRoot, 'img2img-basic');
+    await mkdir(templateDir, { recursive: true });
+
+    await writeJsonFile(path.join(templateDir, 'preset.template.json'), {
+      id: 'img2img-basic',
+      type: 'img2img',
+      workflow: {
+        '14': {
+          class_type: 'PromptNode',
+          inputs: { prompt: '{{prompt}}' }
+        }
+      }
+    });
+
+    await writeJsonFile(path.join(templateDir, 'basic.preset.json'), {
+      id: 'img2img-basic/basic',
+      name: 'Img2Img - Basic',
+      type: 'img2img',
+      defaults: {
+        prompt: 'soft cinematic lighting',
+        seedMode: 'random'
+      }
+    });
+
+    await writeJsonFile(path.join(templateDir, 'model.json'), {
+      categories: [
+        {
+          id: 'main',
+          label: {
+            en: 'Main'
+          },
+          order: 10,
+          presentation: {
+            collapsible: false,
+            defaultExpanded: true
+          }
+        }
+      ],
+      fields: [
+        {
+          id: 'prompt',
+          fieldType: 'string',
+          categoryId: 'main',
+          order: 10,
+          label: {
+            en: 'Prompt'
+          },
+          default: '',
+          validation: {
+            required: true,
+            maxLength: 4000
+          },
+          control: {
+            type: 'input',
+            multiline: true,
+            rows: 4
+          }
+        }
+      ]
+    });
+
+    const catalog = await loadPresetCatalog({ presetsDir: presetsRoot });
+
+    expect(catalog.list()).toEqual([
+      {
+        id: 'img2img-basic/basic',
+        name: 'Img2Img - Basic',
+        type: 'img2img',
+        templateId: 'img2img-basic',
+        templateFile: 'preset.template.json',
+        defaults: {
+          prompt: 'soft cinematic lighting',
+          seedMode: 'random'
+        }
+      }
+    ]);
+
+    expect(catalog.getById('img2img-basic/basic')).toMatchObject({
+      id: 'img2img-basic/basic',
+      templateId: 'img2img-basic',
+      templateFile: 'preset.template.json',
+      model: {
+        categories: [
+          {
+            id: 'main'
+          }
+        ],
+        fields: [
+          {
+            id: 'prompt',
+            fieldType: 'string'
+          }
+        ]
+      },
+      template: {
+        id: 'img2img-basic',
+        type: 'img2img'
+      }
+    });
+  });
+
   it('given_template_type_mismatch_when_loading_catalog_then_loader_fails', async () => {
     const presetsRoot = await mkdtemp(path.join(tmpdir(), 'fg-presets-'));
     tempDirs.push(presetsRoot);
@@ -164,12 +265,10 @@ describe('preset loading and routes', () => {
       id: 'txt2img-basic/basic',
       name: 'Broken preset',
       type: 'img2img',
-      template: 'preset.template.json',
       defaults: {}
     });
 
     await writeJsonFile(path.join(templateDir, 'model.json'), {
-      templateId: 'txt2img-basic',
       categories: [
         {
           id: 'main',
@@ -224,7 +323,6 @@ describe('preset loading and routes', () => {
       id: 'img2img-basic/basic',
       name: 'Img2Img - Basic',
       type: 'img2img',
-      template: 'preset.template.json',
       defaults: {}
     });
 
@@ -254,12 +352,10 @@ describe('preset loading and routes', () => {
       id: 'img2img-basic/basic',
       name: 'Img2Img - Basic',
       type: 'img2img',
-      template: 'preset.template.json',
       defaults: {}
     });
 
     await writeJsonFile(path.join(templateDir, 'model.json'), {
-      templateId: 'img2img-basic',
       categories: [],
       fields: [
         {
@@ -307,12 +403,10 @@ describe('preset loading and routes', () => {
       id: 'img2img-basic/basic',
       name: 'Img2Img - Basic',
       type: 'img2img',
-      template: 'preset.template.json',
       defaults: {}
     });
 
     await writeJsonFile(path.join(templateDir, 'model.json'), {
-      templateId: 'img2img-basic',
       categories: [],
       fields: [
         {
@@ -359,12 +453,10 @@ describe('preset loading and routes', () => {
       id: 'img2img-basic/basic',
       name: 'Img2Img - Basic',
       type: 'img2img',
-      template: 'preset.template.json',
       defaults: {}
     });
 
     await writeJsonFile(path.join(templateDir, 'model.json'), {
-      templateId: 'img2img-basic',
       categories: [
         {
           id: 'main',

@@ -17,6 +17,8 @@ interface LoadPresetCatalogOptions {
   presetsDir: string;
 }
 
+const TEMPLATE_FILE_NAME = 'preset.template.json';
+
 export interface PresetCatalog {
   list(): PresetSummary[];
   getById(presetId: string): PresetDetail | undefined;
@@ -60,15 +62,16 @@ export async function loadPresetCatalog(
 
   for (const templateDirName of templateDirs) {
     const templateDirPath = path.resolve(options.presetsDir, templateDirName);
-    const templatePath = path.resolve(templateDirPath, 'preset.template.json');
+    const templatePath = path.resolve(templateDirPath, TEMPLATE_FILE_NAME);
     const template = workflowTemplateSchema.parse(await loadPresetJsonFile(templatePath));
-    const { model, modelPath } = await loadPresetModel({ templateDirPath });
 
     if (template.id !== templateDirName) {
       throw new Error(
         `Template id mismatch for ${templatePath}: expected "${templateDirName}" but got "${template.id}".`
       );
     }
+
+    const { model, modelPath } = await loadPresetModel({ templateDirPath });
 
     const directoryEntries = await readdir(templateDirPath, { withFileTypes: true });
     const presetFileNames = directoryEntries
@@ -81,15 +84,7 @@ export async function loadPresetCatalog(
       const preset = presetDefinitionSchema.parse(await loadPresetJsonFile(presetPath));
 
       assertPresetIdForTemplate(preset.id, templateDirName);
-      assertTemplateFileReference({
-        templateDirPath,
-        templatePath,
-        presetTemplateFile: preset.template,
-        presetPath
-      });
       validatePresetModelBundle({
-        templateDirName,
-        templatePath,
         template,
         presetPath,
         preset,
@@ -102,7 +97,7 @@ export async function loadPresetCatalog(
         name: preset.name,
         type: preset.type,
         templateId: template.id,
-        templateFile: preset.template,
+        templateFile: TEMPLATE_FILE_NAME,
         defaults: preset.defaults
       };
 
@@ -157,30 +152,6 @@ function assertPresetIdForTemplate(presetId: string, templateId: string): void {
   if (segments[0] !== templateId) {
     throw new Error(
       `Preset id "${presetId}" does not match template folder "${templateId}".`
-    );
-  }
-}
-
-interface AssertTemplateFileReferenceOptions {
-  templateDirPath: string;
-  templatePath: string;
-  presetTemplateFile: string;
-  presetPath: string;
-}
-
-function assertTemplateFileReference(options: AssertTemplateFileReferenceOptions): void {
-  const resolvedTemplatePath = path.resolve(
-    options.templateDirPath,
-    options.presetTemplateFile
-  );
-  if (!resolvedTemplatePath.startsWith(options.templateDirPath)) {
-    throw new Error(
-      `Preset ${options.presetPath} template "${options.presetTemplateFile}" must stay within ${options.templateDirPath}.`
-    );
-  }
-  if (path.normalize(resolvedTemplatePath) !== path.normalize(options.templatePath)) {
-    throw new Error(
-      `Preset ${options.presetPath} template "${options.presetTemplateFile}" must reference preset.template.json in the same folder.`
     );
   }
 }
