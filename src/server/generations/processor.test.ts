@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -390,6 +390,70 @@ describe('createGenerationProcessor', () => {
 
     expect(result).toEqual({ status: 'canceled' });
     await expect(readdir(path.join(root, 'outputs', store.current.id))).rejects.toThrow();
+  });
+
+  it('given_invalid_generation_id_when_output_is_persisted_then_processor_fails_without_writing_outside_output_root', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
+    tempDirs.push(root);
+
+    const store = createTestStore(
+      createTestGeneration({
+        id: '../escaped-output',
+        presetId: 'txt2img-basic/basic',
+        templateId: 'txt2img-basic',
+        presetParams: {
+          prompt: 'bad id',
+          steps: 5,
+          seedMode: 'fixed',
+          seed: 123
+        }
+      })
+    );
+
+    const processor = createGenerationProcessor({
+      store,
+      presetCatalog: createPresetCatalog(
+        [createPresetSummary('txt2img')],
+        new Map([[createPresetDetail('txt2img').id, createPresetDetail('txt2img')]])
+      ),
+      comfyClient: {
+        uploadInputImage: vi.fn(async () => {
+          throw new Error('should not upload');
+        }),
+        submitPrompt: vi.fn(async () => ({ promptId: 'prompt-1' })),
+        pollHistory: vi.fn(async () => ({
+          history: {
+            'prompt-1': {
+              outputs: {
+                '3': {
+                  images: [
+                    { filename: 'remote.png', subfolder: 'output', type: 'output' }
+                  ]
+                }
+              }
+            }
+          },
+          entry: {
+            outputs: {
+              '3': {
+                images: [{ filename: 'remote.png', subfolder: 'output', type: 'output' }]
+              }
+            }
+          }
+        })),
+        downloadImage: vi.fn(async () => Buffer.from([9, 8, 7]))
+      },
+      config: createTestConfig(root)
+    });
+
+    const result = await processor.process(store.current);
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/invalid generation id/i)
+    });
+    await expect(readdir(path.join(root, 'outputs'))).rejects.toThrow();
+    await expect(stat(path.join(root, 'escaped-output'))).rejects.toThrow();
   });
 });
 

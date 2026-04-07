@@ -147,6 +147,30 @@ describe('createPostgresGenerationStore', () => {
     await expect(store.deleteDeletable(generation.id)).resolves.toBe(false);
     expect(execute).toHaveBeenCalledTimes(3);
   });
+
+  test('given_non_serializable_prompt_metadata_when_recording_then_store_throws_clear_error', async () => {
+    const generation = createGeneration({
+      status: 'submitted'
+    });
+    const database = {
+      db: {
+        execute: vi.fn()
+      }
+    } as unknown as AppDatabase;
+
+    const store = createPostgresGenerationStore(database);
+
+    await expect(
+      store.recordPromptRequest(generation.id, {
+        count: 1n
+      })
+    ).rejects.toThrow(/prompt request metadata.*json-serializable/i);
+    await expect(
+      store.recordPromptResponse(generation.id, {
+        count: 1n
+      })
+    ).rejects.toThrow(/prompt response metadata.*json-serializable/i);
+  });
 });
 
 function createGeneration(overrides: Partial<Generation> = {}): Generation {

@@ -507,9 +507,13 @@ class PostgresGenerationStore implements GenerationStore {
     promptRequest: unknown
   ): Promise<StoredGeneration | undefined> {
     const recordedAt = new Date().toISOString();
+    const serializedPromptRequest = serializePromptMetadata(
+      'Prompt request',
+      promptRequest
+    );
     const result = await this.#database.db.execute(sql`
       update generations
-      set prompt_request = ${JSON.stringify(promptRequest)}::jsonb,
+      set prompt_request = ${serializedPromptRequest}::jsonb,
           updated_at = ${recordedAt}
       where id = ${generationId}
         and status = 'submitted'
@@ -535,9 +539,13 @@ class PostgresGenerationStore implements GenerationStore {
     promptResponse: unknown
   ): Promise<StoredGeneration | undefined> {
     const recordedAt = new Date().toISOString();
+    const serializedPromptResponse = serializePromptMetadata(
+      'Prompt response',
+      promptResponse
+    );
     const result = await this.#database.db.execute(sql`
       update generations
-      set prompt_response = ${JSON.stringify(promptResponse)}::jsonb,
+      set prompt_response = ${serializedPromptResponse}::jsonb,
           updated_at = ${recordedAt}
       where id = ${generationId}
         and status = 'submitted'
@@ -751,4 +759,18 @@ function mapGenerationToInsertValues(generation: StoredGeneration) {
     createdAt: generation.createdAt,
     updatedAt: generation.updatedAt
   };
+}
+
+function serializePromptMetadata(label: string, value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch (error) {
+    throw new TypeError(
+      `${label} metadata must be JSON-serializable. ${normalizeErrorMessage(error)}`
+    );
+  }
+}
+
+function normalizeErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

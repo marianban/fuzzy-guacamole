@@ -23,6 +23,7 @@ import {
 } from '../../presets/preset-params-validator.js';
 import { resolvePresetParams } from '../../presets/preset-params-resolver.js';
 import type { PresetCatalog } from '../../presets/preset-catalog.js';
+import { resolveGenerationArtifactPath } from '../../generations/artifact-paths.js';
 
 const generationParamsSchema = z.object({
   generationId: z.uuid()
@@ -226,7 +227,7 @@ export function registerGenerationRoutes(
         filePart.filename !== undefined && filePart.filename.length > 0
           ? path.basename(filePart.filename)
           : 'input.bin';
-      const targetDir = path.resolve(
+      const targetDir = resolveGenerationArtifactPath(
         options.config.paths.inputs,
         generation.id,
         'original'
@@ -461,6 +462,18 @@ export function registerGenerationRoutes(
 
         const canceled = await options.store.markCanceled(generation.id);
         if (canceled === undefined) {
+          const current = await options.store.getById(generation.id);
+          if (current !== undefined && isTerminalGenerationStatus(current.status)) {
+            request.log.info(
+              {
+                generationId: current.id,
+                status: current.status
+              },
+              'generation cancel resolved after concurrent terminal transition'
+            );
+            return generationSchema.parse(current);
+          }
+
           logGenerationWarning(request, 'generation cancel rejected', {
             generationId: generation.id,
             warningCode: 'generation_cancel_not_allowed'
@@ -577,15 +590,19 @@ async function cleanupGenerationArtifacts(
   generationId: string
 ): Promise<void> {
   await Promise.all([
-    rm(path.resolve(config.paths.inputs, generationId), {
+    rm(resolveGenerationArtifactPath(config.paths.inputs, generationId), {
       recursive: true,
       force: true
     }),
-    rm(path.resolve(config.paths.outputs, generationId), {
+    rm(resolveGenerationArtifactPath(config.paths.outputs, generationId), {
       recursive: true,
       force: true
     })
   ]);
+}
+
+function isTerminalGenerationStatus(status: string): boolean {
+  return status === 'completed' || status === 'failed' || status === 'canceled';
 }
 
 function createComfyClient(config: AppConfig | undefined): ComfyClient {

@@ -122,6 +122,47 @@ describe('createGenerationWorker', () => {
 
     await worker.stop();
   });
+
+  test('given_processor_cancels_generation_when_worker_drains_then_generation_is_marked_canceled_and_event_is_published', async () => {
+    const store = createGenerationStore();
+    const eventBus = createGenerationEventBus();
+    const generation = await createQueuedGeneration(store, {
+      prompt: 'cancel me',
+      queuedAt: '2026-04-07T10:00:00.000Z'
+    });
+    const publishedStatuses: string[] = [];
+    const unsubscribe = eventBus.subscribe((event) => {
+      if (event.type === 'upsert' && event.generation.id === generation.id) {
+        publishedStatuses.push(event.generation.status);
+      }
+    });
+
+    const worker = createGenerationWorker({
+      eventBus,
+      store,
+      pollIntervalMs: 60_000,
+      processor: {
+        async process() {
+          return { status: 'canceled' };
+        }
+      }
+    });
+
+    try {
+      await worker.start();
+      await worker.waitForIdle();
+
+      await expect(store.getById(generation.id)).resolves.toMatchObject({
+        id: generation.id,
+        status: 'canceled'
+      });
+      expect(publishedStatuses).toContain('submitted');
+      expect(publishedStatuses).toContain('canceled');
+    } finally {
+      unsubscribe();
+      await worker.stop();
+    }
+  });
 });
 
 async function createQueuedGeneration(

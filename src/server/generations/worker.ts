@@ -134,12 +134,7 @@ class DefaultGenerationWorker implements GenerationWorker {
 
         this.#publishUpsert(generation);
         const result = await this.#runProcessor(generation);
-        const terminalGeneration =
-          result.status === 'completed'
-            ? await this.#store.markCompleted(generation.id)
-            : result.status === 'failed'
-              ? await this.#store.markFailed(generation.id, result.error)
-              : undefined;
+        const terminalGeneration = await this.#finalizeGenerationResult(generation, result);
 
         if (terminalGeneration !== undefined) {
           this.#publishUpsert(terminalGeneration);
@@ -183,6 +178,29 @@ class DefaultGenerationWorker implements GenerationWorker {
     }
   }
 
+  async #finalizeGenerationResult(
+    generation: StoredGeneration,
+    result: GenerationProcessResult
+  ): Promise<StoredGeneration | undefined> {
+    const updated =
+      result.status === 'completed'
+        ? await this.#store.markCompleted(generation.id)
+        : result.status === 'failed'
+          ? await this.#store.markFailed(generation.id, result.error)
+          : await this.#store.markCanceled(generation.id);
+
+    if (updated !== undefined) {
+      return updated;
+    }
+
+    const current = await this.#store.getStoredById(generation.id);
+    if (current === undefined || !isTerminalGenerationStatus(current.status)) {
+      return undefined;
+    }
+
+    return current;
+  }
+
   #publishUpsert(generation: Generation): void {
     this.#eventBus.publish({
       type: 'upsert',
@@ -200,6 +218,10 @@ class DefaultGenerationWorker implements GenerationWorker {
     this.#resolveIdle = undefined;
     resolveIdle();
   }
+}
+
+function isTerminalGenerationStatus(status: Generation['status']): boolean {
+  return status === 'completed' || status === 'failed' || status === 'canceled';
 }
 
 export function createGenerationWorker(

@@ -438,6 +438,69 @@ describe('generation routes', () => {
     }
   });
 
+  it('given_submitted_generation_when_completion_wins_race_after_interrupt_then_cancel_returns_terminal_state', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+    const store = createGenerationStore();
+
+    const generation = await store.create({
+      presetId: 'img2img-basic/basic',
+      templateId: 'img2img-basic',
+      presetParams: {
+        prompt: 'race me'
+      }
+    });
+    await store.save({
+      ...generation,
+      status: 'submitted',
+      updatedAt: '2026-04-07T10:00:00.000Z'
+    });
+
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      if (String(input).endsWith('/api/interrupt')) {
+        await store.markCompleted(generation.id);
+        return new Response('{}', {
+          status: 200,
+          headers: {
+            'content-type': 'application/json'
+          }
+        });
+      }
+
+      return new Response('{}', {
+        status: 404,
+        headers: {
+          'content-type': 'application/json'
+        }
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const app = buildServer({
+      config,
+      presetCatalog: createCatalog(),
+      generationStore: store
+    });
+
+    try {
+      const cancelResponse = await app.inject({
+        method: 'POST',
+        url: `/api/generations/${generation.id}/cancel`
+      });
+
+      expect(cancelResponse.statusCode).toBe(200);
+      expect(cancelResponse.json()).toMatchObject({
+        id: generation.id,
+        status: 'completed'
+      });
+    } finally {
+      vi.unstubAllGlobals();
+      await app.close();
+    }
+  });
+
   it('given_submitted_generation_when_interrupt_fails_then_generation_becomes_failed', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
     tempDirs.push(root);
