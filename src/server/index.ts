@@ -3,7 +3,10 @@ import type { FastifyInstance } from 'fastify';
 import { buildServer } from './http/server-app.js';
 import { loadAppConfig } from './config/app-config.js';
 import { createDatabase } from './db/client.js';
+import { createGenerationEventBus } from './generations/events.js';
+import { createPlaceholderGenerationProcessor } from './generations/processor.js';
 import { createPostgresGenerationStore } from './generations/store.js';
+import { createGenerationWorker } from './generations/worker.js';
 import { createServerLogger } from './logging/server-logging.js';
 import { loadPresetCatalog } from './presets/preset-catalog.js';
 
@@ -35,13 +38,24 @@ try {
     presetsDir: config.paths.presets
   });
   const database = createDatabase();
+  const generationStore = createPostgresGenerationStore(database);
+  const generationEventBus = createGenerationEventBus();
+  const generationWorker = createGenerationWorker({
+    eventBus: generationEventBus,
+    store: generationStore,
+    processor: createPlaceholderGenerationProcessor(),
+    pollIntervalMs: config.timeouts.historyPollMs,
+    logger
+  });
   app = buildServer({
     config,
     presetCatalog,
-    generationStore: createPostgresGenerationStore(database),
+    generationStore,
+    generationEventBus,
     loggerInstance: logger
   });
   app.addHook('onClose', async () => {
+    await generationWorker.stop();
     await database.close();
   });
 
@@ -55,6 +69,7 @@ try {
     });
   }
 
+  await generationWorker.start();
   await app.listen({ host, port });
   logger.info({ host, port }, 'API listening');
 } catch (error) {

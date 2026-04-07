@@ -8,17 +8,21 @@ Current code only. No planned or proposed architecture is documented here.
 flowchart LR
   Browser["React SPA<br/>src/client/src/App.tsx"]
   Vite["Vite Dev Server<br/>src/client/vite.config.ts"]
-  API["Fastify API<br/>src/server/app.ts"]
+  API["Fastify API<br/>src/server/http/server-app.ts"]
   SharedStatus["Shared Status Contract<br/>src/shared/status.ts"]
   SharedPresets["Shared Preset + Model Contract<br/>src/shared/presets.ts"]
   SharedGenerations["Shared Generation Contract<br/>src/shared/generations.ts"]
   Startup["Server Startup<br/>src/server/index.ts"]
-  Config["Config Loader<br/>src/server/config.ts"]
-  Presets["Preset Catalog Builder<br/>src/server/presets.ts"]
-  GenerationStore["In-memory Generation Store<br/>src/server/generations/store.ts"]
+  Config["Config Loader<br/>src/server/config/app-config.ts"]
+  Presets["Preset Catalog Builder<br/>src/server/presets/preset-catalog.ts"]
+  Database["Drizzle + pg Database<br/>src/server/db/client.ts"]
+  GenerationStore["Generation Store<br/>src/server/generations/store.ts"]
   GenerationEvents["Generation Event Bus<br/>src/server/generations/events.ts"]
+  Worker["Generation Worker<br/>src/server/generations/worker.ts"]
+  Processor["Placeholder Generation Processor<br/>src/server/generations/processor.ts"]
 
   Browser -->|"GET /api/status (SWR poll)"| Vite
+  Browser -->|"EventSource /api/events/generations"| Vite
   Vite -->|"proxy /api/*"| API
   API -->|"validate status response"| SharedStatus
   API -->|"validate preset responses"| SharedPresets
@@ -26,10 +30,16 @@ flowchart LR
   Browser -->|"parse status response"| SharedStatus
   Startup --> Config
   Startup --> Presets
+  Startup --> Database
+  Startup --> GenerationEvents
+  Startup --> Worker
   Config -->|"paths.presets"| Presets
-  Presets --> API
+  Database --> GenerationStore
   API --> GenerationStore
   API --> GenerationEvents
+  GenerationEvents --> Worker
+  Worker --> GenerationStore
+  Worker --> Processor
 ```
 
 ## Server Surface
@@ -39,6 +49,7 @@ flowchart TD
   Start["src/server/index.ts"] --> Build["buildServer()"]
   Start --> Config["loadAppConfig()"]
   Start --> Catalog["loadPresetCatalog()"]
+  Start --> Worker["createGenerationWorker()"]
   Build --> Health["GET /healthz"]
   Build --> Status["GET /api/status"]
   Build --> PresetsList["GET /api/presets"]
@@ -58,6 +69,8 @@ flowchart TD
   PresetsDetail --> PresetDetailPayload["preset summary + template workflow + model metadata"]
   GenerationCreate --> GenerationPayload["status=draft<br/>templateId resolved from preset<br/>model-backed param validation"]
   GenerationQueue --> QueueTransition["validate resolved params + workflow tokens<br/>draft/completed/failed/canceled -> queued"]
+  QueueTransition --> WorkerClaim["shared event bus wakes worker<br/>oldest queued row claimed atomically"]
+  WorkerClaim --> WorkerTerminal["queued -> submitted -> completed|failed"]
   GenerationCancel --> CancelTransition["queued -> canceled<br/>other states -> 409"]
   GenerationUpload --> InputPersist["multipart image persisted to<br/>/data/inputs/{generationId}/original/"]
   GenerationEvents --> LiveUpdates["live-only upsert/deleted events"]
@@ -72,11 +85,18 @@ Implemented routes:
 - `GET /api/generations/{generationId}` -> single generation detail
 - `POST /api/generations` -> creates draft generation from preset + params after model-driven validation/default resolution
 - `POST /api/generations/{generationId}/input` -> accepts multipart file upload, stores path in `presetParams.inputImagePath`, and returns `204`
-- `POST /api/generations/{generationId}/queue` -> validates resolved preset/runtime params plus workflow template tokens, then transitions generation to `queued` and sets `queuedAt`
+- `POST /api/generations/{generationId}/queue` -> validates resolved preset/runtime params plus workflow template tokens, then transitions generation to `queued` and sets `queuedAt`; the background worker then claims queued rows oldest-first and moves them to a terminal state
 - `POST /api/generations/{generationId}/cancel` -> transitions `queued` generation to `canceled` (other states currently return `409`)
 - `DELETE /api/generations/{generationId}` -> deletes generation unless status is `submitted`
 - `GET /api/events/generations` -> SSE stream for live generation upsert/deleted notifications
 - `GET /openapi/json` and `GET /openapi` -> OpenAPI spec + Swagger UI generated from Fastify route schemas
+
+Current worker behavior:
+- `src/server/index.ts` creates one shared generation event bus, one generation store, and one background worker for the process.
+- The worker subscribes to queued `upsert` events, also polls on a fallback interval, and drains queued generations one at a time.
+- Postgres claims use one atomic SQL statement ordered by `queuedAt`, then `createdAt`, then `id`.
+- On startup, any generation left in `submitted` is marked `failed` with an interruption error.
+- The current bootstrap processor is intentionally a placeholder that moves claimed work to `failed` with a clear "not implemented yet" message until workflow materialization and Comfy execution are wired in.
 
 ## Comfy Module (Implemented, Not Wired to API Routes)
 

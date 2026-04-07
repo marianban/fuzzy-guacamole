@@ -8,6 +8,8 @@ import { afterEach, describe, expect, test } from 'vitest';
 
 import { buildServer } from '../http/server-app.js';
 import { loadAppConfig } from '../config/app-config.js';
+import { createGenerationEventBus } from '../generations/events.js';
+import { createGenerationWorker } from '../generations/worker.js';
 import { createPostgresGenerationStore } from '../generations/store.js';
 import { createPresetCatalog } from '../presets/preset-catalog.js';
 import { createTestDatabaseContext } from './test-database-context.js';
@@ -216,6 +218,68 @@ describe('postgres-backed generations', () => {
     }
   });
 
+  test('given_db_backed_server_when_queueing_generation_then_worker_processes_it_to_a_terminal_state', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-db-worker-'));
+    tempDirs.push(root);
+    const config = await loadTestConfig(root);
+    const presetCatalog = createTestCatalog();
+    const testDatabase = await createTestDatabaseContext();
+    await testDatabase.migrate();
+
+    try {
+      const database = testDatabase.createAppDatabase();
+      const generationStore = createPostgresGenerationStore(database);
+      const eventBus = createGenerationEventBus();
+      const app = buildServer({
+        config,
+        presetCatalog,
+        generationStore,
+        generationEventBus: eventBus
+      });
+      const worker = createGenerationWorker({
+        eventBus,
+        store: generationStore,
+        pollIntervalMs: 60_000,
+        processor: {
+          async process() {
+            return { status: 'completed' };
+          }
+        }
+      });
+
+      try {
+        await worker.start();
+
+        const createdResponse = await app.inject({
+          method: 'POST',
+          url: '/api/generations',
+          payload: {
+            presetId: 'img2img-basic/basic',
+            presetParams: {
+              prompt: 'worker lifecycle'
+            }
+          }
+        });
+        expect(createdResponse.statusCode).toBe(201);
+        const created = createdResponse.json() as { id: string };
+
+        const queueResponse = await app.inject({
+          method: 'POST',
+          url: `/api/generations/${created.id}/queue`
+        });
+        expect(queueResponse.statusCode).toBe(200);
+
+        await expectGenerationStatus(generationStore, created.id, 'completed');
+      } finally {
+        await worker.stop();
+        await app.close();
+        await database.close();
+      }
+    } finally {
+      await testDatabase.dispose();
+    }
+  });
+
   test('given_db_backed_server_when_uploading_input_then_path_remains_persisted_after_restart', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'fg-db-upload-'));
     tempDirs.push(root);
@@ -415,4 +479,26 @@ function buildMultipartPayload(fileName: string, fileContent: Buffer) {
     boundary,
     payload: Buffer.concat([start, fileContent, end])
   };
+}
+
+async function expectGenerationStatus(
+  store: ReturnType<typeof createPostgresGenerationStore>,
+  generationId: string,
+  status: 'completed' | 'failed'
+) {
+  const deadline = Date.now() + 5_000;
+
+  while (Date.now() < deadline) {
+    const generation = await store.getById(generationId);
+    if (generation?.status === status) {
+      expect(generation.updatedAt).toEqual(expect.any(String));
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  throw new Error(
+    `Timed out waiting for generation "${generationId}" to reach status "${status}".`
+  );
 }

@@ -270,6 +270,18 @@ function createFailingGenerationStore() {
     async save(generation: Generation) {
       return generation;
     },
+    async claimNextQueued() {
+      return undefined;
+    },
+    async markCompleted() {
+      return undefined;
+    },
+    async markFailed() {
+      return undefined;
+    },
+    async failSubmittedOnStartup() {
+      return [];
+    },
     async delete() {
       return false;
     }

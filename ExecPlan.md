@@ -35,6 +35,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-04-06) Synced this ExecPlan to the latest UI docs: recent generations/history now lives in a bottom dock, while `+ New generation` stays in the top-left of the main image area.
 - [x] (2026-04-06) Synced this ExecPlan to the latest localization stack requirement in `docs/specs.MD`: client localization must use `react-i18next` (with `i18next`) and follow the preset locale fallback behavior.
 - [x] (2026-04-07) Refactored `src/server` into clearer internal modules: moved HTTP assembly into `src/server/http`, config into `src/server/config`, logging into `src/server/logging`, remaining DB helpers into `src/server/db`, and shared test helpers/convention tests into `src/server/test-support`.
+- [x] (2026-04-07) Implemented the first queue-processing slice: server bootstrap now owns a shared generation event bus plus background worker, queued generations are claimed oldest-first and transitioned through `submitted` to a terminal state automatically, stale `submitted` rows fail during startup recovery, and DB-backed tests prove queueing triggers server-side work without a second manual step.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + REST endpoints (`GET /api/status`, `GET /api/presets`, `GET /api/presets/{presetId}`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
@@ -58,6 +59,8 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
   Evidence: User confirmation during prompt-template review (2026-02-22).
 - Observation: On the target local ComfyUI instance (`0.8.2`), both `/api/*` and legacy non-`/api` routes respond for key endpoints (`system_stats`, `prompt`, `history`, `interrupt`), so the adapter should keep fallback path support.
   Evidence: Manual probes against `http://127.0.0.1:8188` on 2026-02-28 returned `200` for both route families.
+- Observation: The current `generations` table columns were sufficient for the first worker slice; no schema migration was required to implement atomic oldest-first queue claims or startup recovery of stale `submitted` rows.
+  Evidence: The worker uses explicit Postgres claim/update statements over the existing schema, and `npm run test:int -- src/server/db/db.int.test.ts` passed on 2026-04-07.
 
 ## Decision Log
 
@@ -100,6 +103,12 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - Decision: Organize server internals into responsibility-focused folders with descriptive filenames rather than generic top-level files or `index.ts` entry files.
   Rationale: Grouping HTTP, config, logging, DB helpers, and test support into internal modules reduces top-level clutter, makes import intent easier to read, and aligns the codebase with the repo's server-organization rule.
   Date/Author: 2026-04-07 / Codex (GPT-5.4)
+- Decision: Land the first queue-processing slice behind a pluggable `GenerationProcessor` and keep the bootstrap processor as an explicit placeholder until workflow materialization and real Comfy execution are implemented.
+  Rationale: This lets the server own real queue draining, ordering, and lifecycle transitions now without coupling the worker to unfinished workflow-building and remote-execution concerns.
+  Date/Author: 2026-04-07 / Codex (GPT-5.4)
+- Decision: Use the existing `generations` table for the first worker slice and rely on explicit atomic SQL transitions instead of adding worker-specific schema columns immediately.
+  Rationale: The current columns were sufficient for oldest-first queue claims and startup recovery, which kept the change smaller and reduced migration churn before execution semantics settle.
+  Date/Author: 2026-04-07 / Codex (GPT-5.4)
 - Decision (superseded): Use Postgres with a minimal SQL migration runner checked into the repo.
   Rationale: Avoided heavy ORM lock-in while keeping schema changes explicit and reproducible for novices.
   Date/Author: 2026-01-24 / Codex (GPT-5.2)
@@ -108,6 +117,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 
 - (2026-02-22) Milestone 1 shipped: project scaffolding, stub status API, client shell, test/lint/format/build scripts, Docker assets, and local runbook. Not shipped yet: runtime config/presets, database schema, worker/comfy integration, SSE updates, and full UI workflow.
 - (2026-04-07) Internal server structure is now clearer: transport code lives under `src/server/http`, infrastructure concerns have dedicated folders, and test-only helpers are separated from runtime modules. This did not change user-visible behavior, but it reduced structural ambiguity for future work.
+- (2026-04-07) Queueing now triggers automatic server-side processing: the app starts one worker, Postgres claims the oldest queued row atomically, transitions flow through `submitted` to a terminal state, and SSE consumers continue to receive the same generation upsert events. Current limitation: bootstrap still uses a placeholder processor, so queued generations terminate with an explicit not-yet-implemented execution error until workflow materialization and Comfy execution land.
 
 Revision Note (2026-04-07): Updated this ExecPlan to record the internal `src/server` module refactor and the reasoning behind the new folder boundaries so future contributors understand the current layout.
 
@@ -642,6 +652,10 @@ Current evidence:
     npm run format     -> pass
     npm run test       -> 1 passed
     npm run build      -> client+server build pass
+- Worker slice validation commands (2026-04-07):
+  npm run test -- src/server/generations/worker.test.ts  -> pass
+  npm run test:int -- src/server/db/db.int.test.ts       -> pass
+  npm run test                                           -> pass (77 passed)
 - `GET /api/status` verified against running built server:
     {
       "state": "Starting",

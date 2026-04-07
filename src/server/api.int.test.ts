@@ -55,13 +55,8 @@ describe.sequential('API integration (local server)', () => {
     );
     expect(queueResponse.status).toBe(200);
 
-    const cancelResponse = await fetch(
-      `${localBaseUrl}/api/generations/${created.id}/cancel`,
-      {
-        method: 'POST'
-      }
-    );
-    expect(cancelResponse.status).toBe(200);
+    const terminalGeneration = await waitForTerminalGeneration(created.id);
+    expect(terminalGeneration.status).toMatch(/completed|failed/);
 
     const deleteResponse = await fetch(`${localBaseUrl}/api/generations/${created.id}`, {
       method: 'DELETE'
@@ -136,4 +131,21 @@ async function uploadGenerationInputWithFetch(
   });
 
   expect(response.status).toBe(204);
+}
+
+async function waitForTerminalGeneration(generationId: string) {
+  const deadline = Date.now() + 5_000;
+
+  while (Date.now() < deadline) {
+    const response = await fetch(`${localBaseUrl}/api/generations/${generationId}`);
+    expect(response.status).toBe(200);
+    const generation = generationSchema.parse(await response.json());
+    if (generation.status === 'completed' || generation.status === 'failed') {
+      return generation;
+    }
+  }
+
+  throw new Error(
+    `Timed out waiting for generation "${generationId}" to reach a terminal state.`
+  );
 }

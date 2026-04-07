@@ -1,11 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 
-import {
-  generationStatusSchema,
-  type Generation
-} from '../../shared/generations.js';
+import { generationStatusSchema, type Generation } from '../../shared/generations.js';
 import type { AppDatabase } from '../db/client.js';
 import { generations } from '../db/schema.js';
 
@@ -21,6 +18,10 @@ export interface GenerationStore {
   getById(generationId: string): Promise<Generation | undefined>;
   save(generation: Generation): Promise<Generation>;
   delete(generationId: string): Promise<boolean>;
+  claimNextQueued(): Promise<Generation | undefined>;
+  markCompleted(generationId: string): Promise<Generation | undefined>;
+  markFailed(generationId: string, error: string): Promise<Generation | undefined>;
+  failSubmittedOnStartup(error: string): Promise<readonly Generation[]>;
 }
 
 class InMemoryGenerationStore implements GenerationStore {
@@ -45,10 +46,7 @@ class InMemoryGenerationStore implements GenerationStore {
 
   async list(): Promise<readonly Generation[]> {
     return [...this.#byId.values()]
-      .sort(
-        (left, right) =>
-          Date.parse(right.createdAt) - Date.parse(left.createdAt)
-      )
+      .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
       .map(copyGeneration);
   }
 
@@ -68,6 +66,80 @@ class InMemoryGenerationStore implements GenerationStore {
 
   async delete(generationId: string): Promise<boolean> {
     return this.#byId.delete(generationId);
+  }
+
+  async claimNextQueued(): Promise<Generation | undefined> {
+    const nextGeneration = [...this.#byId.values()]
+      .filter((generation) => generation.status === 'queued')
+      .sort(compareQueuedGenerationOrder)[0];
+
+    if (nextGeneration === undefined) {
+      return undefined;
+    }
+
+    const submittedGeneration: Generation = {
+      ...nextGeneration,
+      status: 'submitted',
+      error: null,
+      updatedAt: new Date().toISOString()
+    };
+    this.#byId.set(submittedGeneration.id, copyGeneration(submittedGeneration));
+    return copyGeneration(submittedGeneration);
+  }
+
+  async markCompleted(generationId: string): Promise<Generation | undefined> {
+    const generation = this.#byId.get(generationId);
+    if (generation === undefined || generation.status !== 'submitted') {
+      return undefined;
+    }
+
+    const completedGeneration: Generation = {
+      ...generation,
+      status: 'completed',
+      error: null,
+      updatedAt: new Date().toISOString()
+    };
+    this.#byId.set(completedGeneration.id, copyGeneration(completedGeneration));
+    return copyGeneration(completedGeneration);
+  }
+
+  async markFailed(generationId: string, error: string): Promise<Generation | undefined> {
+    const generation = this.#byId.get(generationId);
+    if (generation === undefined || generation.status !== 'submitted') {
+      return undefined;
+    }
+
+    const failedGeneration: Generation = {
+      ...generation,
+      status: 'failed',
+      error,
+      updatedAt: new Date().toISOString()
+    };
+    this.#byId.set(failedGeneration.id, copyGeneration(failedGeneration));
+    return copyGeneration(failedGeneration);
+  }
+
+  async failSubmittedOnStartup(error: string): Promise<readonly Generation[]> {
+    const failedGenerations: Generation[] = [];
+
+    for (const generation of this.#byId.values()) {
+      if (generation.status !== 'submitted') {
+        continue;
+      }
+
+      const failedGeneration: Generation = {
+        ...generation,
+        status: 'failed',
+        error,
+        updatedAt: new Date().toISOString()
+      };
+      this.#byId.set(failedGeneration.id, copyGeneration(failedGeneration));
+      failedGenerations.push(copyGeneration(failedGeneration));
+    }
+
+    return failedGenerations.sort(
+      (left, right) => Date.parse(left.updatedAt) - Date.parse(right.updatedAt)
+    );
   }
 }
 
@@ -164,11 +236,121 @@ class PostgresGenerationStore implements GenerationStore {
 
     return rows.length > 0;
   }
+
+  async claimNextQueued(): Promise<Generation | undefined> {
+    const claimedAt = new Date().toISOString();
+    const result = await this.#database.db.execute(sql`
+      with next_generation as (
+        select id
+        from generations
+        where status = 'queued'
+        order by queued_at asc nulls last, created_at asc, id asc
+        limit 1
+        for update skip locked
+      )
+      update generations
+      set status = 'submitted',
+          updated_at = ${claimedAt},
+          error = null
+      from next_generation
+      where generations.id = next_generation.id
+      returning generations.id,
+                generations.status,
+                generations.preset_id as "presetId",
+                generations.template_id as "templateId",
+                generations.preset_params as "presetParams",
+                generations.prompt_request as "promptRequest",
+                generations.prompt_response as "promptResponse",
+                generations.queued_at as "queuedAt",
+                generations.error,
+                generations.created_at as "createdAt",
+                generations.updated_at as "updatedAt"
+    `);
+
+    const row = result.rows[0] as typeof generations.$inferSelect | undefined;
+    return row === undefined ? undefined : mapRowToGeneration(row);
+  }
+
+  async markCompleted(generationId: string): Promise<Generation | undefined> {
+    const completedAt = new Date().toISOString();
+    const result = await this.#database.db.execute(sql`
+      update generations
+      set status = 'completed',
+          updated_at = ${completedAt},
+          error = null
+      where id = ${generationId}
+        and status = 'submitted'
+      returning id,
+                status,
+                preset_id as "presetId",
+                template_id as "templateId",
+                preset_params as "presetParams",
+                prompt_request as "promptRequest",
+                prompt_response as "promptResponse",
+                queued_at as "queuedAt",
+                error,
+                created_at as "createdAt",
+                updated_at as "updatedAt"
+    `);
+
+    const row = result.rows[0] as typeof generations.$inferSelect | undefined;
+    return row === undefined ? undefined : mapRowToGeneration(row);
+  }
+
+  async markFailed(generationId: string, error: string): Promise<Generation | undefined> {
+    const failedAt = new Date().toISOString();
+    const result = await this.#database.db.execute(sql`
+      update generations
+      set status = 'failed',
+          updated_at = ${failedAt},
+          error = ${error}
+      where id = ${generationId}
+        and status = 'submitted'
+      returning id,
+                status,
+                preset_id as "presetId",
+                template_id as "templateId",
+                preset_params as "presetParams",
+                prompt_request as "promptRequest",
+                prompt_response as "promptResponse",
+                queued_at as "queuedAt",
+                error,
+                created_at as "createdAt",
+                updated_at as "updatedAt"
+    `);
+
+    const row = result.rows[0] as typeof generations.$inferSelect | undefined;
+    return row === undefined ? undefined : mapRowToGeneration(row);
+  }
+
+  async failSubmittedOnStartup(error: string): Promise<readonly Generation[]> {
+    const failedAt = new Date().toISOString();
+    const result = await this.#database.db.execute(sql`
+      update generations
+      set status = 'failed',
+          updated_at = ${failedAt},
+          error = ${error}
+      where status = 'submitted'
+      returning id,
+                status,
+                preset_id as "presetId",
+                template_id as "templateId",
+                preset_params as "presetParams",
+                prompt_request as "promptRequest",
+                prompt_response as "promptResponse",
+                queued_at as "queuedAt",
+                error,
+                created_at as "createdAt",
+                updated_at as "updatedAt"
+    `);
+
+    return result.rows.map((row) =>
+      mapRowToGeneration(row as typeof generations.$inferSelect)
+    );
+  }
 }
 
-export function createPostgresGenerationStore(
-  database: AppDatabase
-): GenerationStore {
+export function createPostgresGenerationStore(database: AppDatabase): GenerationStore {
   return new PostgresGenerationStore(database);
 }
 
@@ -179,9 +361,37 @@ function copyGeneration(generation: Generation): Generation {
   };
 }
 
-function mapRowToGeneration(
-  row: typeof generations.$inferSelect
-): Generation {
+function compareQueuedGenerationOrder(left: Generation, right: Generation): number {
+  const queuedAtDifference = compareNullableTimestamp(left.queuedAt, right.queuedAt);
+  if (queuedAtDifference !== 0) {
+    return queuedAtDifference;
+  }
+
+  const createdAtDifference = Date.parse(left.createdAt) - Date.parse(right.createdAt);
+  if (createdAtDifference !== 0) {
+    return createdAtDifference;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+function compareNullableTimestamp(left: string | null, right: string | null): number {
+  if (left === null && right === null) {
+    return 0;
+  }
+
+  if (left === null) {
+    return 1;
+  }
+
+  if (right === null) {
+    return -1;
+  }
+
+  return Date.parse(left) - Date.parse(right);
+}
+
+function mapRowToGeneration(row: typeof generations.$inferSelect): Generation {
   return {
     id: row.id,
     status: generationStatusSchema.parse(row.status),
