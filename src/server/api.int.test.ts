@@ -24,7 +24,7 @@ const openApiDocumentSchema = z.object({
   paths: z.record(z.string(), z.unknown())
 });
 
-describe.sequential('API e2e (local server)', () => {
+describe.sequential('API integration (local server)', () => {
   test('given_local_server_when_requesting_openapi_then_generation_and_event_routes_are_documented', async () => {
     const response = await fetch(`${localBaseUrl}/openapi/json`);
     expect(response.status).toBe(200);

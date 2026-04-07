@@ -34,7 +34,7 @@ This repo currently contains the product specification and agent workflow docs f
 - for naming tests use gherkin syntax given_when_then format where applicable.
 - format code using prettier
 - mandatory quality gate for every code change: all edited files must be Prettier-formatted and pass ESLint with zero lint errors before the task is considered complete.
-- mandatory post-feature quality gate (after tests pass): run focused automated tests that cover the new/changed feature (not only broad full-suite runs), add and run E2E tests that capture the new/changed behavior, run exploratory tests against the implemented behavior, and start the real server and real client locally (`npm run dev:server` and client dev command) to verify startup succeeds and no blocking runtime errors appear in logs, browser console, or network traffic.
+- mandatory post-feature quality gate (after tests pass): run focused automated tests that cover the new/changed feature (not only broad full-suite runs), add and run integration tests that capture the new/changed behavior through real infrastructure, run exploratory tests against the implemented behavior, and start the real server and real client locally (`npm run dev:server` and client dev command) to verify startup succeeds and no blocking runtime errors appear in logs, browser console, or network traffic.
 - use fail-fast principles, do not write defensive code that silently ignores errors or edge cases; instead, let errors surface and fix the underlying issues to ensure robustness and reliability.
 
 ## Testing Best Practices
@@ -48,7 +48,7 @@ This repo currently contains the product specification and agent workflow docs f
 - Assert outcomes/side effects (rendered text, disabled states, network calls) rather than implementation details.
 - Keep test setup minimal (helpers/factories are fine); reset shared state between tests.
 - Run the relevant test file(s) locally before marking work done.
-- For each new/changed feature, run targeted automated tests for that feature, and add/run E2E coverage that exercises the same user flow end-to-end.
+- For each new/changed feature, run targeted automated tests for that feature, and add/run integration coverage that exercises the same user flow through real infrastructure.
 - Increase practical text coverage over time and prioritize tests for critical paths (API handlers, Comfy client integration, and core UI flows).
 - Coverage targets for `npm run test:coverage` should meet these minimum thresholds:
   - lines: 75%
@@ -56,15 +56,14 @@ This repo currently contains the product specification and agent workflow docs f
   - branches: 65%
   - statements: 75%
 - Any intentional coverage gaps should be documented in PR notes with a short rationale.
-- E2E tests must use the `*.e2e.test.ts` naming convention.
-- Non-E2E tests must not use the `.e2e.test.ts` suffix.
+- Any test that depends on external infrastructure such as a real database, local API server, client, or ComfyUI must use the `*.int.test.ts` naming convention.
 - Do not add environment/mode switches inside test files (for example `runIf(...)`, `API_TEST_MODE`, `COMFY_TEST_MODE`, `API_RUN_LOCAL_TESTS`, `COMFY_RUN_LOCAL_TESTS`).
-- Test selection and environment mode must be controlled by runner/global setup scripts in `scripts/` (for example unit runner excludes `.e2e.test.ts`, e2e runner targets `.e2e.test.ts`).
-- E2E tests run against a real server and client instance.
-- For E2E runs, infrastructure startup is user-owned: client, API server, database, and ComfyUI must be started by the user before the agent runs tests.
-- The agent must not start or stop client/server/database/ComfyUI as part of E2E execution; the agent only runs the E2E test command and reports preflight failures/instructions.
+- Test selection and environment mode must be controlled by runner/global setup scripts in `scripts/` (for example unit runner excludes infrastructure-dependent suffixes and the explicit integration runner targets `.int.test.ts`).
+- Integration tests run against real infrastructure where required, including the real server, client, database, and ComfyUI.
+- For integration runs, infrastructure startup is user-owned: client, API server, database, and ComfyUI must be started by the user before the agent runs tests.
+- The agent must not start or stop client/server/database/ComfyUI as part of integration execution; the agent only runs the integration test command and reports preflight failures/instructions.
 - Sandbox policy for Codex test execution:
-  - Integration/E2E tests must always be executed outside the Codex sandbox (request escalated permissions for `npm run test:e2e` and targeted `.e2e.test.ts` runs).
+  - Integration tests must always be executed outside the Codex sandbox (request escalated permissions for `npm run test:int` and targeted `.int.test.ts` runs).
   - Unit tests may be executed inside the sandbox by default, and escalated only when sandbox limitations block execution.
 
 ## Frontend Best Practices (React + TypeScript)

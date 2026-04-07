@@ -29,7 +29,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-03-01) Synced ExecPlan to latest `docs/specs.MD` preset contract: `1 template : N presets`, `preset.template.json` + `*.preset.json`, required preset `template` reference, `presetId={templateId}/{presetName}`, and generation `templateId`.
 - [x] (2026-03-01) Synced ExecPlan to latest `docs/specs.MD` API documentation requirement: all app API endpoints must be documented in the OpenAPI Specification.
 - [x] (2026-03-01) Synced ExecPlan to `.agent/AGENTS.md` TDD requirements: strict red-green-refactor flow, explicit fail-first verification, and minimum coverage thresholds.
-- [x] (2026-03-01) Synced ExecPlan to updated `.agent/AGENTS.md` post-feature quality gate: focused feature-level tests, required E2E coverage for changed behavior, exploratory testing, and real server/client startup verification.
+- [x] (2026-03-01) Synced ExecPlan to updated `.agent/AGENTS.md` post-feature quality gate: focused feature-level tests, required integration coverage for changed behavior, exploratory testing, and real server/client startup verification.
 - [x] (2026-03-01) Implemented first preset slice: validated config loader (`/data/config.json`), preset catalog loader (`/data/presets/{templateId}/preset.template.json` + `*.preset.json`), and Fastify preset routes (`GET /api/presets`, `GET /api/presets/{presetId}` via wildcard path).
 - [x] (2026-04-06) Reviewed and updated ExecPlan for the new preset field model: `model.json` now defines localized control-panel fields/categories, workflow template tokens reference `{{fieldId}}`, and runtime-only values like uploaded input-image references remain outside `model.json.fields`.
 - [x] (2026-04-06) Synced this ExecPlan to the latest UI docs: recent generations/history now lives in a bottom dock, while `+ New generation` stays in the top-left of the main image area.
@@ -151,7 +151,7 @@ Engineering and workflow expectations (keep this section aligned with `.agent/AG
 - Testing: follow TDD strictly for behavior changes (red-green-refactor): write tests first, run them to verify expected failure before implementation, then implement minimal code to pass.
 - Testing: implement tests as a separate step, prefer small/deterministic tests, use `@testing-library/react` with user-visible queries + `user-event`, assert outcomes/side effects over implementation details, and name tests `given_when_then` where it fits.
 - Testing: add/extend regression tests for every behavior change (bugfixes require a reproducing regression test), keep setup minimal/reset shared state between tests, and run relevant targeted test files for the changed feature locally before marking work done (not only broad full-suite runs).
-- Testing: for each new/changed feature, add and run E2E coverage for the same behavior/user flow.
+- Testing: for each new/changed feature, add and run integration coverage for the same behavior/user flow.
 - API docs: maintain an OpenAPI Specification for the app API, and update it whenever any endpoint (REST or SSE) is added/changed so all endpoints are documented.
 - During implementation: run relevant tests (preferably fail-first for new behavior), lint, and formatting; then run exploratory tests against the implemented behavior, start the real server and real client locally (`npm run dev:server` and `npm run dev:client`), and verify UI behavior in Chrome Devtools MCP (Console + Network), fixing warnings when they are actionable.
 - MCPs: use Context7 for docs when adopting libraries/frameworks; use Chrome Devtools MCP to verify UI; optionally use Wallaby MCP for test status/debugging.
@@ -580,7 +580,7 @@ Tests (minimum bar):
 - UI tests for key interactions (create draft, select preset, generate disabled/enabled states, cancel button visibility).
 - UI localization tests for locale switching and fallback behavior (`exact locale`, `base locale`, `en`, then first available localized value).
 - For each new behavior change, add/extend tests in a separate step, run focused tests for the changed feature (not only broad full-suite runs), and, when practical, make the new test fail before implementation.
-- For each new/changed feature, add and run E2E tests that capture the same user flow end-to-end.
+- For each new/changed feature, add and run integration tests that capture the same user flow through real infrastructure.
 - After tests/lint/format pass for a feature, run exploratory testing and verify both real app processes start cleanly (`npm run dev:server` and `npm run dev:client`) with no blocking runtime errors in logs, browser console, or network traffic.
 - Coverage thresholds for `npm run test:coverage` must meet minimums:
   - lines: 75%
@@ -695,6 +695,6 @@ Plan change note:
 - (2026-03-01) Updated this ExecPlan to reflect latest `docs/specs.MD` preset model: `1:N` template-to-preset relationship, `preset.template.json` + `*.preset.json` on disk, required preset `template` reference, `presetId={templateId}/{presetName}`, and `templateId` persisted on generations.
 - (2026-03-01) Updated this ExecPlan to reflect latest `docs/specs.MD` API requirement: all REST and SSE app endpoints must be documented in the OpenAPI Specification.
 - (2026-03-01) Updated this ExecPlan to reflect `.agent/AGENTS.md` testing requirements: strict fail-first TDD flow, outcome-focused tests, required regression tests for bugfixes, and explicit coverage thresholds.
-- (2026-03-01) Updated this ExecPlan to reflect `.agent/AGENTS.md` post-feature quality-gate requirements: focused feature-level test execution, mandatory E2E coverage for changed behavior, exploratory testing, and clean startup verification for real server/client processes.
+- (2026-03-01) Updated this ExecPlan to reflect `.agent/AGENTS.md` post-feature quality-gate requirements: focused feature-level test execution, mandatory integration coverage for changed behavior, exploratory testing, and clean startup verification for real server/client processes.
 - (2026-04-06) Updated this ExecPlan to reflect the latest `docs/specs.MD` preset field contract: `model.json` now owns localized control-panel categories/fields, control-panel workflow template tokens use direct `{{fieldId}}` references, preset details must expose the resolved model, and runtime-only values such as uploaded input-image references stay outside `model.json.fields`.
 - (2026-04-06) Updated this ExecPlan to reflect the latest `docs/specs.MD` localization runtime requirement: client-side localization now uses `react-i18next` + `i18next`, including explicit locale fallback behavior for both static UI copy and dynamic preset/model metadata.

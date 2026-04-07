@@ -34,17 +34,18 @@ Expected `/api/status` response shape:
 - `npm run build`: build client and server into `dist/`
 - `npm run start`: run compiled server from `dist/server/index.js`
 - `npm run test`: run unit tests (memory/mocked dependencies)
-- `npm run test:e2e`: run end-to-end tests against local API + local ComfyUI
-- E2E file naming convention: `*.e2e.test.ts` (excluded from unit runs by default)
+- `npm run test:int`: run infrastructure-dependent integration tests
+- Integration file naming convention: `*.int.test.ts` (excluded from unit runs and Wallaby by default)
 - `npm run lint`: run ESLint (flat config)
 - `npm run format`: check Prettier formatting
 - `npm run format:write`: apply Prettier formatting
 - `npm run typecheck`: run TypeScript checks for client and server
 
-Local e2e prerequisites:
+Local integration test prerequisites:
+
 - Start the local API server (`npm run dev:server` or equivalent).
 - Ensure at least one preset exists under `data/presets` (a default `img2img-basic/basic` is included).
-- Set required e2e env vars in `.env`: `CLIENT_BASE_URL`, `API_BASE_URL`, `COMFY_BASE_URL`, `DATABASE_URL`.
+- Set required integration-test env vars in `.env`: `CLIENT_BASE_URL`, `API_BASE_URL`, `COMFY_BASE_URL`, `DATABASE_URL`.
 - Start local ComfyUI at `COMFY_BASE_URL`.
 
 ## Configuration Strategy

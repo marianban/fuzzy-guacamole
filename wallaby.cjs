@@ -3,7 +3,7 @@ module.exports = () => ({
   tests: {
     override: (testPatterns) => [
       ...testPatterns,
-      { pattern: '**/*.e2e.test.{js,jsx,ts,tsx}', ignore: true }
+      { pattern: '**/*.int.test.{js,jsx,ts,tsx}', ignore: true }
     ]
   }
 });

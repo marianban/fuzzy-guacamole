@@ -27,8 +27,8 @@ const result = spawnSync(
     'false',
     '--bail',
     '1',
-    'src/server/00-preflight.e2e.test.ts',
-    '.e2e.test.ts',
+    'src/server/00-preflight.int.test.ts',
+    '.int.test.ts',
     ...extraVitestArgs
   ],
   { stdio: 'inherit', env }

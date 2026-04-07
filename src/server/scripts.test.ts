@@ -11,16 +11,17 @@ interface PackageJson {
 }
 
 describe('test npm scripts', () => {
-  test('given_package_json_when_defining_test_and_e2e_modes_then_expected_commands_exist_and_legacy_commands_are_removed', async () => {
+  test('given_package_json_when_defining_test_modes_then_expected_commands_exist_and_legacy_commands_are_removed', async () => {
     const currentDir = path.dirname(fileURLToPath(import.meta.url));
     const packageJsonPath = path.resolve(currentDir, '../../package.json');
     const packageJsonRaw = await readFile(packageJsonPath, 'utf8');
     const packageJson = JSON.parse(packageJsonRaw) as PackageJson;
     const scripts = packageJson.scripts ?? {};
+    const scriptNames = Object.keys(scripts);
 
     expect(scripts['test']).toBe('node scripts/run-unit-tests.mjs');
-    expect(scripts['test:unit']).toBeUndefined();
-    expect(scripts['test:e2e']).toBe('node scripts/run-e2e-tests.mjs');
+    expect(scripts['test:int']).toBe('node scripts/run-int-tests.mjs');
+    expect(scriptNames).not.toContain('test:unit');
 
     expect(scripts['test:integration:memory']).toBeUndefined();
     expect(scripts['test:integration:local']).toBeUndefined();

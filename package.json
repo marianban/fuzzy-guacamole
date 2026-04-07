@@ -19,7 +19,7 @@
     "test": "node scripts/run-unit-tests.mjs",
     "test:coverage": "node scripts/run-unit-tests.mjs --coverage",
     "test:watch": "vitest",
-    "test:e2e": "node scripts/run-e2e-tests.mjs",
+    "test:int": "node scripts/run-int-tests.mjs",
     "lint": "eslint . --max-warnings=0 && npm run lint:styles",
     "mermaid:lint": "node scripts/lint-mermaid.mjs",
     "format": "prettier --check .",

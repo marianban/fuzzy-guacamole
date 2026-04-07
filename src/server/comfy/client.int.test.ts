@@ -49,36 +49,36 @@ const liankaInputImagePath = path.resolve(
   '__fixtures__/input/liankavalentincropped.png'
 );
 const outputDirPath = path.resolve(currentDir, '__fixtures__/output');
-const txt2imgTemplatePath = path.resolve(currentDir, '../../../examples/prompts/txt2img.json');
-const img2imgTemplatePath = path.resolve(currentDir, '../../../examples/prompts/img2img.json');
+const txt2imgTemplatePath = path.resolve(
+  currentDir,
+  '../../../examples/prompts/txt2img.json'
+);
+const img2imgTemplatePath = path.resolve(
+  currentDir,
+  '../../../examples/prompts/img2img.json'
+);
 
-describe.sequential('ComfyClient e2e (local ComfyUI)', () => {
-  test(
-    'given_local_comfy_when_checking_health_then_system_stats_are_available',
-    async () => {
-      const client = new ComfyClient({ baseUrl });
+describe.sequential('ComfyClient integration (local ComfyUI)', () => {
+  test('given_local_comfy_when_checking_health_then_system_stats_are_available', async () => {
+    const client = new ComfyClient({ baseUrl });
 
-      const health = await client.healthCheck();
-      expect(health.ok).toBe(true);
-      expect(health.systemStats?.system.comfyui_version).toBeTruthy();
-      expect(health.systemStats?.devices.length).toBeGreaterThan(0);
-    }
-  );
+    const health = await client.healthCheck();
+    expect(health.ok).toBe(true);
+    expect(health.systemStats?.system.comfyui_version).toBeTruthy();
+    expect(health.systemStats?.devices.length).toBeGreaterThan(0);
+  });
 
-  test(
-    'given_local_comfy_when_uploading_img2img_input_then_comfy_reference_is_returned_for_loadimage',
-    async () => {
-      const client = new ComfyClient({ baseUrl });
-      const img2imgWorkflow = await loadWorkflow(img2imgTemplatePath);
+  test('given_local_comfy_when_uploading_img2img_input_then_comfy_reference_is_returned_for_loadimage', async () => {
+    const client = new ComfyClient({ baseUrl });
+    const img2imgWorkflow = await loadWorkflow(img2imgTemplatePath);
 
-      const upload = await client.uploadInputImage(tinyPngPath);
-      expect(upload.image.filename).toContain('.png');
+    const upload = await client.uploadInputImage(tinyPngPath);
+    expect(upload.image.filename).toContain('.png');
 
-      setLoadImageReference(img2imgWorkflow, upload.comfyImageRef, '12');
-      const loadImageNode = img2imgWorkflow['12'] as { inputs: { image: string } };
-      expect(loadImageNode.inputs.image).toBe(upload.comfyImageRef);
-    }
-  );
+    setLoadImageReference(img2imgWorkflow, upload.comfyImageRef, '12');
+    const loadImageNode = img2imgWorkflow['12'] as { inputs: { image: string } };
+    expect(loadImageNode.inputs.image).toBe(upload.comfyImageRef);
+  });
 
   test(
     'given_local_comfy_when_submitting_prompt_then_poll_history_returns_non_empty_outputs',
@@ -139,7 +139,11 @@ describe.sequential('ComfyClient e2e (local ComfyUI)', () => {
         '3'
       );
       const downloadedImage = await client.downloadImage(outputImage);
-      await saveOutputImageFixture(submitted.promptId, outputImage.filename, downloadedImage);
+      await saveOutputImageFixture(
+        submitted.promptId,
+        outputImage.filename,
+        downloadedImage
+      );
 
       expect(downloadedImage.byteLength).toBeGreaterThan(0);
       const elapsedMs = Date.now() - startedAt;

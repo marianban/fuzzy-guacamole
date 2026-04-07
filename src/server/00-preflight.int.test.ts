@@ -10,14 +10,14 @@ const apiBaseUrl = requireTestEnvVar('API_BASE_URL');
 const comfyBaseUrl = requireTestEnvVar('COMFY_BASE_URL');
 const databaseUrl = requireTestEnvVar('DATABASE_URL');
 
-describe.sequential('e2e preflight', () => {
-  test('given_e2e_run_when_checking_client_then_client_is_running', async () => {
+describe.sequential('integration preflight', () => {
+  test('given_integration_run_when_checking_client_then_client_is_running', async () => {
     const response = await fetchWithTimeout(`${clientBaseUrl}/`, 5_000, 'client');
 
     if (!response.ok) {
       throw new Error(
         `Client is reachable but returned ${response.status}. ` +
-          'Please run the client before e2e tests: `npm run dev:client`.'
+          'Please run the client before integration tests: `npm run dev:client`.'
       );
     }
 
@@ -25,17 +25,13 @@ describe.sequential('e2e preflight', () => {
     expect(contentType).toContain('text/html');
   });
 
-  test('given_e2e_run_when_checking_api_server_then_server_is_running', async () => {
-    const response = await fetchWithTimeout(
-      `${apiBaseUrl}/healthz`,
-      5_000,
-      'API server'
-    );
+  test('given_integration_run_when_checking_api_server_then_server_is_running', async () => {
+    const response = await fetchWithTimeout(`${apiBaseUrl}/healthz`, 5_000, 'API server');
 
     if (!response.ok) {
       throw new Error(
         `API server is reachable but returned ${response.status}. ` +
-          'Please run the server before e2e tests: `npm run dev:server`.'
+          'Please run the server before integration tests: `npm run dev:server`.'
       );
     }
 
@@ -43,7 +39,7 @@ describe.sequential('e2e preflight', () => {
     expect(payload.ok).toBe(true);
   });
 
-  test('given_e2e_run_when_checking_comfyui_then_comfyui_is_running', async () => {
+  test('given_integration_run_when_checking_comfyui_then_comfyui_is_running', async () => {
     const response = await fetchWithTimeout(
       `${comfyBaseUrl}/api/system_stats`,
       5_000,
@@ -53,7 +49,7 @@ describe.sequential('e2e preflight', () => {
     if (!response.ok) {
       throw new Error(
         `ComfyUI is reachable but returned ${response.status}. ` +
-          `Please run ComfyUI at ${comfyBaseUrl} before e2e tests.`
+          `Please run ComfyUI at ${comfyBaseUrl} before integration tests.`
       );
     }
 
@@ -65,7 +61,7 @@ describe.sequential('e2e preflight', () => {
     expect(Array.isArray(payload.devices)).toBe(true);
   });
 
-  test('given_e2e_run_when_checking_database_then_database_is_running', async () => {
+  test('given_integration_run_when_checking_database_then_database_is_running', async () => {
     const client = new PostgresClient({ connectionString: databaseUrl });
 
     try {
@@ -75,7 +71,7 @@ describe.sequential('e2e preflight', () => {
     } catch (error) {
       throw new Error(
         `Database is not reachable at ${redactPassword(databaseUrl)}. ` +
-          'Please run the database before e2e tests: ' +
+          'Please run the database before integration tests: ' +
           '`docker compose -f docker-compose.dev.yml up -d --wait db` or `npm run dev:server`. ' +
           `Connection error: ${toErrorMessage(error)}`
       );
@@ -95,7 +91,7 @@ async function fetchWithTimeout(
   } catch (error) {
     throw new Error(
       `${serviceName} is not reachable at ${url}. ` +
-        `Please start it before e2e tests. Connection error: ${toErrorMessage(error)}`
+        `Please start it before integration tests. Connection error: ${toErrorMessage(error)}`
     );
   }
 }
