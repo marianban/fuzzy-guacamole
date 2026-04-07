@@ -34,9 +34,7 @@ describe('createTestDatabaseContext', () => {
 
     const { createTestDatabaseContext } = await import('../test-database.js');
 
-    await expect(createTestDatabaseContext()).rejects.toThrow(
-      'schema creation failed'
-    );
+    await expect(createTestDatabaseContext()).rejects.toThrow('schema creation failed');
     expect(endMock).toHaveBeenCalledTimes(1);
   });
 });

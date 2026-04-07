@@ -24,14 +24,7 @@ describe('buildDockerComposeArgs', () => {
       mode: 'persist'
     });
 
-    expect(args).toEqual([
-      '-f',
-      'docker-compose.dev.yml',
-      'up',
-      '-d',
-      '--wait',
-      'db'
-    ]);
+    expect(args).toEqual(['-f', 'docker-compose.dev.yml', 'up', '-d', '--wait', 'db']);
   });
 
   it('given_persist_mode_on_shutdown_when_building_args_then_does_not_remove_volume', () => {
