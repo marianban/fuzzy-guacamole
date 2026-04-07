@@ -5,8 +5,17 @@ import { desc, eq, sql } from 'drizzle-orm';
 import { generationStatusSchema, type Generation } from '../../shared/generations.js';
 import type { AppDatabase } from '../db/client.js';
 import { generations } from '../db/schema.js';
-import { createStoredGeneration, isStoredGeneration, toPublicGeneration, type StoredGeneration } from './stored-generation.js';
-import type { CreateGenerationInput, GenerationStore, SaveableGeneration } from './store.js';
+import {
+  createStoredGeneration,
+  isStoredGeneration,
+  toPublicGeneration,
+  type StoredGeneration
+} from './stored-generation.js';
+import type {
+  CreateGenerationInput,
+  GenerationStore,
+  SaveableGeneration
+} from './store.js';
 
 class PostgresGenerationStore implements GenerationStore {
   readonly #database: AppDatabase;

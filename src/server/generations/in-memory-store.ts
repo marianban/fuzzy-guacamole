@@ -8,7 +8,11 @@ import {
   toPublicGeneration,
   type StoredGeneration
 } from './stored-generation.js';
-import type { CreateGenerationInput, GenerationStore, SaveableGeneration } from './store.js';
+import type {
+  CreateGenerationInput,
+  GenerationStore,
+  SaveableGeneration
+} from './store.js';
 
 class InMemoryGenerationStore implements GenerationStore {
   readonly #byId = new Map<string, StoredGeneration>();
