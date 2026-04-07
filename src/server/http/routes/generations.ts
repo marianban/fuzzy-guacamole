@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 
@@ -12,6 +12,7 @@ import {
   generationListResponseSchema,
   generationSchema
 } from '../../../shared/generations.js';
+import { ComfyClient } from '../../comfy/client.js';
 import type { AppConfig } from '../../config/app-config.js';
 import type { GenerationEventBus } from '../../generations/events.js';
 import type { GenerationStore } from '../../generations/store.js';
@@ -235,15 +236,16 @@ export function registerGenerationRoutes(
 
       await pipeline(filePart.file, createWriteStream(targetPath));
 
-      const updated = {
-        ...generation,
-        presetParams: {
-          ...generation.presetParams,
-          inputImagePath: targetPath
-        },
-        updatedAt: new Date().toISOString()
-      };
-      await options.store.save(updated);
+      const updated = await options.store.setInputImagePath(generation.id, targetPath);
+      if (updated === undefined) {
+        logGenerationWarning(request, 'generation input rejected', {
+          generationId: generation.id,
+          warningCode: 'generation_not_found'
+        });
+        return reply.code(404).send({
+          message: `Generation "${generation.id}" was not found.`
+        });
+      }
       options.eventBus.publish({
         type: 'upsert',
         generationId: updated.id,
@@ -346,15 +348,16 @@ export function registerGenerationRoutes(
         throw error;
       }
 
-      const now = new Date().toISOString();
-      const updated = {
-        ...generation,
-        status: 'queued' as const,
-        queuedAt: now,
-        updatedAt: now,
-        error: null
-      };
-      await options.store.save(updated);
+      const updated = await options.store.markQueued(generation.id);
+      if (updated === undefined) {
+        logGenerationWarning(request, 'generation queue rejected', {
+          generationId: generation.id,
+          warningCode: 'generation_queue_not_allowed'
+        });
+        return reply.code(409).send({
+          message: `Generation "${generation.id}" cannot be queued in its current state.`
+        });
+      }
       options.eventBus.publish({
         type: 'upsert',
         generationId: updated.id,
@@ -383,7 +386,8 @@ export function registerGenerationRoutes(
         response: {
           200: generationSchema,
           404: errorResponseSchema,
-          409: errorResponseSchema
+          409: errorResponseSchema,
+          503: errorResponseSchema
         }
       }
     },
@@ -400,12 +404,16 @@ export function registerGenerationRoutes(
       }
 
       if (generation.status === 'queued') {
-        const updated = {
-          ...generation,
-          status: 'canceled' as const,
-          updatedAt: new Date().toISOString()
-        };
-        await options.store.save(updated);
+        const updated = await options.store.markCanceled(generation.id);
+        if (updated === undefined) {
+          logGenerationWarning(request, 'generation cancel rejected', {
+            generationId: generation.id,
+            warningCode: 'generation_cancel_not_allowed'
+          });
+          return reply.code(409).send({
+            message: `Generation "${generation.id}" cannot be canceled in its current state.`
+          });
+        }
         options.eventBus.publish({
           type: 'upsert',
           generationId: updated.id,
@@ -419,6 +427,63 @@ export function registerGenerationRoutes(
           'generation canceled'
         );
         return generationSchema.parse(updated);
+      }
+
+      if (generation.status === 'submitted') {
+        const comfyClient = createComfyClient(options.config);
+
+        try {
+          await comfyClient.interrupt();
+        } catch (error) {
+          const failed = await options.store.markFailed(
+            generation.id,
+            `Cancel failure: ${error instanceof Error ? error.message : String(error)}`
+          );
+
+          if (failed !== undefined) {
+            options.eventBus.publish({
+              type: 'upsert',
+              generationId: failed.id,
+              generation: failed
+            });
+            request.log.warn(
+              {
+                generationId: failed.id,
+                error: failed.error
+              },
+              'generation cancel failed'
+            );
+            return generationSchema.parse(failed);
+          }
+
+          throw error;
+        }
+
+        const canceled = await options.store.markCanceled(generation.id);
+        if (canceled === undefined) {
+          logGenerationWarning(request, 'generation cancel rejected', {
+            generationId: generation.id,
+            warningCode: 'generation_cancel_not_allowed'
+          });
+          return reply.code(409).send({
+            message: `Generation "${generation.id}" cannot be canceled in its current state.`
+          });
+        }
+
+        options.eventBus.publish({
+          type: 'upsert',
+          generationId: canceled.id,
+          generation: canceled
+        });
+        request.log.info(
+          {
+            generationId: canceled.id,
+            status: canceled.status
+          },
+          'generation canceled'
+        );
+
+        return generationSchema.parse(canceled);
       }
 
       logGenerationWarning(request, 'generation cancel rejected', {
@@ -469,7 +534,20 @@ export function registerGenerationRoutes(
         });
       }
 
-      await options.store.delete(generation.id);
+      const deleted = await options.store.deleteDeletable(generation.id);
+      if (!deleted) {
+        logGenerationWarning(request, 'generation delete rejected', {
+          generationId: generation.id,
+          warningCode: 'generation_delete_not_allowed'
+        });
+        return reply.code(409).send({
+          message: `Generation "${generation.id}" cannot be deleted while submitted.`
+        });
+      }
+
+      if (options.config !== undefined) {
+        await cleanupGenerationArtifacts(options.config, generation.id);
+      }
       options.eventBus.publish({
         type: 'deleted',
         generationId: generation.id
@@ -492,4 +570,28 @@ function logGenerationWarning(
   context: Record<string, unknown>
 ): void {
   request.log.warn(context, message);
+}
+
+async function cleanupGenerationArtifacts(
+  config: AppConfig,
+  generationId: string
+): Promise<void> {
+  await Promise.all([
+    rm(path.resolve(config.paths.inputs, generationId), {
+      recursive: true,
+      force: true
+    }),
+    rm(path.resolve(config.paths.outputs, generationId), {
+      recursive: true,
+      force: true
+    })
+  ]);
+}
+
+function createComfyClient(config: AppConfig | undefined): ComfyClient {
+  if (config === undefined) {
+    throw new Error('Comfy client is unavailable because route config is missing.');
+  }
+
+  return new ComfyClient({ baseUrl: config.comfyBaseUrl });
 }

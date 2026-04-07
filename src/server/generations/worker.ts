@@ -3,6 +3,7 @@ import type { FastifyBaseLogger } from 'fastify';
 import type { Generation } from '../../shared/generations.js';
 import type { GenerationEventBus } from './events.js';
 import type { GenerationProcessor, GenerationProcessResult } from './processor.js';
+import type { StoredGeneration } from './stored-generation.js';
 import type { GenerationStore } from './store.js';
 
 const startupRecoveryError =
@@ -136,7 +137,9 @@ class DefaultGenerationWorker implements GenerationWorker {
         const terminalGeneration =
           result.status === 'completed'
             ? await this.#store.markCompleted(generation.id)
-            : await this.#store.markFailed(generation.id, result.error);
+            : result.status === 'failed'
+              ? await this.#store.markFailed(generation.id, result.error)
+              : undefined;
 
         if (terminalGeneration !== undefined) {
           this.#publishUpsert(terminalGeneration);
@@ -162,7 +165,7 @@ class DefaultGenerationWorker implements GenerationWorker {
     }
   }
 
-  async #runProcessor(generation: Generation): Promise<GenerationProcessResult> {
+  async #runProcessor(generation: StoredGeneration): Promise<GenerationProcessResult> {
     try {
       return await this.#processor.process(generation);
     } catch (error) {

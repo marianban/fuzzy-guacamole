@@ -1,14 +1,15 @@
 // @vitest-environment node
 
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { buildServer } from '../http/server-app.js';
 import { loadAppConfig } from '../config/app-config.js';
 import { createGenerationEventBus } from '../generations/events.js';
+import { createGenerationProcessor } from '../generations/processor.js';
 import { createGenerationWorker } from '../generations/worker.js';
 import { createPostgresGenerationStore } from '../generations/store.js';
 import { createPresetCatalog } from '../presets/preset-catalog.js';
@@ -280,6 +281,127 @@ describe('postgres-backed generations', () => {
     }
   });
 
+  test('given_real_processor_with_postgres_store_when_queueing_generation_then_prompt_metadata_and_output_are_persisted', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-db-real-worker-'));
+    tempDirs.push(root);
+    const config = await loadExecutionTestConfig(root);
+    const presetCatalog = createExecutionTestCatalog();
+    const testDatabase = await createTestDatabaseContext();
+    await testDatabase.migrate();
+
+    try {
+      const database = testDatabase.createAppDatabase();
+      const generationStore = createPostgresGenerationStore(database);
+      const eventBus = createGenerationEventBus();
+      const app = buildServer({
+        config,
+        presetCatalog,
+        generationStore,
+        generationEventBus: eventBus
+      });
+      const processor = createGenerationProcessor({
+        store: generationStore,
+        presetCatalog,
+        comfyClient: {
+          uploadInputImage: vi.fn(async () => {
+            throw new Error('should not upload txt2img input');
+          }),
+          submitPrompt: vi.fn(async () => ({ promptId: 'prompt-1' })),
+          pollHistory: vi.fn(async () => ({
+            history: {
+              'prompt-1': {
+                outputs: {
+                  '3': {
+                    images: [
+                      {
+                        filename: 'remote.png',
+                        subfolder: 'output',
+                        type: 'output'
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            entry: {
+              outputs: {
+                '3': {
+                  images: [
+                    {
+                      filename: 'remote.png',
+                      subfolder: 'output',
+                      type: 'output'
+                    }
+                  ]
+                }
+              }
+            }
+          })),
+          downloadImage: vi.fn(async () => Buffer.from([7, 8, 9]))
+        },
+        config,
+        now: () => new Date('2026-04-07T10:20:21.000Z')
+      });
+      const worker = createGenerationWorker({
+        eventBus,
+        store: generationStore,
+        pollIntervalMs: 60_000,
+        processor
+      });
+
+      try {
+        await worker.start();
+
+        const createdResponse = await app.inject({
+          method: 'POST',
+          url: '/api/generations',
+          payload: {
+            presetId: 'txt2img-basic/basic',
+            presetParams: {
+              prompt: 'db real processor',
+              steps: 5,
+              seedMode: 'fixed',
+              seed: 123
+            }
+          }
+        });
+        expect(createdResponse.statusCode).toBe(201);
+        const created = createdResponse.json() as { id: string };
+
+        const queueResponse = await app.inject({
+          method: 'POST',
+          url: `/api/generations/${created.id}/queue`
+        });
+        expect(queueResponse.statusCode).toBe(200);
+
+        await expectGenerationStatus(generationStore, created.id, 'completed');
+
+        const stored = await generationStore.getStoredById(created.id);
+        expect(stored?.promptRequest).toMatchObject({
+          prompt: expect.any(Object)
+        });
+        expect(stored?.promptResponse).toMatchObject({
+          promptId: 'prompt-1'
+        });
+
+        const outputDir = path.join(config.paths.outputs, created.id);
+        const outputFiles = await readdir(outputDir);
+        expect(outputFiles).toHaveLength(1);
+        expect(outputFiles[0]).toMatch(/^2026-04-07T10-20-21-000Z-/);
+        const outputBytes = await readFile(
+          path.join(outputDir, outputFiles[0] ?? 'missing')
+        );
+        expect(outputBytes.equals(Buffer.from([7, 8, 9]))).toBe(true);
+      } finally {
+        await worker.stop();
+        await app.close();
+        await database.close();
+      }
+    } finally {
+      await testDatabase.dispose();
+    }
+  });
+
   test('given_db_backed_server_when_uploading_input_then_path_remains_persisted_after_restart', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'fg-db-upload-'));
     tempDirs.push(root);
@@ -400,6 +522,51 @@ async function loadTestConfig(root: string) {
   return loadAppConfig({ configPath });
 }
 
+async function loadExecutionTestConfig(root: string) {
+  const configPath = path.join(root, 'config.json');
+  const inputsDir = path.join(root, 'inputs');
+  const outputsDir = path.join(root, 'outputs');
+  await writeFile(
+    configPath,
+    JSON.stringify(
+      {
+        comfyBaseUrl: 'http://127.0.0.1:8188',
+        ssh: {
+          host: '127.0.0.1',
+          port: 22,
+          username: 'user',
+          privateKeyPath: '/tmp/id'
+        },
+        remoteStart: {
+          startComfyCommand: 'echo start'
+        },
+        wol: {
+          mac: 'AA:BB:CC:DD:EE:FF',
+          broadcast: '192.168.0.255',
+          port: 9
+        },
+        paths: {
+          presets: '/tmp/presets',
+          inputs: inputsDir,
+          outputs: outputsDir
+        },
+        timeouts: {
+          pcBootMs: 1_000,
+          sshPollMs: 1_000,
+          comfyBootMs: 1_000,
+          healthPollMs: 1_000,
+          historyPollMs: 10
+        }
+      },
+      null,
+      2
+    ),
+    'utf8'
+  );
+
+  return loadAppConfig({ configPath });
+}
+
 function createTestCatalog() {
   const summary = {
     id: 'img2img-basic/basic',
@@ -457,6 +624,161 @@ function createTestCatalog() {
         '1': {
           class_type: 'PromptNode',
           inputs: { prompt: '{{prompt}}' }
+        }
+      }
+    }
+  };
+
+  return createPresetCatalog([summary], new Map([[detail.id, detail]]));
+}
+
+function createExecutionTestCatalog() {
+  const summary = {
+    id: 'txt2img-basic/basic',
+    name: 'Txt2Img - Basic',
+    type: 'txt2img' as const,
+    templateId: 'txt2img-basic',
+    templateFile: 'preset.template.json',
+    defaults: {
+      prompt: 'default prompt',
+      steps: 5,
+      seedMode: 'random'
+    }
+  };
+
+  const detail = {
+    ...summary,
+    model: {
+      categories: [
+        {
+          id: 'main',
+          label: {
+            en: 'Main'
+          },
+          order: 10,
+          presentation: {
+            collapsible: false,
+            defaultExpanded: true
+          }
+        },
+        {
+          id: 'advanced',
+          label: {
+            en: 'Advanced'
+          },
+          order: 20,
+          presentation: {
+            collapsible: true,
+            defaultExpanded: false
+          }
+        }
+      ],
+      fields: [
+        {
+          id: 'prompt',
+          fieldType: 'string' as const,
+          categoryId: 'main',
+          order: 10,
+          label: {
+            en: 'Prompt'
+          },
+          validation: {
+            required: true,
+            maxLength: 4000
+          },
+          control: {
+            type: 'input' as const
+          }
+        },
+        {
+          id: 'steps',
+          fieldType: 'integer' as const,
+          categoryId: 'advanced',
+          order: 20,
+          label: {
+            en: 'Steps'
+          },
+          default: 5,
+          validation: {
+            required: true,
+            min: 1,
+            max: 100
+          },
+          control: {
+            type: 'slider' as const,
+            min: 1,
+            max: 100,
+            step: 1
+          }
+        },
+        {
+          id: 'seedMode',
+          fieldType: 'enum' as const,
+          categoryId: 'advanced',
+          order: 30,
+          label: {
+            en: 'Seed Mode'
+          },
+          default: 'random',
+          validation: {
+            required: true
+          },
+          control: {
+            type: 'select' as const,
+            options: [
+              {
+                value: 'random',
+                label: { en: 'Random' }
+              },
+              {
+                value: 'fixed',
+                label: { en: 'Fixed' }
+              }
+            ]
+          }
+        },
+        {
+          id: 'seed',
+          fieldType: 'integer' as const,
+          categoryId: 'advanced',
+          order: 40,
+          label: {
+            en: 'Seed'
+          },
+          validation: {
+            required: false,
+            min: 0
+          },
+          visibility: {
+            field: 'seedMode',
+            equals: 'fixed'
+          },
+          control: {
+            type: 'input' as const
+          }
+        }
+      ]
+    },
+    template: {
+      id: 'txt2img-basic',
+      type: 'txt2img' as const,
+      workflow: {
+        '14': {
+          class_type: 'PromptNode',
+          inputs: { prompt: '{{prompt}}' }
+        },
+        '7': {
+          class_type: 'KSampler',
+          inputs: {
+            seed: '{{seed}}',
+            steps: '{{steps}}'
+          }
+        },
+        '3': {
+          class_type: 'SaveImage',
+          inputs: {
+            filename_prefix: 'result'
+          }
         }
       }
     }

@@ -36,6 +36,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-04-06) Synced this ExecPlan to the latest localization stack requirement in `docs/specs.MD`: client localization must use `react-i18next` (with `i18next`) and follow the preset locale fallback behavior.
 - [x] (2026-04-07) Refactored `src/server` into clearer internal modules: moved HTTP assembly into `src/server/http`, config into `src/server/config`, logging into `src/server/logging`, remaining DB helpers into `src/server/db`, and shared test helpers/convention tests into `src/server/test-support`.
 - [x] (2026-04-07) Implemented the first queue-processing slice: server bootstrap now owns a shared generation event bus plus background worker, queued generations are claimed oldest-first and transitioned through `submitted` to a terminal state automatically, stale `submitted` rows fail during startup recovery, and DB-backed tests prove queueing triggers server-side work without a second manual step.
+- [x] (2026-04-07) Completed the worker execution/lifecycle slice: generations now materialize real workflows from preset bundles, persist prompt request/response metadata server-side, execute through the Comfy client, save deterministic outputs under `/data/outputs/{generationId}/`, support submitted cancel via interrupt, and delete cleans up both DB state and generation artifacts.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + REST endpoints (`GET /api/status`, `GET /api/presets`, `GET /api/presets/{presetId}`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
@@ -61,6 +62,10 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
   Evidence: Manual probes against `http://127.0.0.1:8188` on 2026-02-28 returned `200` for both route families.
 - Observation: The current `generations` table columns were sufficient for the first worker slice; no schema migration was required to implement atomic oldest-first queue claims or startup recovery of stale `submitted` rows.
   Evidence: The worker uses explicit Postgres claim/update statements over the existing schema, and `npm run test:int -- src/server/db/db.int.test.ts` passed on 2026-04-07.
+- Observation: The existing `prompt_request` and `prompt_response` columns were enough to keep prompt submission metadata server-local without expanding the public generation DTO.
+  Evidence: The worker execution slice now persists both values through the store while the shared API contract remains unchanged, and targeted unit plus DB-backed integration tests passed on 2026-04-07.
+- Observation: Submitted cancel and delete cleanup both needed store-level guarded transitions rather than route-level `save()`/`delete()` calls to avoid lifecycle races and keep artifact cleanup deterministic.
+  Evidence: The route layer now uses focused store helpers (`markQueued`, `markCanceled`, `deleteDeletable`, `setInputImagePath`) and the new regression tests for submitted cancel and artifact cleanup passed on 2026-04-07.
 
 ## Decision Log
 
@@ -109,6 +114,12 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - Decision: Use the existing `generations` table for the first worker slice and rely on explicit atomic SQL transitions instead of adding worker-specific schema columns immediately.
   Rationale: The current columns were sufficient for oldest-first queue claims and startup recovery, which kept the change smaller and reduced migration churn before execution semantics settle.
   Date/Author: 2026-04-07 / Codex (GPT-5.4)
+- Decision: Keep execution metadata internal by introducing a server-local stored-generation model and mapping it back to the shared generation DTO at the route/event boundary.
+  Rationale: Prompt request/response payloads are needed for execution, cancellation, and debugging, but they do not belong in the minimal UI-facing generation API by default.
+  Date/Author: 2026-04-07 / Codex (GPT-5.4)
+- Decision: Reuse preset resolution and queue validation rules inside a dedicated execution builder, with one explicit transient retry for upload/submit/history operations only.
+  Rationale: This keeps route-time and worker-time validation aligned while matching the spec's retry boundary and avoiding silent retries for validation, execution, output, or cancel failures.
+  Date/Author: 2026-04-07 / Codex (GPT-5.4)
 - Decision (superseded): Use Postgres with a minimal SQL migration runner checked into the repo.
   Rationale: Avoided heavy ORM lock-in while keeping schema changes explicit and reproducible for novices.
   Date/Author: 2026-01-24 / Codex (GPT-5.2)
@@ -118,6 +129,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - (2026-02-22) Milestone 1 shipped: project scaffolding, stub status API, client shell, test/lint/format/build scripts, Docker assets, and local runbook. Not shipped yet: runtime config/presets, database schema, worker/comfy integration, SSE updates, and full UI workflow.
 - (2026-04-07) Internal server structure is now clearer: transport code lives under `src/server/http`, infrastructure concerns have dedicated folders, and test-only helpers are separated from runtime modules. This did not change user-visible behavior, but it reduced structural ambiguity for future work.
 - (2026-04-07) Queueing now triggers automatic server-side processing: the app starts one worker, Postgres claims the oldest queued row atomically, transitions flow through `submitted` to a terminal state, and SSE consumers continue to receive the same generation upsert events. Current limitation: bootstrap still uses a placeholder processor, so queued generations terminate with an explicit not-yet-implemented execution error until workflow materialization and Comfy execution land.
+- (2026-04-07) Queueing now drives the real execution path: the server materializes workflows from preset bundles, uploads img2img inputs when required, persists prompt request/response metadata, downloads one deterministic output image into the generation output folder, and keeps submitted cancel plus delete cleanup consistent with the persisted lifecycle state.
 
 Revision Note (2026-04-07): Updated this ExecPlan to record the internal `src/server` module refactor and the reasoning behind the new folder boundaries so future contributors understand the current layout.
 

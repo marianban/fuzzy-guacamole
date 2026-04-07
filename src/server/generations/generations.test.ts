@@ -1,14 +1,15 @@
 // @vitest-environment node
 
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildServer } from '../http/server-app.js';
 import { loadAppConfig } from '../config/app-config.js';
 import { createPresetCatalog } from '../presets/preset-catalog.js';
+import { createGenerationStore } from './store.js';
 
 async function loadTestConfig(root: string) {
   const configPath = path.join(root, 'config.json');
@@ -369,6 +370,137 @@ describe('generation routes', () => {
     await app.close();
   });
 
+  it('given_submitted_generation_when_canceled_then_interrupt_is_requested_and_status_becomes_canceled', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+    const store = createGenerationStore();
+
+    const generation = await store.create({
+      presetId: 'img2img-basic/basic',
+      templateId: 'img2img-basic',
+      presetParams: {
+        prompt: 'cancel submitted'
+      }
+    });
+    await store.save({
+      ...generation,
+      status: 'submitted',
+      updatedAt: '2026-04-07T10:00:00.000Z'
+    });
+
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      if (String(input).endsWith('/api/interrupt')) {
+        return new Response('{}', {
+          status: 200,
+          headers: {
+            'content-type': 'application/json'
+          }
+        });
+      }
+
+      return new Response('{}', {
+        status: 404,
+        headers: {
+          'content-type': 'application/json'
+        }
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const app = buildServer({
+      config,
+      presetCatalog: createCatalog(),
+      generationStore: store
+    });
+
+    try {
+      const cancelResponse = await app.inject({
+        method: 'POST',
+        url: `/api/generations/${generation.id}/cancel`
+      });
+
+      expect(cancelResponse.statusCode).toBe(200);
+      expect(cancelResponse.json()).toMatchObject({
+        id: generation.id,
+        status: 'canceled'
+      });
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://127.0.0.1:8188/api/interrupt',
+        expect.objectContaining({
+          method: 'POST'
+        })
+      );
+    } finally {
+      vi.unstubAllGlobals();
+      await app.close();
+    }
+  });
+
+  it('given_submitted_generation_when_interrupt_fails_then_generation_becomes_failed', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+    const store = createGenerationStore();
+
+    const generation = await store.create({
+      presetId: 'img2img-basic/basic',
+      templateId: 'img2img-basic',
+      presetParams: {
+        prompt: 'cancel submitted failure'
+      }
+    });
+    await store.save({
+      ...generation,
+      status: 'submitted',
+      updatedAt: '2026-04-07T10:00:00.000Z'
+    });
+
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      if (String(input).endsWith('/api/interrupt')) {
+        return new Response(JSON.stringify({ message: 'interrupt unavailable' }), {
+          status: 500,
+          headers: {
+            'content-type': 'application/json'
+          }
+        });
+      }
+
+      return new Response('{}', {
+        status: 404,
+        headers: {
+          'content-type': 'application/json'
+        }
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const app = buildServer({
+      config,
+      presetCatalog: createCatalog(),
+      generationStore: store
+    });
+
+    try {
+      const cancelResponse = await app.inject({
+        method: 'POST',
+        url: `/api/generations/${generation.id}/cancel`
+      });
+
+      expect(cancelResponse.statusCode).toBe(200);
+      expect(cancelResponse.json()).toMatchObject({
+        id: generation.id,
+        status: 'failed',
+        error: expect.stringMatching(/interrupt unavailable/i)
+      });
+    } finally {
+      vi.unstubAllGlobals();
+      await app.close();
+    }
+  });
+
   it('given_generation_when_input_uploaded_then_file_is_saved_and_reference_is_persisted', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
     tempDirs.push(root);
@@ -491,5 +623,61 @@ describe('generation routes', () => {
     });
 
     await app.close();
+  });
+
+  it('given_completed_generation_when_deleted_then_input_and_output_artifacts_are_removed', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+    const store = createGenerationStore();
+
+    const generation = await store.create({
+      presetId: 'img2img-basic/basic',
+      templateId: 'img2img-basic',
+      presetParams: {
+        prompt: 'delete me'
+      }
+    });
+    await store.save({
+      ...generation,
+      status: 'completed',
+      updatedAt: '2026-04-07T10:00:00.000Z'
+    });
+
+    const inputDir = path.join(root, generation.id);
+    const outputDir = path.join(tmpdir(), 'fg-gen-output-delete', generation.id);
+    tempDirs.push(path.dirname(outputDir));
+    await mkdir(path.join(inputDir, 'original'), { recursive: true });
+    await mkdir(outputDir, { recursive: true });
+    await writeFile(path.join(inputDir, 'original', 'input.png'), Buffer.from([1, 2, 3]));
+    await writeFile(path.join(outputDir, 'result.png'), Buffer.from([4, 5, 6]));
+
+    const configWithOutputRoot = {
+      ...config,
+      paths: {
+        ...config.paths,
+        outputs: path.dirname(outputDir)
+      }
+    };
+
+    const app = buildServer({
+      config: configWithOutputRoot,
+      presetCatalog: createCatalog(),
+      generationStore: store
+    });
+
+    try {
+      const deleteResponse = await app.inject({
+        method: 'DELETE',
+        url: `/api/generations/${generation.id}`
+      });
+
+      expect(deleteResponse.statusCode).toBe(204);
+      await expect(stat(inputDir)).rejects.toThrow();
+      await expect(stat(outputDir)).rejects.toThrow();
+    } finally {
+      await app.close();
+    }
   });
 });

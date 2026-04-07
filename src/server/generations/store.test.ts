@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 import type { Generation } from '../../shared/generations.js';
 import type { AppDatabase } from '../db/client.js';
@@ -13,6 +13,19 @@ describe('createPostgresGenerationStore', () => {
 
     const database = {
       db: {
+        select() {
+          return {
+            from() {
+              return {
+                where() {
+                  return {
+                    limit: async () => []
+                  };
+                }
+              };
+            }
+          };
+        },
         update() {
           return {
             set() {
@@ -83,6 +96,57 @@ describe('createPostgresGenerationStore', () => {
 
     await expect(store.getById(generation.id)).rejects.toThrow();
   });
+
+  test('given_submitted_generation_when_recording_prompt_metadata_then_store_round_trips_it_and_delete_stays_guarded', async () => {
+    const generation = createGeneration({
+      status: 'submitted'
+    });
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [
+          createGenerationRow({
+            ...generation,
+            promptRequest: { prompt: { '3': { class_type: 'SaveImage' } } }
+          })
+        ]
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          createGenerationRow({
+            ...generation,
+            promptRequest: { prompt: { '3': { class_type: 'SaveImage' } } },
+            promptResponse: { promptId: 'prompt-1' }
+          })
+        ]
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const database = {
+      db: {
+        execute
+      }
+    } as unknown as AppDatabase;
+
+    const store = createPostgresGenerationStore(database);
+
+    await expect(
+      store.recordPromptRequest(generation.id, {
+        prompt: { '3': { class_type: 'SaveImage' } }
+      })
+    ).resolves.toMatchObject({
+      promptRequest: { prompt: { '3': { class_type: 'SaveImage' } } }
+    });
+    await expect(
+      store.recordPromptResponse(generation.id, {
+        promptId: 'prompt-1'
+      })
+    ).resolves.toMatchObject({
+      promptResponse: { promptId: 'prompt-1' }
+    });
+    await expect(store.deleteDeletable(generation.id)).resolves.toBe(false);
+    expect(execute).toHaveBeenCalledTimes(3);
+  });
 });
 
 function createGeneration(overrides: Partial<Generation> = {}): Generation {
@@ -103,7 +167,16 @@ function createGeneration(overrides: Partial<Generation> = {}): Generation {
 }
 
 function createGenerationRow(
-  generation: Generation | (Omit<Generation, 'status'> & { status: string })
+  generation:
+    | (Generation & {
+        promptRequest?: unknown | null;
+        promptResponse?: unknown | null;
+      })
+    | (Omit<Generation, 'status'> & {
+        status: string;
+        promptRequest?: unknown | null;
+        promptResponse?: unknown | null;
+      })
 ) {
   return {
     id: generation.id,
@@ -111,8 +184,8 @@ function createGenerationRow(
     presetId: generation.presetId,
     templateId: generation.templateId,
     presetParams: generation.presetParams,
-    promptRequest: null,
-    promptResponse: null,
+    promptRequest: generation.promptRequest ?? null,
+    promptResponse: generation.promptResponse ?? null,
     queuedAt: generation.queuedAt,
     error: generation.error,
     createdAt: generation.createdAt,

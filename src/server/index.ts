@@ -1,10 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 
 import { buildServer } from './http/server-app.js';
+import { ComfyClient } from './comfy/client.js';
 import { loadAppConfig } from './config/app-config.js';
 import { createDatabase } from './db/client.js';
 import { createGenerationEventBus } from './generations/events.js';
-import { createPlaceholderGenerationProcessor } from './generations/processor.js';
+import { createGenerationProcessor } from './generations/processor.js';
 import { createPostgresGenerationStore } from './generations/store.js';
 import { createGenerationWorker } from './generations/worker.js';
 import { createServerLogger } from './logging/server-logging.js';
@@ -40,10 +41,20 @@ try {
   const database = createDatabase();
   const generationStore = createPostgresGenerationStore(database);
   const generationEventBus = createGenerationEventBus();
+  const comfyClient = new ComfyClient({
+    baseUrl: config.comfyBaseUrl,
+    historyPollMs: config.timeouts.historyPollMs
+  });
   const generationWorker = createGenerationWorker({
     eventBus: generationEventBus,
     store: generationStore,
-    processor: createPlaceholderGenerationProcessor(),
+    processor: createGenerationProcessor({
+      store: generationStore,
+      presetCatalog,
+      comfyClient,
+      config,
+      logger
+    }),
     pollIntervalMs: config.timeouts.historyPollMs,
     logger
   });

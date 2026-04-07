@@ -11,6 +11,7 @@ import { z } from 'zod';
 import type { BuildServerOptions } from '../http/server-app.js';
 import { buildServer } from '../http/server-app.js';
 import { loadAppConfig } from '../config/app-config.js';
+import type { GenerationStore } from '../generations/store.js';
 import { createPresetCatalog } from '../presets/preset-catalog.js';
 import { generationSchema, type Generation } from '../../shared/generations.js';
 
@@ -256,7 +257,7 @@ function createLogCollector() {
   };
 }
 
-function createFailingGenerationStore() {
+function createFailingGenerationStore(): GenerationStore {
   return {
     async create() {
       throw new Error('generation store unavailable');
@@ -267,10 +268,31 @@ function createFailingGenerationStore() {
     async getById() {
       return undefined;
     },
+    async getStoredById() {
+      return undefined;
+    },
     async save(generation: Generation) {
       return generation;
     },
+    async deleteDeletable() {
+      return false;
+    },
+    async setInputImagePath() {
+      return undefined;
+    },
+    async markQueued() {
+      return undefined;
+    },
     async claimNextQueued() {
+      return undefined;
+    },
+    async recordPromptRequest() {
+      return undefined;
+    },
+    async recordPromptResponse() {
+      return undefined;
+    },
+    async markCanceled() {
       return undefined;
     },
     async markCompleted() {
@@ -285,7 +307,7 @@ function createFailingGenerationStore() {
     async delete() {
       return false;
     }
-  };
+  } satisfies GenerationStore;
 }
 
 async function createGenerationWithInject(

@@ -19,7 +19,9 @@ flowchart LR
   GenerationStore["Generation Store<br/>src/server/generations/store.ts"]
   GenerationEvents["Generation Event Bus<br/>src/server/generations/events.ts"]
   Worker["Generation Worker<br/>src/server/generations/worker.ts"]
-  Processor["Placeholder Generation Processor<br/>src/server/generations/processor.ts"]
+  Processor["Generation Processor<br/>src/server/generations/processor.ts"]
+  Builder["Workflow Materializer<br/>src/server/generations/execution/builder.ts"]
+  Comfy["Comfy Client<br/>src/server/comfy/client.ts"]
 
   Browser -->|"GET /api/status (SWR poll)"| Vite
   Browser -->|"EventSource /api/events/generations"| Vite
@@ -40,6 +42,8 @@ flowchart LR
   GenerationEvents --> Worker
   Worker --> GenerationStore
   Worker --> Processor
+  Processor --> Builder
+  Processor --> Comfy
 ```
 
 ## Server Surface
@@ -70,9 +74,12 @@ flowchart TD
   GenerationCreate --> GenerationPayload["status=draft<br/>templateId resolved from preset<br/>model-backed param validation"]
   GenerationQueue --> QueueTransition["validate resolved params + workflow tokens<br/>draft/completed/failed/canceled -> queued"]
   QueueTransition --> WorkerClaim["shared event bus wakes worker<br/>oldest queued row claimed atomically"]
-  WorkerClaim --> WorkerTerminal["queued -> submitted -> completed|failed"]
-  GenerationCancel --> CancelTransition["queued -> canceled<br/>other states -> 409"]
+  WorkerClaim --> WorkerTerminal["queued -> submitted -> completed|failed|canceled"]
+  WorkerTerminal --> PersistedPrompt["promptRequest + promptResponse stored in DB"]
+  WorkerTerminal --> OutputPersist["downloaded output saved under<br/>/data/outputs/{generationId}/"]
+  GenerationCancel --> CancelTransition["queued -> canceled<br/>submitted -> interrupt -> canceled|failed"]
   GenerationUpload --> InputPersist["multipart image persisted to<br/>/data/inputs/{generationId}/original/"]
+  GenerationDelete --> DeletePersist["draft/queued/completed/failed/canceled rows deleted<br/>and input/output folders removed"]
   GenerationEvents --> LiveUpdates["live-only upsert/deleted events"]
 ```
 
@@ -86,8 +93,8 @@ Implemented routes:
 - `POST /api/generations` -> creates draft generation from preset + params after model-driven validation/default resolution
 - `POST /api/generations/{generationId}/input` -> accepts multipart file upload, stores path in `presetParams.inputImagePath`, and returns `204`
 - `POST /api/generations/{generationId}/queue` -> validates resolved preset/runtime params plus workflow template tokens, then transitions generation to `queued` and sets `queuedAt`; the background worker then claims queued rows oldest-first and moves them to a terminal state
-- `POST /api/generations/{generationId}/cancel` -> transitions `queued` generation to `canceled` (other states currently return `409`)
-- `DELETE /api/generations/{generationId}` -> deletes generation unless status is `submitted`
+- `POST /api/generations/{generationId}/cancel` -> transitions `queued` generation to `canceled`, or interrupts submitted work through Comfy and resolves to `canceled` or `failed`
+- `DELETE /api/generations/{generationId}` -> deletes draft/queued/completed/failed/canceled generations and removes persisted input/output folders; submitted rows still return `409`
 - `GET /api/events/generations` -> SSE stream for live generation upsert/deleted notifications
 - `GET /openapi/json` and `GET /openapi` -> OpenAPI spec + Swagger UI generated from Fastify route schemas
 
@@ -96,9 +103,11 @@ Current worker behavior:
 - The worker subscribes to queued `upsert` events, also polls on a fallback interval, and drains queued generations one at a time.
 - Postgres claims use one atomic SQL statement ordered by `queuedAt`, then `createdAt`, then `id`.
 - On startup, any generation left in `submitted` is marked `failed` with an interruption error.
-- The current bootstrap processor is intentionally a placeholder that moves claimed work to `failed` with a clear "not implemented yet" message until workflow materialization and Comfy execution are wired in.
+- The processor materializes the workflow from preset defaults plus runtime values, normalizes seed behavior, uploads img2img input through Comfy when needed, persists prompt request/response metadata, polls history until an output is available, downloads one deterministic output image, and saves it under `/data/outputs/{generationId}/` with a timestamp-prefixed filename.
+- Submitted cancellation is route-driven: the API interrupts Comfy, marks the generation `canceled` on success or `failed` on cancel failure, and the worker/processor stop if the row is no longer `submitted`.
+- Internal prompt submission metadata stays server-local in the generation store; the public generation API and SSE payloads still expose only the minimal shared generation DTO.
 
-## Comfy Module (Implemented, Not Wired to API Routes)
+## Comfy Module
 
 ```mermaid
 flowchart TD
@@ -119,3 +128,4 @@ flowchart TD
 ```
 
 The Comfy client has integration tests and endpoint-fallback handling, but current Fastify routes do not call it.
+The generation processor now uses this client directly for upload, submit, history polling, interrupt, and output download. The routes also use it for submitted cancellation via interrupt.
