@@ -107,6 +107,110 @@ Current worker behavior:
 - Submitted cancellation is route-driven: the API interrupts Comfy, marks the generation `canceled` on success or `failed` on cancel failure, and the worker/processor stop if the row is no longer `submitted`.
 - Internal prompt submission metadata stays server-local in the generation store; the public generation API and SSE payloads still expose only the minimal shared generation DTO.
 
+## Worker Loop
+
+These diagrams describe the control flow implemented in `src/server/generations/worker.ts` and the worker-to-store/processor interactions it coordinates.
+
+```mermaid
+flowchart TD
+  Start["worker.start()"] --> Subscribe["subscribe to event bus<br/>wake on queued upsert"]
+  Subscribe --> Recover["failSubmittedOnStartup()"]
+  Recover --> Recovered{"submitted rows recovered?"}
+  Recovered -->|yes| PublishRecovered["publish failed upsert events"]
+  Recovered -->|no| Poll["start fallback poll interval"]
+  PublishRecovered --> Poll
+  Poll --> InitialWake["wake()"]
+
+  InitialWake --> WakeGuard{"started and not stopping?"}
+  WakeGuard -->|no| WakeReturn["return"]
+  WakeGuard -->|yes| FlagScheduled["set scheduled = true"]
+  FlagScheduled --> AlreadyBusy{"running or queuedTask?"}
+  AlreadyBusy -->|yes| Coalesce["coalesce wake request"]
+  AlreadyBusy -->|no| QueueDrain["create idle promise<br/>queueMicrotask(drain)"]
+
+  QueueDrain --> DrainEnter["drain()"]
+  DrainEnter --> DrainGuard{"running or stopping?"}
+  DrainGuard -->|yes| ResolveEarly["resolve idle if needed"]
+  DrainGuard -->|no| BeginRun["set running = true"]
+
+  BeginRun --> Claim["claimNextQueued()"]
+  Claim --> Claimed{"queued row claimed?"}
+  Claimed -->|no| FinishRun["set running = false"]
+  Claimed -->|yes| PublishSubmitted["publish submitted upsert"]
+  PublishSubmitted --> Process["processor.process(generation)"]
+  Process --> Finalize["markCompleted / markFailed / markCanceled"]
+  Finalize --> Terminal{"terminal row available?"}
+  Terminal -->|yes| PublishTerminal["publish terminal upsert"]
+  Terminal -->|no| ContinueLoop{"stopping?"}
+  PublishTerminal --> ContinueLoop
+  ContinueLoop -->|no| Claim
+  ContinueLoop -->|yes| FinishRun
+
+  FinishRun --> Reschedule{"scheduled and not stopping?"}
+  Reschedule -->|yes| Rewake["wake() again"]
+  Reschedule -->|no| ResolveIdle["resolve idle"]
+```
+
+```mermaid
+sequenceDiagram
+  participant API as Queue or Cancel Route
+  participant Bus as GenerationEventBus
+  participant Worker as GenerationWorker
+  participant Store as GenerationStore
+  participant Processor as GenerationProcessor
+  participant Comfy as ComfyClient
+
+  Note over Worker: start() subscribes to queued upserts,<br/>fails stale submitted rows, starts poll timer,
+  Note over Worker: then calls wake() once immediately
+
+  API->>Store: markQueued() or markCanceled()
+  API->>Bus: publish upsert event
+  Bus-->>Worker: queued upsert notification
+  Worker->>Worker: wake()
+  Note over Worker: wake() sets scheduled=true and coalesces<br/>concurrent wakes into one queued drain microtask
+
+  loop while not stopping
+    Worker->>Store: claimNextQueued()
+    alt queued generation claimed
+      Store-->>Worker: generation now submitted
+      Worker->>Bus: publish submitted upsert
+      Worker->>Processor: process(submitted generation)
+      Processor->>Store: ensure generation still submitted
+      Processor->>Store: recordPromptRequest()
+      Processor->>Comfy: uploadInputImage() if needed
+      Processor->>Comfy: submitPrompt()
+      Processor->>Store: recordPromptResponse()
+      Processor->>Comfy: pollHistory()
+      Processor->>Store: ensure generation still submitted
+      Processor->>Comfy: downloadImage()
+
+      alt process completed
+        Processor-->>Worker: { status: completed }
+        Worker->>Store: markCompleted()
+      else process failed
+        Processor-->>Worker: { status: failed, error }
+        Worker->>Store: markFailed(error)
+      else process canceled
+        Processor-->>Worker: { status: canceled }
+        Worker->>Store: markCanceled()
+      end
+
+      Store-->>Worker: terminal generation or current terminal row
+      Worker->>Bus: publish terminal upsert
+    else no queued generation
+      Store-->>Worker: undefined
+    end
+  end
+
+  par fallback wake source
+    Note over Worker: setInterval also calls wake()
+  and shutdown
+    Worker->>Worker: stop()
+    Worker->>Worker: clear poll timer and unsubscribe
+    Worker->>Worker: waitForIdle()
+  end
+```
+
 ## Comfy Module
 
 ```mermaid
