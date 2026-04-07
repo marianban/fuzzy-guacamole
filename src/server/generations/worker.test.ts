@@ -1,8 +1,10 @@
 // @vitest-environment node
 
+import type { FastifyBaseLogger } from 'fastify';
 import { describe, expect, test, vi } from 'vitest';
 
 import type { Generation } from '../../shared/generations.js';
+import type { GenerationProcessResult } from './processor.js';
 import { createGenerationEventBus } from './events.js';
 import { createGenerationStore } from './store.js';
 import { createGenerationWorker } from './worker.js';
@@ -162,6 +164,49 @@ describe('createGenerationWorker', () => {
       unsubscribe();
       await worker.stop();
     }
+  });
+
+  test('given_processor_returns_unknown_status_when_worker_drains_then_worker_logs_error_and_generation_remains_submitted', async () => {
+    const store = createGenerationStore();
+    const eventBus = createGenerationEventBus();
+    const generation = await createQueuedGeneration(store, {
+      prompt: 'unknown status',
+      queuedAt: '2026-04-07T10:00:00.000Z'
+    });
+    const loggerError = vi.fn();
+    const logger = {
+      error: loggerError
+    } as unknown as FastifyBaseLogger;
+
+    const worker = createGenerationWorker({
+      eventBus,
+      store,
+      pollIntervalMs: 60_000,
+      logger,
+      processor: {
+        async process() {
+          return {
+            status: 'unknown'
+          } as unknown as GenerationProcessResult;
+        }
+      }
+    });
+
+    await worker.start();
+    await worker.waitForIdle();
+
+    await expect(store.getById(generation.id)).resolves.toMatchObject({
+      id: generation.id,
+      status: 'submitted'
+    });
+    expect(loggerError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        err: expect.any(Error)
+      }),
+      'generation worker drain failed'
+    );
+
+    await worker.stop();
   });
 });
 

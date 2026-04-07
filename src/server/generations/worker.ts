@@ -185,12 +185,21 @@ class DefaultGenerationWorker implements GenerationWorker {
     generation: StoredGeneration,
     result: GenerationProcessResult
   ): Promise<StoredGeneration | undefined> {
-    const updated =
-      result.status === 'completed'
-        ? await this.#store.markCompleted(generation.id)
-        : result.status === 'failed'
-          ? await this.#store.markFailed(generation.id, result.error)
-          : await this.#store.markCanceled(generation.id);
+    const status = result.status;
+    let updated: StoredGeneration | undefined;
+    switch (status) {
+      case 'completed':
+        updated = await this.#store.markCompleted(generation.id);
+        break;
+      case 'failed':
+        updated = await this.#store.markFailed(generation.id, result.error);
+        break;
+      case 'canceled':
+        updated = await this.#store.markCanceled(generation.id);
+        break;
+      default:
+        assertUnsupportedGenerationResultStatus(status);
+    }
 
     if (updated !== undefined) {
       return updated;
@@ -225,6 +234,10 @@ class DefaultGenerationWorker implements GenerationWorker {
 
 function isTerminalGenerationStatus(status: Generation['status']): boolean {
   return status === 'completed' || status === 'failed' || status === 'canceled';
+}
+
+function assertUnsupportedGenerationResultStatus(status: never): never {
+  throw new Error(`Unsupported generation result status: ${String(status)}`);
 }
 
 export function createGenerationWorker(
