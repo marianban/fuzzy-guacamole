@@ -4,7 +4,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 import type { Generation } from '../../shared/generations.js';
 import type { AppDatabase } from '../db/client.js';
-import { createPostgresGenerationStore } from './store.js';
+import { createPostgresGenerationStore } from './postgres-store.js';
 
 describe('createPostgresGenerationStore', () => {
   test('given_insert_conflict_when_saving_missing_generation_then_save_uses_atomic_upsert', async () => {
