@@ -484,7 +484,8 @@ function createTestConfig(root: string): AppConfig {
       sshPollMs: 1000,
       comfyBootMs: 1000,
       healthPollMs: 1000,
-      historyPollMs: 10
+      historyPollMs: 10,
+      submittedTimeoutMs: 900000
     }
   };
 }

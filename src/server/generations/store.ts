@@ -47,6 +47,10 @@ export interface GenerationStore {
   markCompleted(generationId: string): Promise<StoredGeneration | undefined>;
   markFailed(generationId: string, error: string): Promise<StoredGeneration | undefined>;
   failSubmittedOnStartup(error: string): Promise<readonly StoredGeneration[]>;
+  failStaleSubmittedBefore(
+    staleBefore: string,
+    error: string
+  ): Promise<readonly StoredGeneration[]>;
 }
 
 class InMemoryGenerationStore implements GenerationStore {
@@ -245,6 +249,36 @@ class InMemoryGenerationStore implements GenerationStore {
 
     for (const generation of this.#byId.values()) {
       if (generation.status !== 'submitted') {
+        continue;
+      }
+
+      const failedGeneration: StoredGeneration = {
+        ...generation,
+        status: 'failed',
+        error,
+        updatedAt: new Date().toISOString()
+      };
+      this.#byId.set(failedGeneration.id, copyStoredGeneration(failedGeneration));
+      failedGenerations.push(copyStoredGeneration(failedGeneration));
+    }
+
+    return failedGenerations.sort(
+      (left, right) => Date.parse(left.updatedAt) - Date.parse(right.updatedAt)
+    );
+  }
+
+  async failStaleSubmittedBefore(
+    staleBefore: string,
+    error: string
+  ): Promise<readonly StoredGeneration[]> {
+    const staleBeforeMs = Date.parse(staleBefore);
+    const failedGenerations: StoredGeneration[] = [];
+
+    for (const generation of this.#byId.values()) {
+      if (
+        generation.status !== 'submitted' ||
+        Date.parse(generation.updatedAt) > staleBeforeMs
+      ) {
         continue;
       }
 
@@ -655,6 +689,36 @@ class PostgresGenerationStore implements GenerationStore {
           updated_at = ${failedAt},
           error = ${error}
       where status = 'submitted'
+      returning id,
+                status,
+                preset_id as "presetId",
+                template_id as "templateId",
+                preset_params as "presetParams",
+                prompt_request as "promptRequest",
+                prompt_response as "promptResponse",
+                queued_at as "queuedAt",
+                error,
+                created_at as "createdAt",
+                updated_at as "updatedAt"
+    `);
+
+    return result.rows.map((row) =>
+      mapRowToStoredGeneration(row as typeof generations.$inferSelect)
+    );
+  }
+
+  async failStaleSubmittedBefore(
+    staleBefore: string,
+    error: string
+  ): Promise<readonly StoredGeneration[]> {
+    const failedAt = new Date().toISOString();
+    const result = await this.#database.db.execute(sql`
+      update generations
+      set status = 'failed',
+          updated_at = ${failedAt},
+          error = ${error}
+      where status = 'submitted'
+        and updated_at <= ${staleBefore}
       returning id,
                 status,
                 preset_id as "presetId",

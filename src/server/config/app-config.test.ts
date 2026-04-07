@@ -39,7 +39,8 @@ function createValidConfig() {
       sshPollMs: 1000,
       comfyBootMs: 120000,
       healthPollMs: 1000,
-      historyPollMs: 1000
+      historyPollMs: 1000,
+      submittedTimeoutMs: 900000
     }
   };
 }

@@ -171,6 +171,32 @@ describe('createPostgresGenerationStore', () => {
       })
     ).rejects.toThrow(/prompt response metadata.*json-serializable/i);
   });
+
+  test('given_stale_submitted_generations_when_failing_before_cutoff_then_store_updates_them_in_one_database_call', async () => {
+    const failedGeneration = createGeneration({
+      status: 'failed',
+      error: 'Generation processing timed out while waiting in submitted state.',
+      updatedAt: '2026-04-07T10:00:30.000Z'
+    });
+    const execute = vi.fn().mockResolvedValue({
+      rows: [createGenerationRow(failedGeneration)]
+    });
+    const database = {
+      db: {
+        execute
+      }
+    } as unknown as AppDatabase;
+
+    const store = createPostgresGenerationStore(database);
+
+    await expect(
+      store.failStaleSubmittedBefore(
+        '2026-04-07T10:00:30.000Z',
+        'Generation processing timed out while waiting in submitted state.'
+      )
+    ).resolves.toMatchObject([failedGeneration]);
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
 });
 
 function createGeneration(overrides: Partial<Generation> = {}): Generation {

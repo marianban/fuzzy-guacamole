@@ -241,6 +241,8 @@ describe('postgres-backed generations', () => {
         eventBus,
         store: generationStore,
         pollIntervalMs: 60_000,
+        submittedTimeoutMs: config.timeouts.submittedTimeoutMs,
+        now: () => new Date(),
         processor: {
           async process() {
             return { status: 'completed' };
@@ -346,6 +348,8 @@ describe('postgres-backed generations', () => {
         eventBus,
         store: generationStore,
         pollIntervalMs: 60_000,
+        submittedTimeoutMs: config.timeouts.submittedTimeoutMs,
+        now: () => new Date('2026-04-07T10:20:21.000Z'),
         processor
       });
 
@@ -510,7 +514,8 @@ async function loadTestConfig(root: string) {
           sshPollMs: 1_000,
           comfyBootMs: 1_000,
           healthPollMs: 1_000,
-          historyPollMs: 1_000
+          historyPollMs: 1_000,
+          submittedTimeoutMs: 900_000
         }
       },
       null,
@@ -555,7 +560,8 @@ async function loadExecutionTestConfig(root: string) {
           sshPollMs: 1_000,
           comfyBootMs: 1_000,
           healthPollMs: 1_000,
-          historyPollMs: 10
+          historyPollMs: 10,
+          submittedTimeoutMs: 900_000
         }
       },
       null,

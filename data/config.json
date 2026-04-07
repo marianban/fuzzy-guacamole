@@ -24,6 +24,7 @@
     "sshPollMs": 2000,
     "comfyBootMs": 120000,
     "healthPollMs": 1000,
-    "historyPollMs": 1000
+    "historyPollMs": 1000,
+    "submittedTimeoutMs": 1800000
   }
 }

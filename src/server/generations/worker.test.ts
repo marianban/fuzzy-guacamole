@@ -5,11 +5,41 @@ import { describe, expect, test, vi } from 'vitest';
 
 import type { Generation } from '../../shared/generations.js';
 import type { GenerationProcessResult } from './processor.js';
+import type { StoredGeneration } from './stored-generation.js';
 import { createGenerationEventBus } from './events.js';
 import { createGenerationStore } from './store.js';
 import { createGenerationWorker } from './worker.js';
 
 describe('createGenerationWorker', () => {
+  test('given_required_runtime_options_missing_when_creating_worker_then_it_throws', () => {
+    expect(() =>
+      createGenerationWorker({
+        eventBus: createGenerationEventBus(),
+        store: createGenerationStore(),
+        pollIntervalMs: 60_000,
+        processor: {
+          async process() {
+            return { status: 'completed' };
+          }
+        }
+      } as unknown as Parameters<typeof createGenerationWorker>[0])
+    ).toThrow(/submittedTimeoutMs/i);
+
+    expect(() =>
+      createGenerationWorker({
+        eventBus: createGenerationEventBus(),
+        store: createGenerationStore(),
+        pollIntervalMs: 60_000,
+        submittedTimeoutMs: 30_000,
+        processor: {
+          async process() {
+            return { status: 'completed' };
+          }
+        }
+      } as unknown as Parameters<typeof createGenerationWorker>[0])
+    ).toThrow(/now/i);
+  });
+
   test('given_multiple_queued_generations_when_worker_drains_then_oldest_generation_finishes_first', async () => {
     const store = createGenerationStore();
     const eventBus = createGenerationEventBus();
@@ -30,6 +60,8 @@ describe('createGenerationWorker', () => {
       eventBus,
       store,
       pollIntervalMs: 60_000,
+      submittedTimeoutMs: 30_000,
+      now: () => new Date(),
       processor: {
         async process(generation) {
           processedGenerationIds.push(generation.id);
@@ -69,6 +101,8 @@ describe('createGenerationWorker', () => {
       eventBus,
       store,
       pollIntervalMs: 60_000,
+      submittedTimeoutMs: 30_000,
+      now: () => new Date(),
       processor: {
         process
       }
@@ -106,6 +140,8 @@ describe('createGenerationWorker', () => {
       eventBus,
       store,
       pollIntervalMs: 60_000,
+      submittedTimeoutMs: 30_000,
+      now: () => new Date(),
       processor: {
         async process() {
           return { status: 'completed' };
@@ -143,6 +179,8 @@ describe('createGenerationWorker', () => {
       eventBus,
       store,
       pollIntervalMs: 60_000,
+      submittedTimeoutMs: 30_000,
+      now: () => new Date(),
       processor: {
         async process() {
           return { status: 'canceled' };
@@ -182,6 +220,8 @@ describe('createGenerationWorker', () => {
       eventBus,
       store,
       pollIntervalMs: 60_000,
+      submittedTimeoutMs: 30_000,
+      now: () => new Date(),
       logger,
       processor: {
         async process() {
@@ -205,6 +245,102 @@ describe('createGenerationWorker', () => {
       }),
       'generation worker drain failed'
     );
+
+    await worker.stop();
+  });
+
+  test('given_stale_submitted_generation_when_worker_wakes_then_worker_marks_it_failed', async () => {
+    const store = createGenerationStore();
+    const eventBus = createGenerationEventBus();
+    const generation = await createQueuedGeneration(store, {
+      prompt: 'stale runtime submitted',
+      queuedAt: '2026-04-07T10:00:00.000Z'
+    });
+
+    const worker = createGenerationWorker({
+      eventBus,
+      store,
+      pollIntervalMs: 60_000,
+      submittedTimeoutMs: 30_000,
+      now: () => new Date('2026-04-07T10:01:00.000Z'),
+      processor: {
+        async process() {
+          return { status: 'completed' };
+        }
+      }
+    });
+
+    await worker.start();
+    await worker.waitForIdle();
+
+    const current = await store.getById(generation.id);
+    expect(current).toBeDefined();
+
+    await store.save({
+      ...(current as Generation),
+      status: 'submitted',
+      updatedAt: '2026-04-07T10:00:20.000Z'
+    });
+
+    worker.wake();
+    await worker.waitForIdle();
+
+    await expect(store.getById(generation.id)).resolves.toMatchObject({
+      id: generation.id,
+      status: 'failed',
+      error: expect.stringMatching(/timed out/i)
+    });
+
+    await worker.stop();
+  });
+
+  test('given_stale_recovery_when_worker_drains_then_worker_uses_store_level_recovery_instead_of_listing_all_generations', async () => {
+    const eventBus = createGenerationEventBus();
+    const failStaleSubmittedBefore = vi.fn(async () => [] as readonly StoredGeneration[]);
+    const list = vi.fn(async () => {
+      throw new Error('list should not be called for stale recovery');
+    });
+    const store = {
+      create: vi.fn(),
+      list,
+      getById: vi.fn(),
+      getStoredById: vi.fn(),
+      save: vi.fn(),
+      delete: vi.fn(),
+      deleteDeletable: vi.fn(),
+      setInputImagePath: vi.fn(),
+      markQueued: vi.fn(),
+      claimNextQueued: vi.fn(async () => undefined),
+      recordPromptRequest: vi.fn(),
+      recordPromptResponse: vi.fn(),
+      markCanceled: vi.fn(),
+      markCompleted: vi.fn(),
+      markFailed: vi.fn(),
+      failSubmittedOnStartup: vi.fn(async () => []),
+      failStaleSubmittedBefore
+    };
+
+    const worker = createGenerationWorker({
+      eventBus,
+      store: store as unknown as Parameters<typeof createGenerationWorker>[0]['store'],
+      pollIntervalMs: 60_000,
+      submittedTimeoutMs: 30_000,
+      now: () => new Date('2026-04-07T10:01:00.000Z'),
+      processor: {
+        async process() {
+          return { status: 'completed' };
+        }
+      }
+    });
+
+    await worker.start();
+    await worker.waitForIdle();
+
+    expect(failStaleSubmittedBefore).toHaveBeenCalledWith(
+      '2026-04-07T10:00:30.000Z',
+      expect.stringMatching(/timed out/i)
+    );
+    expect(list).not.toHaveBeenCalled();
 
     await worker.stop();
   });

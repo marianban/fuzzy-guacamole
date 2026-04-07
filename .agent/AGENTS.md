@@ -38,6 +38,7 @@ This repo currently contains the product specification and agent workflow docs f
 - mandatory quality gate for every code change: all edited files must be Prettier-formatted and pass ESLint with zero lint errors before the task is considered complete.
 - mandatory post-feature quality gate (after tests pass): run focused automated tests that cover the new/changed feature (not only broad full-suite runs), add and run integration tests that capture the new/changed behavior through real infrastructure, run exploratory tests against the implemented behavior, and start the real server and real client locally (`npm run dev:server` and client dev command) to verify startup succeeds and no blocking runtime errors appear in logs, browser console, or network traffic.
 - use fail-fast principles, do not write defensive code that silently ignores errors or edge cases; instead, let errors surface and fix the underlying issues to ensure robustness and reliability.
+- when constructing workers, clients, or other services, provide every required parameter explicitly; do not rely on hidden defaults for clocks, timeouts, or operational dependencies
 
 ## Testing Best Practices
 

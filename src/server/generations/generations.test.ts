@@ -42,7 +42,8 @@ async function loadTestConfig(root: string) {
           sshPollMs: 1_000,
           comfyBootMs: 1_000,
           healthPollMs: 1_000,
-          historyPollMs: 1_000
+          historyPollMs: 1_000,
+          submittedTimeoutMs: 900_000
         }
       },
       null,

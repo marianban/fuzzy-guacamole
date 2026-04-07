@@ -56,6 +56,8 @@ try {
       logger
     }),
     pollIntervalMs: config.timeouts.historyPollMs,
+    submittedTimeoutMs: config.timeouts.submittedTimeoutMs,
+    now: () => new Date(),
     logger
   });
   app = buildServer({

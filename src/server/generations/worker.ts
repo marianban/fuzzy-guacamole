@@ -8,13 +8,17 @@ import type { GenerationStore } from './store.js';
 
 const startupRecoveryError =
   'Generation processing was interrupted during server shutdown.';
+const staleSubmittedRecoveryError =
+  'Generation processing timed out while waiting in submitted state.';
 
 export interface GenerationWorkerOptions {
   eventBus: GenerationEventBus;
   store: GenerationStore;
   processor: GenerationProcessor;
   pollIntervalMs: number;
+  submittedTimeoutMs: number;
   logger?: FastifyBaseLogger;
+  now: () => Date;
 }
 
 export interface GenerationWorker {
@@ -29,7 +33,9 @@ class DefaultGenerationWorker implements GenerationWorker {
   readonly #store: GenerationStore;
   readonly #processor: GenerationProcessor;
   readonly #pollIntervalMs: number;
+  readonly #submittedTimeoutMs: number;
   readonly #logger: FastifyBaseLogger | undefined;
+  readonly #now: () => Date;
 
   #started = false;
   #stopping = false;
@@ -42,11 +48,21 @@ class DefaultGenerationWorker implements GenerationWorker {
   #resolveIdle: (() => void) | undefined;
 
   constructor(options: GenerationWorkerOptions) {
+    if (options.submittedTimeoutMs === undefined) {
+      throw new Error('GenerationWorkerOptions.submittedTimeoutMs is required.');
+    }
+
+    if (options.now === undefined) {
+      throw new Error('GenerationWorkerOptions.now is required.');
+    }
+
     this.#eventBus = options.eventBus;
     this.#store = options.store;
     this.#processor = options.processor;
     this.#pollIntervalMs = options.pollIntervalMs;
+    this.#submittedTimeoutMs = options.submittedTimeoutMs;
     this.#logger = options.logger;
+    this.#now = options.now;
   }
 
   async start(): Promise<void> {
@@ -125,6 +141,11 @@ class DefaultGenerationWorker implements GenerationWorker {
     this.#running = true;
     let shouldReschedule = false;
     try {
+      const recovered = await this.#failStaleSubmittedGenerations();
+      for (const generation of recovered) {
+        this.#publishUpsert(generation);
+      }
+
       while (!this.#stopping) {
         this.#scheduled = false;
         const generation = await this.#store.claimNextQueued();
@@ -161,6 +182,14 @@ class DefaultGenerationWorker implements GenerationWorker {
     if (shouldReschedule) {
       this.wake();
     }
+  }
+
+  async #failStaleSubmittedGenerations(): Promise<readonly StoredGeneration[]> {
+    const staleBefore = new Date(
+      this.#now().getTime() - this.#submittedTimeoutMs
+    ).toISOString();
+
+    return this.#store.failStaleSubmittedBefore(staleBefore, staleSubmittedRecoveryError);
   }
 
   async #runProcessor(generation: StoredGeneration): Promise<GenerationProcessResult> {

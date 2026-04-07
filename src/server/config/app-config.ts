@@ -28,7 +28,8 @@ export const appConfigSchema = z.object({
     sshPollMs: z.number().int().positive(),
     comfyBootMs: z.number().int().positive(),
     healthPollMs: z.number().int().positive(),
-    historyPollMs: z.number().int().positive()
+    historyPollMs: z.number().int().positive(),
+    submittedTimeoutMs: z.number().int().positive()
   })
 });
 
