@@ -13,7 +13,10 @@ export function resolveGenerationArtifactPath(
 }
 
 function assertValidGenerationId(generationId: string): void {
-  if (!generationIdPattern.test(generationId) || path.basename(generationId) !== generationId) {
+  if (
+    !generationIdPattern.test(generationId) ||
+    path.basename(generationId) !== generationId
+  ) {
     throw new Error(`Invalid generation id "${generationId}" for filesystem operation.`);
   }
 }

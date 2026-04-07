@@ -134,7 +134,10 @@ class DefaultGenerationWorker implements GenerationWorker {
 
         this.#publishUpsert(generation);
         const result = await this.#runProcessor(generation);
-        const terminalGeneration = await this.#finalizeGenerationResult(generation, result);
+        const terminalGeneration = await this.#finalizeGenerationResult(
+          generation,
+          result
+        );
 
         if (terminalGeneration !== undefined) {
           this.#publishUpsert(terminalGeneration);

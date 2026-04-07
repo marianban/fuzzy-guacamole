@@ -260,7 +260,10 @@ class DefaultGenerationProcessor implements GenerationProcessor {
     originalFilename: string,
     imageBytes: Buffer
   ): Promise<string> {
-    const outputDir = resolveGenerationArtifactPath(this.#config.paths.outputs, generationId);
+    const outputDir = resolveGenerationArtifactPath(
+      this.#config.paths.outputs,
+      generationId
+    );
     await mkdir(outputDir, { recursive: true });
     const outputPath = path.join(
       outputDir,
