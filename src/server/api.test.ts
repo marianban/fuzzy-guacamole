@@ -10,7 +10,7 @@ import { z } from 'zod';
 import type { BuildServerOptions } from './app.js';
 import { buildServer } from './app.js';
 import { loadAppConfig } from './config.js';
-import { createPresetCatalog } from './presets.js';
+import { createPresetCatalog } from './presets/preset-catalog.js';
 import { generationSchema } from '../shared/generations.js';
 
 const openApiDocumentSchema = z.object({

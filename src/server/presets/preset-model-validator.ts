@@ -2,7 +2,7 @@ import type {
   PresetDefinition,
   PresetModel,
   WorkflowTemplate
-} from '../shared/presets.js';
+} from '../../shared/presets.js';
 
 export interface ValidatePresetModelBundleOptions {
   template: WorkflowTemplate;

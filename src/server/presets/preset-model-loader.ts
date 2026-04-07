@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { type PresetModel, presetModelSchema } from '../shared/presets.js';
+import { type PresetModel, presetModelSchema } from '../../shared/presets.js';
 
 import { loadPresetJsonFile } from './preset-json-file.js';
 

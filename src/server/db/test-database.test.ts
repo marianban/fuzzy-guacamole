@@ -32,7 +32,7 @@ describe('createTestDatabaseContext', () => {
   test('given_schema_creation_failure_when_creating_context_then_admin_client_is_closed', async () => {
     queryMock.mockRejectedValueOnce(new Error('schema creation failed'));
 
-    const { createTestDatabaseContext } = await import('./test-database.js');
+    const { createTestDatabaseContext } = await import('../test-database.js');
 
     await expect(createTestDatabaseContext()).rejects.toThrow(
       'schema creation failed'

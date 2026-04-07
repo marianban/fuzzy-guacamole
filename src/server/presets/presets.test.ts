@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { buildServer } from './app.js';
-import { loadPresetCatalog } from './presets.js';
+import { buildServer } from '../app.js';
+import { loadPresetCatalog } from './preset-catalog.js';
 
 async function writeJsonFile(filePath: string, value: unknown): Promise<void> {
   await writeFile(filePath, JSON.stringify(value, null, 2), 'utf8');

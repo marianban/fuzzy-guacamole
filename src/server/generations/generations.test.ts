@@ -6,9 +6,9 @@ import { tmpdir } from 'node:os';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { buildServer } from './app.js';
-import { loadAppConfig } from './config.js';
-import { createPresetCatalog } from './presets.js';
+import { buildServer } from '../app.js';
+import { loadAppConfig } from '../config.js';
+import { createPresetCatalog } from '../presets/preset-catalog.js';
 
 async function loadTestConfig(root: string) {
   const configPath = path.join(root, 'config.json');

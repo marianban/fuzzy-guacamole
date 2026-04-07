@@ -44,7 +44,7 @@ describe('test runner conventions', () => {
       path.resolve(currentDir, './00-preflight.int.test.ts'),
       path.resolve(currentDir, './api.test.ts'),
       path.resolve(currentDir, './api.int.test.ts'),
-      path.resolve(currentDir, './db.int.test.ts'),
+      path.resolve(currentDir, './db/db.int.test.ts'),
       path.resolve(currentDir, './comfy/client.mock-replay.test.ts'),
       path.resolve(currentDir, './comfy/client.int.test.ts')
     ];

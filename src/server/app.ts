@@ -1,7 +1,4 @@
-import Fastify, {
-  type FastifyBaseLogger,
-  type FastifyInstance
-} from 'fastify';
+import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
 import fastifyMultipart from '@fastify/multipart';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
@@ -14,14 +11,11 @@ import {
 
 import type { AppConfig } from './config.js';
 import { createGenerationEventBus } from './generations/events.js';
-import {
-  createGenerationStore,
-  type GenerationStore
-} from './generations/store.js';
+import { createGenerationStore, type GenerationStore } from './generations/store.js';
 import {
   type PresetCatalog,
   createEmptyPresetCatalog
-} from './presets.js';
+} from './presets/preset-catalog.js';
 import {
   createServerLogger,
   registerRequestLogging,
@@ -44,8 +38,7 @@ export interface BuildServerOptions {
 export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
   const app = Fastify({
     disableRequestLogging: true,
-    loggerInstance:
-      options.loggerInstance ?? createServerLogger(options.logger)
+    loggerInstance: options.loggerInstance ?? createServerLogger(options.logger)
   });
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
@@ -70,8 +63,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
 
   const stateSince = options.stateSince ?? new Date().toISOString();
   const presetCatalog = options.presetCatalog ?? createEmptyPresetCatalog();
-  const generationStore =
-    options.generationStore ?? createGenerationStore();
+  const generationStore = options.generationStore ?? createGenerationStore();
   const generationEventBus = createGenerationEventBus();
 
   app.after(() => {

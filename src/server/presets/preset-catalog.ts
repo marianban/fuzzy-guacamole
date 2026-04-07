@@ -8,7 +8,7 @@ import {
   presetDefinitionSchema,
   presetDetailSchema,
   workflowTemplateSchema
-} from '../shared/presets.js';
+} from '../../shared/presets.js';
 import { loadPresetModel } from './preset-model-loader.js';
 import { validatePresetModelBundle } from './preset-model-validator.js';
 import { loadPresetJsonFile } from './preset-json-file.js';

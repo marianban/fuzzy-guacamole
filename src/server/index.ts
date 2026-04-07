@@ -5,7 +5,7 @@ import { loadAppConfig } from './config.js';
 import { createDatabase } from './db/client.js';
 import { createPostgresGenerationStore } from './generations/store.js';
 import { createServerLogger } from './logging.js';
-import { loadPresetCatalog } from './presets.js';
+import { loadPresetCatalog } from './presets/preset-catalog.js';
 
 try {
   process.loadEnvFile?.();
@@ -62,10 +62,7 @@ try {
   process.exit(1);
 }
 
-async function logFatalAndExit(
-  message: string,
-  reason: unknown
-): Promise<never | void> {
+async function logFatalAndExit(message: string, reason: unknown): Promise<never | void> {
   if (fatalShutdownInProgress) {
     return;
   }

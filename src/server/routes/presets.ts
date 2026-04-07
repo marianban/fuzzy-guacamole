@@ -2,11 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
-import {
-  presetDetailSchema,
-  presetListResponseSchema
-} from '../../shared/presets.js';
-import type { PresetCatalog } from '../presets.js';
+import { presetDetailSchema, presetListResponseSchema } from '../../shared/presets.js';
+import type { PresetCatalog } from '../presets/preset-catalog.js';
 
 const errorResponseSchema = z.object({
   message: z.string()
@@ -52,9 +49,7 @@ export function registerPresetRoutes(
       const presetId = decodePresetId(wildcard);
       const preset = presetCatalog.getById(presetId);
       if (preset === undefined) {
-        return reply
-          .code(404)
-          .send({ message: `Preset "${presetId}" was not found.` });
+        return reply.code(404).send({ message: `Preset "${presetId}" was not found.` });
       }
 
       return presetDetailSchema.parse(preset);

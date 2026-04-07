@@ -19,9 +19,9 @@ import {
   PresetParamsValidationError,
   validateCreatePresetParams,
   validateQueuePresetParams
-} from '../preset-params-validator.js';
-import { resolvePresetParams } from '../preset-params-resolver.js';
-import type { PresetCatalog } from '../presets.js';
+} from '../presets/preset-params-validator.js';
+import { resolvePresetParams } from '../presets/preset-params-resolver.js';
+import type { PresetCatalog } from '../presets/preset-catalog.js';
 
 const generationParamsSchema = z.object({
   generationId: z.uuid()

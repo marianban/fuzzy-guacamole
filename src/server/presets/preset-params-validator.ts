@@ -1,4 +1,4 @@
-import type { PresetDetail, PresetModelField } from '../shared/presets.js';
+import type { PresetDetail, PresetModelField } from '../../shared/presets.js';
 
 export class PresetParamsValidationError extends Error {
   readonly issues: string[];

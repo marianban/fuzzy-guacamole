@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { buildDockerComposeArgs, resolveDevDatabaseMode } from './dev-database.js';
+import { buildDockerComposeArgs, resolveDevDatabaseMode } from '../dev-database.js';
 
 describe('resolveDevDatabaseMode', () => {
   it('given_no_env_toggle_when_resolving_mode_then_defaults_to_persist', () => {

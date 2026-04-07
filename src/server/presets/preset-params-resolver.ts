@@ -1,4 +1,4 @@
-import type { PresetDetail } from '../shared/presets.js';
+import type { PresetDetail } from '../../shared/presets.js';
 
 export interface ResolvePresetParamsOptions {
   preset: Pick<PresetDetail, 'defaults' | 'model'>;
