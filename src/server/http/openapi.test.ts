@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { buildServer } from './app.js';
+import { buildServer } from './server-app.js';
 
 describe('openapi documentation', () => {
   it('given_server_when_requesting_openapi_json_then_contains_api_endpoints', async () => {

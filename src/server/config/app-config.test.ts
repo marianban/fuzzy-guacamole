@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { loadAppConfig } from './config.js';
+import { loadAppConfig } from './app-config.js';
 
 async function writeJsonFile(filePath: string, value: unknown): Promise<void> {
   await writeFile(filePath, JSON.stringify(value, null, 2), 'utf8');
@@ -121,7 +121,9 @@ describe('loadAppConfig', () => {
     delete process.env.CONFIG_PATH;
 
     try {
-      await expect(loadAppConfig()).rejects.toThrow(/CONFIG_PATH environment variable is required/);
+      await expect(loadAppConfig()).rejects.toThrow(
+        /CONFIG_PATH environment variable is required/
+      );
     } finally {
       process.chdir(originalCwd);
       if (originalConfigPath === undefined) {

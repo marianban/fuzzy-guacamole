@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, test } from 'vitest';
 
-import { requireTestEnvVar } from '../test-env.js';
+import { requireTestEnvVar } from '../test-support/test-env.js';
 import {
   ComfyClient,
   extractDeterministicOutputImage,

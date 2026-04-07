@@ -34,6 +34,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-04-06) Reviewed and updated ExecPlan for the new preset field model: `model.json` now defines localized control-panel fields/categories, workflow template tokens reference `{{fieldId}}`, and runtime-only values like uploaded input-image references remain outside `model.json.fields`.
 - [x] (2026-04-06) Synced this ExecPlan to the latest UI docs: recent generations/history now lives in a bottom dock, while `+ New generation` stays in the top-left of the main image area.
 - [x] (2026-04-06) Synced this ExecPlan to the latest localization stack requirement in `docs/specs.MD`: client localization must use `react-i18next` (with `i18next`) and follow the preset locale fallback behavior.
+- [x] (2026-04-07) Refactored `src/server` into clearer internal modules: moved HTTP assembly into `src/server/http`, config into `src/server/config`, logging into `src/server/logging`, remaining DB helpers into `src/server/db`, and shared test helpers/convention tests into `src/server/test-support`.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + REST endpoints (`GET /api/status`, `GET /api/presets`, `GET /api/presets/{presetId}`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
@@ -96,6 +97,9 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - Decision: Standardize client localization on `react-i18next` + `i18next` and keep locale resolution consistent with preset localization fallback rules in `docs/specs.MD`.
   Rationale: The app now needs one explicit localization runtime for static UI copy and dynamic preset metadata so language behavior is deterministic across the control panel and future UI copy additions.
   Date/Author: 2026-04-06 / Codex (GPT-5.3)
+- Decision: Organize server internals into responsibility-focused folders with descriptive filenames rather than generic top-level files or `index.ts` entry files.
+  Rationale: Grouping HTTP, config, logging, DB helpers, and test support into internal modules reduces top-level clutter, makes import intent easier to read, and aligns the codebase with the repo's server-organization rule.
+  Date/Author: 2026-04-07 / Codex (GPT-5.4)
 - Decision (superseded): Use Postgres with a minimal SQL migration runner checked into the repo.
   Rationale: Avoided heavy ORM lock-in while keeping schema changes explicit and reproducible for novices.
   Date/Author: 2026-01-24 / Codex (GPT-5.2)
@@ -103,6 +107,9 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 ## Outcomes & Retrospective
 
 - (2026-02-22) Milestone 1 shipped: project scaffolding, stub status API, client shell, test/lint/format/build scripts, Docker assets, and local runbook. Not shipped yet: runtime config/presets, database schema, worker/comfy integration, SSE updates, and full UI workflow.
+- (2026-04-07) Internal server structure is now clearer: transport code lives under `src/server/http`, infrastructure concerns have dedicated folders, and test-only helpers are separated from runtime modules. This did not change user-visible behavior, but it reduced structural ambiguity for future work.
+
+Revision Note (2026-04-07): Updated this ExecPlan to record the internal `src/server` module refactor and the reasoning behind the new folder boundaries so future contributors understand the current layout.
 
 ## Context and Orientation
 

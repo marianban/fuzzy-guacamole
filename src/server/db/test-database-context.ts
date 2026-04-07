@@ -2,12 +2,9 @@ import { randomUUID } from 'node:crypto';
 
 import { Client } from 'pg';
 
-import {
-  createDatabase,
-  type AppDatabase
-} from './db/client.js';
-import { runDatabaseMigrations } from './db/migrate.js';
-import { requireTestEnvVar } from './test-env.js';
+import { createDatabase, type AppDatabase } from './client.js';
+import { runDatabaseMigrations } from './migrate.js';
+import { requireTestEnvVar } from '../test-support/test-env.js';
 
 try {
   process.loadEnvFile?.();

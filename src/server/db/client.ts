@@ -15,9 +15,7 @@ export interface CreateDatabaseOptions {
   schema?: string;
 }
 
-export function createDatabase(
-  options: CreateDatabaseOptions = {}
-): AppDatabase {
+export function createDatabase(options: CreateDatabaseOptions = {}): AppDatabase {
   const connectionString = withSchemaSearchPath(
     options.connectionString ?? requireDatabaseUrl(),
     options.schema
@@ -54,9 +52,7 @@ function withSchemaSearchPath(
   const schemaOption = `-c search_path=${schema}`;
   url.searchParams.set(
     'options',
-    currentOptions === null
-      ? schemaOption
-      : `${currentOptions} ${schemaOption}`
+    currentOptions === null ? schemaOption : `${currentOptions} ${schemaOption}`
   );
   return url.toString();
 }

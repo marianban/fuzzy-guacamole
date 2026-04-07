@@ -11,17 +11,17 @@ import {
   createGenerationRequestSchema,
   generationListResponseSchema,
   generationSchema
-} from '../../shared/generations.js';
-import type { AppConfig } from '../config.js';
-import type { GenerationEventBus } from '../generations/events.js';
-import type { GenerationStore } from '../generations/store.js';
+} from '../../../shared/generations.js';
+import type { AppConfig } from '../../config/app-config.js';
+import type { GenerationEventBus } from '../../generations/events.js';
+import type { GenerationStore } from '../../generations/store.js';
 import {
   PresetParamsValidationError,
   validateCreatePresetParams,
   validateQueuePresetParams
-} from '../presets/preset-params-validator.js';
-import { resolvePresetParams } from '../presets/preset-params-resolver.js';
-import type { PresetCatalog } from '../presets/preset-catalog.js';
+} from '../../presets/preset-params-validator.js';
+import { resolvePresetParams } from '../../presets/preset-params-resolver.js';
+import type { PresetCatalog } from '../../presets/preset-catalog.js';
 
 const generationParamsSchema = z.object({
   generationId: z.uuid()

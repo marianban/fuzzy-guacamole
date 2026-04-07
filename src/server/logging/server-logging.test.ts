@@ -8,11 +8,11 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
-import type { BuildServerOptions } from './app.js';
-import { buildServer } from './app.js';
-import { loadAppConfig } from './config.js';
-import { createPresetCatalog } from './presets/preset-catalog.js';
-import { generationSchema, type Generation } from '../shared/generations.js';
+import type { BuildServerOptions } from '../http/server-app.js';
+import { buildServer } from '../http/server-app.js';
+import { loadAppConfig } from '../config/app-config.js';
+import { createPresetCatalog } from '../presets/preset-catalog.js';
+import { generationSchema, type Generation } from '../../shared/generations.js';
 
 type LogEntry = Record<string, unknown> & {
   body?: Record<string, unknown>;

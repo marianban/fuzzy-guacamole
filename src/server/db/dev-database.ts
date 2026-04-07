@@ -13,9 +13,7 @@ export function resolveDevDatabaseMode(
   return env.DEV_DB_RESET_ON_STOP === '1' ? 'reset' : 'persist';
 }
 
-export function buildDockerComposeArgs(
-  options: BuildDockerComposeArgsOptions
-): string[] {
+export function buildDockerComposeArgs(options: BuildDockerComposeArgsOptions): string[] {
   const baseArgs = ['-f', options.composeFile];
 
   if (options.action === 'up') {

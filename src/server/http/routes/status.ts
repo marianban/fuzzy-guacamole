@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 
-import { appStatusResponseSchema } from '../../shared/status.js';
+import { appStatusResponseSchema } from '../../../shared/status.js';
 
 export function registerStatusRoutes(app: FastifyInstance, stateSince: string): void {
   app.withTypeProvider<ZodTypeProvider>().get(

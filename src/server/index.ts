@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 
-import { buildServer } from './app.js';
-import { loadAppConfig } from './config.js';
+import { buildServer } from './http/server-app.js';
+import { loadAppConfig } from './config/app-config.js';
 import { createDatabase } from './db/client.js';
 import { createPostgresGenerationStore } from './generations/store.js';
-import { createServerLogger } from './logging.js';
+import { createServerLogger } from './logging/server-logging.js';
 import { loadPresetCatalog } from './presets/preset-catalog.js';
 
 try {

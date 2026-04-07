@@ -9,18 +9,18 @@ import {
   validatorCompiler
 } from 'fastify-type-provider-zod';
 
-import type { AppConfig } from './config.js';
-import { createGenerationEventBus } from './generations/events.js';
-import { createGenerationStore, type GenerationStore } from './generations/store.js';
+import type { AppConfig } from '../config/app-config.js';
+import { createGenerationEventBus } from '../generations/events.js';
+import { createGenerationStore, type GenerationStore } from '../generations/store.js';
 import {
   type PresetCatalog,
   createEmptyPresetCatalog
-} from './presets/preset-catalog.js';
+} from '../presets/preset-catalog.js';
 import {
   createServerLogger,
   registerRequestLogging,
   type ServerLoggerOptions
-} from './logging.js';
+} from '../logging/server-logging.js';
 import { registerEventRoutes } from './routes/events.js';
 import { registerGenerationRoutes } from './routes/generations.js';
 import { registerPresetRoutes } from './routes/presets.js';

@@ -13,7 +13,7 @@ interface PackageJson {
 describe('test npm scripts', () => {
   test('given_package_json_when_defining_test_modes_then_expected_commands_exist_and_legacy_commands_are_removed', async () => {
     const currentDir = path.dirname(fileURLToPath(import.meta.url));
-    const packageJsonPath = path.resolve(currentDir, '../../package.json');
+    const packageJsonPath = path.resolve(currentDir, '../../../package.json');
     const packageJsonRaw = await readFile(packageJsonPath, 'utf8');
     const packageJson = JSON.parse(packageJsonRaw) as PackageJson;
     const scripts = packageJson.scripts ?? {};

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { buildServer } from '../app.js';
+import { buildServer } from '../http/server-app.js';
 import { loadPresetCatalog } from './preset-catalog.js';
 
 async function writeJsonFile(filePath: string, value: unknown): Promise<void> {

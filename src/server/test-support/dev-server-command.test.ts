@@ -9,11 +9,9 @@ interface DevServerWatchCommand {
 
 const { resolveDevServerWatchCommand } = (await import(
   // @ts-expect-error The helper script is plain .mjs; the expected shape is declared inline in this test.
-  '../../scripts/dev-server-command.mjs'
+  '../../../scripts/dev-server-command.mjs'
 )) as {
-  resolveDevServerWatchCommand: (
-    platform?: string
-  ) => DevServerWatchCommand;
+  resolveDevServerWatchCommand: (platform?: string) => DevServerWatchCommand;
 };
 
 describe('resolveDevServerWatchCommand', () => {

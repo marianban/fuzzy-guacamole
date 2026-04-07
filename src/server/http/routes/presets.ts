@@ -2,8 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
-import { presetDetailSchema, presetListResponseSchema } from '../../shared/presets.js';
-import type { PresetCatalog } from '../presets/preset-catalog.js';
+import { presetDetailSchema, presetListResponseSchema } from '../../../shared/presets.js';
+import type { PresetCatalog } from '../../presets/preset-catalog.js';
 
 const errorResponseSchema = z.object({
   message: z.string()

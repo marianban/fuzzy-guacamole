@@ -6,11 +6,11 @@ import { tmpdir } from 'node:os';
 
 import { afterEach, describe, expect, test } from 'vitest';
 
-import { buildServer } from '../app.js';
-import { loadAppConfig } from '../config.js';
+import { buildServer } from '../http/server-app.js';
+import { loadAppConfig } from '../config/app-config.js';
 import { createPostgresGenerationStore } from '../generations/store.js';
 import { createPresetCatalog } from '../presets/preset-catalog.js';
-import { createTestDatabaseContext } from '../test-database.js';
+import { createTestDatabaseContext } from './test-database-context.js';
 
 describe('postgres-backed generations', () => {
   const tempDirs: string[] = [];

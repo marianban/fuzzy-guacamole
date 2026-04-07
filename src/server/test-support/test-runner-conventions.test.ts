@@ -9,7 +9,10 @@ import { describe, expect, test } from 'vitest';
 describe('test runner conventions', () => {
   test('given_unit_runner_when_running_default_tests_then_only_integration_files_are_excluded', async () => {
     const currentDir = path.dirname(fileURLToPath(import.meta.url));
-    const unitRunnerPath = path.resolve(currentDir, '../../scripts/run-unit-tests.mjs');
+    const unitRunnerPath = path.resolve(
+      currentDir,
+      '../../../scripts/run-unit-tests.mjs'
+    );
     const unitRunnerSource = await readFile(unitRunnerPath, 'utf8');
 
     expect(unitRunnerSource).toContain('--exclude');
@@ -21,7 +24,7 @@ describe('test runner conventions', () => {
     const currentDir = path.dirname(fileURLToPath(import.meta.url));
     const integrationRunnerPath = path.resolve(
       currentDir,
-      '../../scripts/run-int-tests.mjs'
+      '../../../scripts/run-int-tests.mjs'
     );
     const integrationRunnerSource = await readFile(integrationRunnerPath, 'utf8');
 
@@ -41,12 +44,12 @@ describe('test runner conventions', () => {
   test('given_test_files_when_executed_by_dedicated_runners_then_mode_switches_are_not_embedded_in_tests', async () => {
     const currentDir = path.dirname(fileURLToPath(import.meta.url));
     const files = [
-      path.resolve(currentDir, './00-preflight.int.test.ts'),
-      path.resolve(currentDir, './api.test.ts'),
-      path.resolve(currentDir, './api.int.test.ts'),
-      path.resolve(currentDir, './db/db.int.test.ts'),
-      path.resolve(currentDir, './comfy/client.mock-replay.test.ts'),
-      path.resolve(currentDir, './comfy/client.int.test.ts')
+      path.resolve(currentDir, '../00-preflight.int.test.ts'),
+      path.resolve(currentDir, '../http/api.test.ts'),
+      path.resolve(currentDir, '../api.int.test.ts'),
+      path.resolve(currentDir, '../db/db.int.test.ts'),
+      path.resolve(currentDir, '../comfy/client.mock-replay.test.ts'),
+      path.resolve(currentDir, '../comfy/client.int.test.ts')
     ];
 
     for (const filePath of files) {
@@ -62,9 +65,9 @@ describe('test runner conventions', () => {
   test('given_integration_files_when_resolving_required_urls_then_no_default_fallbacks_are_embedded', async () => {
     const currentDir = path.dirname(fileURLToPath(import.meta.url));
     const files = [
-      path.resolve(currentDir, './00-preflight.int.test.ts'),
-      path.resolve(currentDir, './api.int.test.ts'),
-      path.resolve(currentDir, './comfy/client.int.test.ts')
+      path.resolve(currentDir, '../00-preflight.int.test.ts'),
+      path.resolve(currentDir, '../api.int.test.ts'),
+      path.resolve(currentDir, '../comfy/client.int.test.ts')
     ];
 
     for (const filePath of files) {
@@ -78,7 +81,7 @@ describe('test runner conventions', () => {
 
   test('given_wallaby_config_when_listing_ignored_tests_then_only_integration_files_are_skipped', async () => {
     const currentDir = path.dirname(fileURLToPath(import.meta.url));
-    const wallabyConfigPath = path.resolve(currentDir, '../../wallaby.cjs');
+    const wallabyConfigPath = path.resolve(currentDir, '../../../wallaby.cjs');
     const wallabyConfigSource = await readFile(wallabyConfigPath, 'utf8');
 
     expect(wallabyConfigSource).toContain('**/*.int.test.{js,jsx,ts,tsx}');

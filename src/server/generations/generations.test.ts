@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { buildServer } from '../app.js';
-import { loadAppConfig } from '../config.js';
+import { buildServer } from '../http/server-app.js';
+import { loadAppConfig } from '../config/app-config.js';
 import { createPresetCatalog } from '../presets/preset-catalog.js';
 
 async function loadTestConfig(root: string) {

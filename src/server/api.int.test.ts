@@ -12,7 +12,7 @@ import {
   presetListResponseSchema,
   presetSummarySchema
 } from '../shared/presets.js';
-import { requireTestEnvVar } from './test-env.js';
+import { requireTestEnvVar } from './test-support/test-env.js';
 
 const localBaseUrl = requireTestEnvVar('API_BASE_URL');
 const img2imgInputFixturePath = path.resolve(

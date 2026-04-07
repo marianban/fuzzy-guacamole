@@ -11,9 +11,7 @@ export interface ServerLoggerOptions {
   enableFileLogging?: boolean;
 }
 
-export function createServerLogger(
-  options: ServerLoggerOptions = {}
-): Logger {
+export function createServerLogger(options: ServerLoggerOptions = {}): Logger {
   const level = options.level ?? resolveLogLevel();
 
   if (options.stream !== undefined) {
@@ -183,7 +181,9 @@ function resolveLogLevel(): LevelWithSilent {
 
 function resolveLogFilePath(configuredPath: string | undefined): string {
   return path.resolve(
-    configuredPath ?? process.env.LOG_FILE_PATH ?? path.join('data', 'logs', 'backend.log')
+    configuredPath ??
+      process.env.LOG_FILE_PATH ??
+      path.join('data', 'logs', 'backend.log')
   );
 }
 

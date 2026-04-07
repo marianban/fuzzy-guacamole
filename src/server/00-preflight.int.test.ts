@@ -3,7 +3,7 @@
 import { Client as PostgresClient } from 'pg';
 import { describe, expect, test } from 'vitest';
 
-import { requireTestEnvVar } from './test-env.js';
+import { requireTestEnvVar } from './test-support/test-env.js';
 
 const clientBaseUrl = requireTestEnvVar('CLIENT_BASE_URL');
 const apiBaseUrl = requireTestEnvVar('API_BASE_URL');
