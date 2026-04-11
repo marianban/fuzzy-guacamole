@@ -85,6 +85,10 @@ interface JsonRequestInit extends Omit<RequestInit, 'body'> {
   body?: unknown;
 }
 
+interface ComfyRequestOptions {
+  signal?: AbortSignal;
+}
+
 const DEFAULT_HISTORY_POLL_MS = 1_000;
 const DEFAULT_HISTORY_TIMEOUT_MS = 180_000;
 
@@ -115,13 +119,17 @@ export class ComfyClient {
     return { ok: true, systemStats: parsed.data };
   }
 
-  async submitPrompt(workflow: Record<string, unknown>): Promise<ComfyPromptSubmission> {
+  async submitPrompt(
+    workflow: Record<string, unknown>,
+    options: ComfyRequestOptions = {}
+  ): Promise<ComfyPromptSubmission> {
     const parsed = promptResponseSchema.parse(
       await this.requestJsonWithFallback(
         ['/api/prompt', '/prompt'],
         {
           method: 'POST',
-          body: { prompt: workflow }
+          body: { prompt: workflow },
+          ...(options.signal !== undefined ? { signal: options.signal } : {})
         },
         'submit prompt'
       )
@@ -136,7 +144,10 @@ export class ComfyClient {
     };
   }
 
-  async uploadInputImage(filePath: string): Promise<ComfyUploadResult> {
+  async uploadInputImage(
+    filePath: string,
+    options: ComfyRequestOptions = {}
+  ): Promise<ComfyUploadResult> {
     const fileBytes = await readFile(filePath);
     const form = new FormData();
     form.set(
@@ -152,7 +163,8 @@ export class ComfyClient {
         ['/api/upload/image', '/upload/image'],
         {
           method: 'POST',
-          body: form
+          body: form,
+          ...(options.signal !== undefined ? { signal: options.signal } : {})
         },
         'upload image'
       )
@@ -186,12 +198,13 @@ export class ComfyClient {
   }
 
   async getHistoryForPrompt(
-    promptId: string
+    promptId: string,
+    options: ComfyRequestOptions = {}
   ): Promise<Record<string, { outputs?: Record<string, unknown> | undefined }>> {
     const encodedPromptId = encodeURIComponent(promptId);
     const historyJson = await this.requestJsonWithFallback(
       [`/api/history_v2/${encodedPromptId}`, `/history/${encodedPromptId}`],
-      undefined,
+      options.signal !== undefined ? { signal: options.signal } : undefined,
       `load history for prompt ${promptId}`
     );
     return historyDetailSchema.parse(historyJson);
@@ -199,27 +212,36 @@ export class ComfyClient {
 
   async pollHistory(
     promptId: string,
-    overrides: { pollMs?: number; timeoutMs?: number } = {}
+    overrides: { pollMs?: number; timeoutMs?: number; signal?: AbortSignal } = {}
   ): Promise<ComfyHistoryPollResult> {
     const pollMs = overrides.pollMs ?? this.historyPollMs;
     const timeoutMs = overrides.timeoutMs ?? this.historyTimeoutMs;
     const deadline = Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {
-      const history = await this.getHistoryForPrompt(promptId);
+      throwIfAborted(overrides.signal);
+      const history = await this.getHistoryForPrompt(
+        promptId,
+        overrides.signal !== undefined ? { signal: overrides.signal } : {}
+      );
       const entry = history[promptId];
 
       if (entry?.outputs !== undefined && Object.keys(entry.outputs).length > 0) {
         return { history, entry };
       }
 
-      await sleep(pollMs);
+      await sleep(pollMs, undefined, overrides.signal
+        ? { signal: overrides.signal }
+        : undefined);
     }
 
     throw new Error(`History timeout for prompt ${promptId} after ${timeoutMs}ms.`);
   }
 
-  async downloadImage(image: ComfyImageRef): Promise<Buffer> {
+  async downloadImage(
+    image: ComfyImageRef,
+    options: ComfyRequestOptions = {}
+  ): Promise<Buffer> {
     const search = new URLSearchParams({ filename: image.filename });
     if (image.subfolder !== undefined && image.subfolder.length > 0) {
       search.set('subfolder', image.subfolder);
@@ -230,7 +252,7 @@ export class ComfyClient {
 
     const buffer = await this.requestBinaryWithFallback(
       [`/api/view?${search.toString()}`, `/view?${search.toString()}`],
-      undefined,
+      options.signal !== undefined ? { signal: options.signal } : undefined,
       `download image ${image.filename}`
     );
 
@@ -281,7 +303,8 @@ export class ComfyClient {
 
       const requestInit: RequestInit = {
         ...(init?.method !== undefined ? { method: init.method } : {}),
-        headers
+        headers,
+        ...(init?.signal !== undefined ? { signal: init.signal } : {})
       };
       if (init?.body !== undefined) {
         requestInit.body =
@@ -327,6 +350,18 @@ export class ComfyClient {
   private buildUrl(relativePath: string): string {
     return `${this.baseUrl}${relativePath.startsWith('/') ? '' : '/'}${relativePath}`;
   }
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw abortError();
+  }
+}
+
+function abortError(): Error {
+  const error = new Error('The operation was aborted.');
+  error.name = 'AbortError';
+  return error;
 }
 
 export function buildComfyImageRef(image: ComfyImageRef): string {

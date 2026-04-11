@@ -392,6 +392,78 @@ describe('createGenerationProcessor', () => {
     await expect(readdir(path.join(root, 'outputs', store.current.id))).rejects.toThrow();
   });
 
+  it('given_abort_signal_when_processing_generation_then_comfy_client_calls_receive_the_same_signal', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
+    tempDirs.push(root);
+    const receivedSignals: AbortSignal[] = [];
+    const signal = new AbortController().signal;
+
+    const store = createTestStore(
+      createTestGeneration({
+        presetId: 'txt2img-basic/basic',
+        templateId: 'txt2img-basic',
+        presetParams: {
+          prompt: 'abort signal',
+          steps: 5,
+          seedMode: 'fixed',
+          seed: 123
+        }
+      })
+    );
+
+    const processor = createGenerationProcessor({
+      store,
+      presetCatalog: createPresetCatalog(
+        [createPresetSummary('txt2img')],
+        new Map([[createPresetDetail('txt2img').id, createPresetDetail('txt2img')]])
+      ),
+      comfyClient: {
+        uploadInputImage: vi.fn(async () => {
+          throw new Error('should not upload');
+        }),
+        submitPrompt: vi.fn(async (_workflow, options) => {
+          receivedSignals.push(options?.signal as AbortSignal);
+          return { promptId: 'prompt-1' };
+        }),
+        pollHistory: vi.fn(async (_promptId, options) => {
+          receivedSignals.push(options?.signal as AbortSignal);
+          return {
+            history: {
+              'prompt-1': {
+                outputs: {
+                  '3': {
+                    images: [
+                      { filename: 'remote.png', subfolder: 'output', type: 'output' }
+                    ]
+                  }
+                }
+              }
+            },
+            entry: {
+              outputs: {
+                '3': {
+                  images: [
+                    { filename: 'remote.png', subfolder: 'output', type: 'output' }
+                  ]
+                }
+              }
+            }
+          };
+        }),
+        downloadImage: vi.fn(async (_image, options) => {
+          receivedSignals.push(options?.signal as AbortSignal);
+          return Buffer.from([9, 8, 7]);
+        })
+      },
+      config: createTestConfig(root)
+    });
+
+    const result = await processor.process(store.current, signal);
+
+    expect(result).toEqual({ status: 'completed' });
+    expect(receivedSignals).toEqual([signal, signal, signal]);
+  });
+
   it('given_invalid_generation_id_when_output_is_persisted_then_processor_fails_without_writing_outside_output_root', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
     tempDirs.push(root);

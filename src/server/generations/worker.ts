@@ -43,6 +43,7 @@ class DefaultGenerationWorker implements GenerationWorker {
   #scheduled = false;
   #pollTimer: NodeJS.Timeout | undefined;
   #unsubscribe: (() => void) | undefined;
+  #activeProcessController: AbortController | undefined;
   #idlePromise = Promise.resolve();
   #resolveIdle: (() => void) | undefined;
 
@@ -102,6 +103,7 @@ class DefaultGenerationWorker implements GenerationWorker {
     }
     this.#unsubscribe?.();
     this.#unsubscribe = undefined;
+    this.#activeProcessController?.abort();
     await this.waitForIdle();
     this.#started = false;
   }
@@ -183,8 +185,11 @@ class DefaultGenerationWorker implements GenerationWorker {
   }
 
   async #runProcessor(generation: StoredGeneration): Promise<GenerationProcessResult> {
+    const processController = new AbortController();
+    this.#activeProcessController = processController;
+
     try {
-      return await this.#processor.process(generation);
+      return await this.#processor.process(generation, processController.signal);
     } catch (error) {
       this.#logger?.error(
         {
@@ -197,6 +202,10 @@ class DefaultGenerationWorker implements GenerationWorker {
         status: 'failed',
         error: error instanceof Error ? error.message : String(error)
       };
+    } finally {
+      if (this.#activeProcessController === processController) {
+        this.#activeProcessController = undefined;
+      }
     }
   }
 

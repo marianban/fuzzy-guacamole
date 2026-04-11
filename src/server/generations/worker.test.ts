@@ -398,6 +398,57 @@ describe('createGenerationWorker', () => {
 
     await worker.stop();
   });
+
+  test('given_worker_stop_while_processor_is_running_when_stopping_then_active_processor_signal_is_aborted', async () => {
+    const store = createGenerationStore();
+    const eventBus = createGenerationEventBus();
+    const generation = await createQueuedGeneration(store, {
+      prompt: 'abort on stop',
+      queuedAt: '2026-04-07T10:00:00.000Z'
+    });
+    const processingStarted = createDeferred<void>();
+    const observedAbort = createDeferred<void>();
+
+    const worker = createGenerationWorker({
+      eventBus,
+      store,
+      pollIntervalMs: 60_000,
+      submittedTimeoutMs: 30_000,
+      now: () => new Date(),
+      processor: {
+        async process(currentGeneration, signal) {
+          expect(currentGeneration.id).toBe(generation.id);
+          expect(signal).toBeDefined();
+          const activeSignal = signal as AbortSignal;
+          processingStarted.resolve();
+
+          if (activeSignal.aborted) {
+            observedAbort.resolve();
+          } else {
+            activeSignal.addEventListener(
+              'abort',
+              () => {
+                observedAbort.resolve();
+              },
+              { once: true }
+            );
+          }
+
+          await observedAbort.promise;
+          return { status: 'canceled' };
+        }
+      }
+    });
+
+    await worker.start();
+    await processingStarted.promise;
+    await worker.stop();
+
+    await expect(store.getById(generation.id)).resolves.toMatchObject({
+      id: generation.id,
+      status: 'canceled'
+    });
+  });
 });
 
 async function createQueuedGeneration(

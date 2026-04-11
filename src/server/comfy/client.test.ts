@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   ComfyClient,
@@ -124,6 +124,21 @@ describe('ComfyClient', () => {
     await expect(client.submitPrompt({})).rejects.toThrow(
       'submit prompt failed at /api/prompt: 500 bad prompt'
     );
+  });
+
+  it('given_abort_signal_when_submitting_prompt_then_fetch_receives_the_same_signal', async () => {
+    const signal = new AbortController().signal;
+    const fetchImpl: typeof fetch = vi.fn(async (_input, init) => {
+      expect(init?.signal).toBe(signal);
+      return createJsonResponse({
+        body: { prompt_id: 'prompt-1' }
+      });
+    });
+    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+
+    const result = await client.submitPrompt({ foo: 'bar' }, { signal });
+
+    expect(result).toEqual({ promptId: 'prompt-1' });
   });
 
   it('given_upload_response_when_uploading_image_then_comfy_reference_is_built', async () => {

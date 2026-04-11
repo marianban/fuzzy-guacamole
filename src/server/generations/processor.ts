@@ -30,7 +30,10 @@ export type GenerationProcessResult =
     };
 
 export interface GenerationProcessor {
-  process(generation: StoredGeneration): Promise<GenerationProcessResult>;
+  process(
+    generation: StoredGeneration,
+    signal?: AbortSignal
+  ): Promise<GenerationProcessResult>;
 }
 
 export interface GenerationProcessorOptions {
@@ -87,10 +90,15 @@ class DefaultGenerationProcessor implements GenerationProcessor {
     this.#now = options.now ?? (() => new Date());
   }
 
-  async process(generation: StoredGeneration): Promise<GenerationProcessResult> {
+  async process(
+    generation: StoredGeneration,
+    signal?: AbortSignal
+  ): Promise<GenerationProcessResult> {
     try {
+      throwIfAborted(signal);
       await this.#ensureGenerationActive(generation.id);
       await this.#readiness?.ensureReady();
+      throwIfAborted(signal);
 
       const preset = this.#presetCatalog.getById(generation.presetId);
       if (preset === undefined) {
@@ -106,15 +114,20 @@ class DefaultGenerationProcessor implements GenerationProcessor {
       });
 
       await this.#ensureGenerationActive(generation.id);
+      throwIfAborted(signal);
 
       if (execution.inputImagePath !== undefined) {
         const upload = await this.#runWithTransientRetry('upload input image', async () =>
-          this.#comfyClient.uploadInputImage(execution.inputImagePath as string)
+          this.#comfyClient.uploadInputImage(
+            execution.inputImagePath as string,
+            signal !== undefined ? { signal } : {}
+          )
         );
         setLoadImageReference(execution.workflow, upload.comfyImageRef);
       }
 
       await this.#ensureGenerationActive(generation.id);
+      throwIfAborted(signal);
 
       const promptRequest = {
         prompt: execution.workflow
@@ -129,7 +142,11 @@ class DefaultGenerationProcessor implements GenerationProcessor {
 
       const promptResponse = await this.#runWithTransientRetry(
         'submit prompt',
-        async () => this.#comfyClient.submitPrompt(execution.workflow)
+        async () =>
+          this.#comfyClient.submitPrompt(
+            execution.workflow,
+            signal !== undefined ? { signal } : {}
+          )
       );
       const recordedPromptResponse = await this.#store.recordPromptResponse(
         generation.id,
@@ -158,16 +175,19 @@ class DefaultGenerationProcessor implements GenerationProcessor {
       }
 
       await this.#ensureGenerationActive(generation.id);
+      throwIfAborted(signal);
 
       const historyResult = await this.#runWithTransientRetry(
         'poll prompt history',
         async () =>
           this.#comfyClient.pollHistory(promptResponse.promptId, {
-            pollMs: this.#config.timeouts.historyPollMs
+            pollMs: this.#config.timeouts.historyPollMs,
+            ...(signal !== undefined ? { signal } : {})
           })
       );
 
       await this.#ensureGenerationActive(generation.id);
+      throwIfAborted(signal);
 
       const outputImage = extractDeterministicOutputImage(
         historyResult.history,
@@ -176,9 +196,14 @@ class DefaultGenerationProcessor implements GenerationProcessor {
       );
 
       await this.#ensureGenerationActive(generation.id);
+      throwIfAborted(signal);
 
-      const imageBytes = await this.#comfyClient.downloadImage(outputImage);
+      const imageBytes = await this.#comfyClient.downloadImage(
+        outputImage,
+        signal !== undefined ? { signal } : {}
+      );
       await this.#ensureGenerationActive(generation.id);
+      throwIfAborted(signal);
       const outputPath = await this.#persistOutput(
         generation.id,
         outputImage.filename,
@@ -199,6 +224,12 @@ class DefaultGenerationProcessor implements GenerationProcessor {
       };
     } catch (error) {
       if (error instanceof CanceledGenerationError) {
+        return {
+          status: 'canceled'
+        };
+      }
+
+      if (isAbortError(error)) {
         return {
           status: 'canceled'
         };
@@ -240,6 +271,10 @@ class DefaultGenerationProcessor implements GenerationProcessor {
     try {
       return await operation();
     } catch (error) {
+      if (isAbortError(error)) {
+        throw error;
+      }
+
       if (!isTransientExecutionError(error)) {
         throw error;
       }
@@ -279,6 +314,16 @@ class CanceledGenerationError extends Error {
     super('Generation execution was canceled.');
     this.name = 'CanceledGenerationError';
   }
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new CanceledGenerationError();
+  }
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
 }
 
 function isTransientExecutionError(error: unknown): boolean {
