@@ -344,6 +344,60 @@ describe('createGenerationWorker', () => {
 
     await worker.stop();
   });
+
+  test('given_wake_called_while_drain_is_active_when_processing_finishes_then_worker_runs_a_followup_pass', async () => {
+    const store = createGenerationStore();
+    const eventBus = createGenerationEventBus();
+    const first = await createQueuedGeneration(store, {
+      prompt: 'first',
+      queuedAt: '2026-04-07T10:00:00.000Z'
+    });
+    const firstStarted = createDeferred<void>();
+    const releaseFirst = createDeferred<void>();
+    const processedGenerationIds: string[] = [];
+
+    const worker = createGenerationWorker({
+      eventBus,
+      store,
+      pollIntervalMs: 60_000,
+      submittedTimeoutMs: 30_000,
+      now: () => new Date(),
+      processor: {
+        async process(generation) {
+          processedGenerationIds.push(generation.id);
+          if (generation.id === first.id) {
+            firstStarted.resolve();
+            await releaseFirst.promise;
+          }
+
+          return { status: 'completed' };
+        }
+      }
+    });
+
+    await worker.start();
+    await firstStarted.promise;
+
+    const second = await createQueuedGeneration(store, {
+      prompt: 'second',
+      queuedAt: '2026-04-07T10:01:00.000Z'
+    });
+    worker.wake();
+    releaseFirst.resolve();
+    await worker.waitForIdle();
+
+    expect(processedGenerationIds).toEqual([first.id, second.id]);
+    await expect(store.getById(first.id)).resolves.toMatchObject({
+      id: first.id,
+      status: 'completed'
+    });
+    await expect(store.getById(second.id)).resolves.toMatchObject({
+      id: second.id,
+      status: 'completed'
+    });
+
+    await worker.stop();
+  });
 });
 
 async function createQueuedGeneration(
@@ -370,4 +424,16 @@ async function createQueuedGeneration(
     updatedAt: options.queuedAt,
     error: null
   });
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+
+  return {
+    promise,
+    resolve
+  };
 }

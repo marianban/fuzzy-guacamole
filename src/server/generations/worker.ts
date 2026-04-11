@@ -39,9 +39,8 @@ class DefaultGenerationWorker implements GenerationWorker {
 
   #started = false;
   #stopping = false;
-  #running = false;
+  #drainActive = false;
   #scheduled = false;
-  #queuedTask = false;
   #pollTimer: NodeJS.Timeout | undefined;
   #unsubscribe: (() => void) | undefined;
   #idlePromise = Promise.resolve();
@@ -113,17 +112,16 @@ class DefaultGenerationWorker implements GenerationWorker {
     }
 
     this.#scheduled = true;
-    if (this.#running || this.#queuedTask) {
+    if (this.#drainActive) {
       return;
     }
 
-    this.#queuedTask = true;
+    this.#drainActive = true;
     this.#idlePromise = new Promise<void>((resolve) => {
       this.#resolveIdle = resolve;
     });
 
     queueMicrotask(() => {
-      this.#queuedTask = false;
       void this.#drain();
     });
   }
@@ -133,35 +131,34 @@ class DefaultGenerationWorker implements GenerationWorker {
   }
 
   async #drain(): Promise<void> {
-    if (this.#running || this.#stopping) {
-      this.#resolveIfIdle();
-      return;
-    }
-
-    this.#running = true;
-    let shouldReschedule = false;
     try {
-      const recovered = await this.#failStaleSubmittedGenerations();
-      for (const generation of recovered) {
-        this.#publishUpsert(generation);
-      }
-
       while (!this.#stopping) {
         this.#scheduled = false;
-        const generation = await this.#store.claimNextQueued();
-        if (generation === undefined) {
-          break;
+        const recovered = await this.#failStaleSubmittedGenerations();
+        for (const generation of recovered) {
+          this.#publishUpsert(generation);
         }
 
-        this.#publishUpsert(generation);
-        const result = await this.#runProcessor(generation);
-        const terminalGeneration = await this.#finalizeGenerationResult(
-          generation,
-          result
-        );
+        while (!this.#stopping) {
+          const generation = await this.#store.claimNextQueued();
+          if (generation === undefined) {
+            break;
+          }
 
-        if (terminalGeneration !== undefined) {
-          this.#publishUpsert(terminalGeneration);
+          this.#publishUpsert(generation);
+          const result = await this.#runProcessor(generation);
+          const terminalGeneration = await this.#finalizeGenerationResult(
+            generation,
+            result
+          );
+
+          if (terminalGeneration !== undefined) {
+            this.#publishUpsert(terminalGeneration);
+          }
+        }
+
+        if (!this.#scheduled) {
+          break;
         }
       }
     } catch (error) {
@@ -172,15 +169,8 @@ class DefaultGenerationWorker implements GenerationWorker {
         'generation worker drain failed'
       );
     } finally {
-      this.#running = false;
-      shouldReschedule = this.#scheduled && !this.#stopping;
-      if (!shouldReschedule) {
-        this.#resolveIfIdle();
-      }
-    }
-
-    if (shouldReschedule) {
-      this.wake();
+      this.#drainActive = false;
+      this.#resolveIfIdle();
     }
   }
 
