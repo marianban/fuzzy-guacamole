@@ -17,9 +17,12 @@ import type { AppConfig } from '../../config/app-config.js';
 import type { GenerationEventBus } from '../../generations/events.js';
 import type { GenerationStore } from '../../generations/store.js';
 import {
+  buildGenerationExecution,
+  GenerationExecutionValidationError
+} from '../../generations/execution/builder.js';
+import {
   PresetParamsValidationError,
-  validateCreatePresetParams,
-  validateQueuePresetParams
+  validateCreatePresetParams
 } from '../../presets/preset-params-validator.js';
 import { resolvePresetParams } from '../../presets/preset-params-resolver.js';
 import type { PresetCatalog } from '../../presets/preset-catalog.js';
@@ -315,30 +318,41 @@ export function registerGenerationRoutes(
       }
 
       try {
-        const modelFieldIds = new Set(preset.model.fields.map((field) => field.id));
-        const userParams: Record<string, unknown> = {};
-        const systemParams: Record<string, unknown> = {};
+        const execution = buildGenerationExecution({
+          generation,
+          preset
+        });
 
-        for (const [key, value] of Object.entries(generation.presetParams)) {
-          if (modelFieldIds.has(key)) {
-            userParams[key] = value;
-          } else {
-            systemParams[key] = value;
-          }
+        const updated = await options.store.markQueued(generation.id, {
+          queuedAt: new Date().toISOString(),
+          presetParams: execution.resolvedParams
+        });
+        if (updated === undefined) {
+          logGenerationWarning(request, 'generation queue rejected', {
+            generationId: generation.id,
+            warningCode: 'generation_queue_not_allowed'
+          });
+          return reply.code(409).send({
+            message: `Generation "${generation.id}" cannot be queued in its current state.`
+          });
         }
+        options.eventBus.publish({
+          type: 'upsert',
+          generationId: updated.id,
+          generation: updated
+        });
+        request.log.info(
+          {
+            generationId: updated.id,
+            queuedAt: updated.queuedAt,
+            status: updated.status
+          },
+          'generation queued'
+        );
 
-        const resolvedParams = resolvePresetParams({
-          preset,
-          userParams,
-          systemParams
-        });
-        validateQueuePresetParams({
-          preset,
-          resolvedParams,
-          runtimeParamKeys: Object.keys(systemParams)
-        });
+        return generationSchema.parse(updated);
       } catch (error) {
-        if (error instanceof PresetParamsValidationError) {
+        if (error instanceof GenerationExecutionValidationError) {
           logGenerationWarning(request, 'generation queue rejected', {
             generationId: generation.id,
             warningCode: 'generation_queue_validation_failed',
@@ -348,32 +362,6 @@ export function registerGenerationRoutes(
         }
         throw error;
       }
-
-      const updated = await options.store.markQueued(generation.id);
-      if (updated === undefined) {
-        logGenerationWarning(request, 'generation queue rejected', {
-          generationId: generation.id,
-          warningCode: 'generation_queue_not_allowed'
-        });
-        return reply.code(409).send({
-          message: `Generation "${generation.id}" cannot be queued in its current state.`
-        });
-      }
-      options.eventBus.publish({
-        type: 'upsert',
-        generationId: updated.id,
-        generation: updated
-      });
-      request.log.info(
-        {
-          generationId: updated.id,
-          queuedAt: updated.queuedAt,
-          status: updated.status
-        },
-        'generation queued'
-      );
-
-      return generationSchema.parse(updated);
     }
   );
 

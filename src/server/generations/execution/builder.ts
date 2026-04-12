@@ -51,8 +51,7 @@ export function buildGenerationExecution(
   try {
     validateQueuePresetParams({
       preset: options.preset,
-      resolvedParams,
-      runtimeParamKeys: Object.keys(systemParams)
+      resolvedParams
     });
   } catch (error) {
     if (error instanceof PresetParamsValidationError) {

@@ -631,6 +631,7 @@ function createTestCatalog() {
     template: {
       id: 'img2img-basic',
       type: 'img2img' as const,
+      implicitRuntimeParamKeys: [],
       workflow: {
         '1': {
           class_type: 'PromptNode',
@@ -773,6 +774,7 @@ function createExecutionTestCatalog() {
     template: {
       id: 'txt2img-basic',
       type: 'txt2img' as const,
+      implicitRuntimeParamKeys: [],
       workflow: {
         '14': {
           class_type: 'PromptNode',

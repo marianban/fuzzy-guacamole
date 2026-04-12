@@ -15,7 +15,9 @@ describe('createInMemoryGenerationStore', () => {
       }
     });
 
-    const queued = await store.markQueued(created.id, '2026-04-07T10:00:00.000Z');
+    const queued = await store.markQueued(created.id, {
+      queuedAt: '2026-04-07T10:00:00.000Z'
+    });
     expect(queued).toBeDefined();
 
     const claimed = await store.claimNextQueued();

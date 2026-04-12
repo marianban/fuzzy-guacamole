@@ -134,6 +134,7 @@ function createCatalog() {
     template: {
       id: 'img2img-basic',
       type: 'img2img' as const,
+      implicitRuntimeParamKeys: [],
       workflow: {
         '1': {
           class_type: 'PromptNode',
@@ -196,6 +197,7 @@ function createCatalogRequiringInput() {
     template: {
       id: 'img2img-basic',
       type: 'img2img' as const,
+      implicitRuntimeParamKeys: ['inputImagePath'],
       workflow: {
         '1': {
           class_type: 'PromptNode',
@@ -204,6 +206,158 @@ function createCatalogRequiringInput() {
         '12': {
           class_type: 'LoadImage',
           inputs: { image: '{{inputImagePath}}' }
+        }
+      }
+    }
+  };
+
+  return createPresetCatalog([summary], new Map([[detail.id, detail]]));
+}
+
+function createCatalogWithSeed() {
+  const summary = {
+    id: 'txt2img-basic/basic',
+    name: 'Txt2Img - Basic',
+    type: 'txt2img' as const,
+    templateId: 'txt2img-basic',
+    templateFile: 'preset.template.json',
+    defaults: {
+      prompt: 'default prompt',
+      steps: 30,
+      seedMode: 'random'
+    }
+  };
+
+  const detail = {
+    ...summary,
+    model: {
+      categories: [
+        {
+          id: 'main',
+          label: {
+            en: 'Main'
+          },
+          order: 10,
+          presentation: {
+            collapsible: false,
+            defaultExpanded: true
+          }
+        }
+      ],
+      fields: [
+        {
+          id: 'prompt',
+          fieldType: 'string' as const,
+          categoryId: 'main',
+          order: 10,
+          label: {
+            en: 'Prompt'
+          },
+          validation: {
+            required: true,
+            maxLength: 4000
+          },
+          control: {
+            type: 'input' as const
+          }
+        },
+        {
+          id: 'steps',
+          fieldType: 'integer' as const,
+          categoryId: 'main',
+          order: 20,
+          label: {
+            en: 'Steps'
+          },
+          default: 30,
+          validation: {
+            required: true,
+            min: 1,
+            max: 100
+          },
+          control: {
+            type: 'slider' as const,
+            min: 1,
+            max: 100,
+            step: 1
+          }
+        },
+        {
+          id: 'seedMode',
+          fieldType: 'enum' as const,
+          categoryId: 'main',
+          order: 30,
+          label: {
+            en: 'Seed Mode'
+          },
+          default: 'random',
+          validation: {
+            required: true
+          },
+          control: {
+            type: 'select' as const,
+            options: [
+              {
+                value: 'random',
+                label: {
+                  en: 'Random'
+                }
+              },
+              {
+                value: 'fixed',
+                label: {
+                  en: 'Fixed'
+                }
+              }
+            ]
+          }
+        },
+        {
+          id: 'seed',
+          fieldType: 'integer' as const,
+          categoryId: 'main',
+          order: 40,
+          label: {
+            en: 'Seed'
+          },
+          validation: {
+            required: false,
+            min: 0
+          },
+          visibility: {
+            field: 'seedMode',
+            equals: 'fixed'
+          },
+          control: {
+            type: 'input' as const,
+            inputMode: 'numeric' as const
+          }
+        }
+      ]
+    },
+    template: {
+      id: 'txt2img-basic',
+      type: 'txt2img' as const,
+      implicitRuntimeParamKeys: [],
+      workflow: {
+        '3': {
+          class_type: 'SaveImage',
+          inputs: {
+            filename_prefix: 'result'
+          }
+        },
+        '7': {
+          class_type: 'KSampler',
+          inputs: {
+            seed: '{{seed}}',
+            steps: '{{steps}}'
+          }
+        },
+        '14': {
+          class_type: 'PromptNode',
+          inputs: {
+            prompt: '{{prompt}}'
+          }
         }
       }
     }
@@ -692,6 +846,176 @@ describe('generation routes', () => {
     });
 
     await app.close();
+  });
+
+  it('given_random_seed_mode_when_queueing_generation_then_generated_seed_is_persisted_for_that_run', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+    const store = createGenerationStore();
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalogWithSeed(),
+      generationStore: store
+    });
+
+    try {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/api/generations',
+        payload: {
+          presetId: 'txt2img-basic/basic',
+          presetParams: {
+            prompt: 'lock my seed'
+          }
+        }
+      });
+      const created = createResponse.json() as { id: string };
+
+      const queueResponse = await app.inject({
+        method: 'POST',
+        url: `/api/generations/${created.id}/queue`
+      });
+
+      expect(queueResponse.statusCode).toBe(200);
+
+      const stored = await store.getStoredById(created.id);
+      expect(stored).toMatchObject({
+        id: created.id,
+        status: 'queued'
+      });
+      expect(stored?.presetParams.seedMode).toBe('random');
+      expect(stored?.presetParams.seed).toEqual(expect.any(Number));
+      expect(Number.isInteger(stored?.presetParams.seed)).toBe(true);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('given_random_seed_mode_when_requeueing_generation_then_a_new_seed_is_generated', async () => {
+    const randomSpy = vi.spyOn(Math, 'random');
+    randomSpy.mockReturnValueOnce(0.1).mockReturnValueOnce(0.2);
+
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+    const store = createGenerationStore();
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalogWithSeed(),
+      generationStore: store
+    });
+
+    try {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/api/generations',
+        payload: {
+          presetId: 'txt2img-basic/basic',
+          presetParams: {
+            prompt: 'reroll my seed'
+          }
+        }
+      });
+      const created = createResponse.json() as { id: string };
+
+      const firstQueueResponse = await app.inject({
+        method: 'POST',
+        url: `/api/generations/${created.id}/queue`
+      });
+      expect(firstQueueResponse.statusCode).toBe(200);
+
+      const firstStored = await store.getStoredById(created.id);
+      const firstSeed = Number(firstStored?.presetParams.seed);
+      expect(Number.isInteger(firstSeed)).toBe(true);
+
+      await store.save({
+        ...(firstStored ?? created),
+        status: 'completed',
+        error: null,
+        updatedAt: '2026-04-07T10:00:00.000Z'
+      });
+
+      const secondQueueResponse = await app.inject({
+        method: 'POST',
+        url: `/api/generations/${created.id}/queue`
+      });
+      expect(secondQueueResponse.statusCode).toBe(200);
+
+      const secondStored = await store.getStoredById(created.id);
+      const secondSeed = Number(secondStored?.presetParams.seed);
+      expect(Number.isInteger(secondSeed)).toBe(true);
+      expect(secondSeed).not.toBe(firstSeed);
+      expect(secondStored?.presetParams.seedMode).toBe('random');
+    } finally {
+      randomSpy.mockRestore();
+      await app.close();
+    }
+  });
+
+  it('given_completed_generation_with_stale_prompt_metadata_when_requeued_then_prompt_metadata_is_cleared', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+    const store = createGenerationStore();
+
+    const created = await store.create({
+      presetId: 'txt2img-basic/basic',
+      templateId: 'txt2img-basic',
+      presetParams: {
+        prompt: 'rerun me',
+        seedMode: 'fixed',
+        seed: 123
+      }
+    });
+    await store.save({
+      ...created,
+      status: 'submitted',
+      queuedAt: '2026-04-07T10:00:00.000Z',
+      updatedAt: '2026-04-07T10:00:00.000Z'
+    });
+    await store.recordPromptRequest(created.id, {
+      prompt: {
+        '3': {
+          class_type: 'SaveImage'
+        }
+      }
+    });
+    await store.recordPromptResponse(created.id, {
+      promptId: 'prompt-1'
+    });
+    await store.markCompleted(created.id);
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalogWithSeed(),
+      generationStore: store
+    });
+
+    try {
+      const queueResponse = await app.inject({
+        method: 'POST',
+        url: `/api/generations/${created.id}/queue`
+      });
+
+      expect(queueResponse.statusCode).toBe(200);
+
+      const stored = await store.getStoredById(created.id);
+      expect(stored).toMatchObject({
+        id: created.id,
+        status: 'queued',
+        promptRequest: null,
+        promptResponse: null,
+        error: null
+      });
+    } finally {
+      await app.close();
+    }
   });
 
   it('given_completed_generation_when_deleted_then_input_and_output_artifacts_are_removed', async () => {

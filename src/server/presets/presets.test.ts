@@ -34,6 +34,7 @@ describe('preset loading and routes', () => {
     await writeJsonFile(path.join(templateDir, 'preset.template.json'), {
       id: 'img2img-basic',
       type: 'img2img',
+      implicitRuntimeParamKeys: ['inputImagePath'],
       workflow: {
         '12': {
           class_type: 'LoadImage',
@@ -143,7 +144,8 @@ describe('preset loading and routes', () => {
       },
       template: {
         id: 'img2img-basic',
-        type: 'img2img'
+        type: 'img2img',
+        implicitRuntimeParamKeys: ['inputImagePath']
       }
     });
 
@@ -159,6 +161,7 @@ describe('preset loading and routes', () => {
     await writeJsonFile(path.join(templateDir, 'preset.template.json'), {
       id: 'img2img-basic',
       type: 'img2img',
+      implicitRuntimeParamKeys: [],
       workflow: {
         '14': {
           class_type: 'PromptNode',
@@ -249,7 +252,8 @@ describe('preset loading and routes', () => {
       },
       template: {
         id: 'img2img-basic',
-        type: 'img2img'
+        type: 'img2img',
+        implicitRuntimeParamKeys: []
       }
     });
   });
@@ -263,6 +267,7 @@ describe('preset loading and routes', () => {
     await writeJsonFile(path.join(templateDir, 'preset.template.json'), {
       id: 'txt2img-basic',
       type: 'txt2img',
+      implicitRuntimeParamKeys: [],
       workflow: {}
     });
 
@@ -321,6 +326,7 @@ describe('preset loading and routes', () => {
     await writeJsonFile(path.join(templateDir, 'preset.template.json'), {
       id: 'img2img-basic',
       type: 'img2img',
+      implicitRuntimeParamKeys: [],
       workflow: {}
     });
 
@@ -345,6 +351,7 @@ describe('preset loading and routes', () => {
     await writeJsonFile(path.join(templateDir, 'preset.template.json'), {
       id: 'img2img-basic',
       type: 'img2img',
+      implicitRuntimeParamKeys: [],
       workflow: {
         '14': {
           class_type: 'PromptNode',
@@ -396,6 +403,7 @@ describe('preset loading and routes', () => {
     await writeJsonFile(path.join(templateDir, 'preset.template.json'), {
       id: 'img2img-basic',
       type: 'img2img',
+      implicitRuntimeParamKeys: [],
       workflow: {
         '14': {
           class_type: 'PromptNode',
@@ -451,6 +459,7 @@ describe('preset loading and routes', () => {
     await writeJsonFile(path.join(templateDir, 'preset.template.json'), {
       id: 'img2img-basic',
       type: 'img2img',
+      implicitRuntimeParamKeys: [],
       workflow: {}
     });
 

@@ -19,7 +19,6 @@ interface ValidateCreatePresetParamsOptions {
 interface ValidateQueuePresetParamsOptions {
   preset: Pick<PresetDetail, 'model' | 'template'>;
   resolvedParams: Record<string, unknown>;
-  runtimeParamKeys: Iterable<string>;
 }
 
 export function validateCreatePresetParams(
@@ -48,7 +47,7 @@ export function validateQueuePresetParams(
   const modelFieldsById = new Map(
     options.preset.model.fields.map((field) => [field.id, field])
   );
-  const runtimeParamKeys = new Set(options.runtimeParamKeys);
+  const runtimeParamKeys = new Set(options.preset.template.implicitRuntimeParamKeys);
 
   for (const token of extractWorkflowTemplateTokens(options.preset.template.workflow)) {
     const field = modelFieldsById.get(token);

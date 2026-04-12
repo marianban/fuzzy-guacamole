@@ -10,6 +10,11 @@ export interface CreateGenerationInput {
   presetParams: Record<string, unknown>;
 }
 
+export interface MarkQueuedOptions {
+  queuedAt: string;
+  presetParams?: Record<string, unknown>;
+}
+
 export type SaveableGeneration = Generation | StoredGeneration;
 
 export interface GenerationStore {
@@ -24,7 +29,10 @@ export interface GenerationStore {
     generationId: string,
     inputImagePath: string
   ): Promise<Generation | undefined>;
-  markQueued(generationId: string, queuedAt?: string): Promise<Generation | undefined>;
+  markQueued(
+    generationId: string,
+    options: MarkQueuedOptions
+  ): Promise<Generation | undefined>;
   claimNextQueued(): Promise<StoredGeneration | undefined>;
   recordPromptRequest(
     generationId: string,

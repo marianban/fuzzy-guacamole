@@ -1,6 +1,9 @@
 {
   "id": "img2img-basic",
   "type": "img2img",
+  "implicitRuntimeParamKeys": [
+    "inputImagePath"
+  ],
   "workflow": {
     "1": {
       "inputs": {

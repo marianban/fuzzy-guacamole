@@ -288,7 +288,7 @@ function createFailingGenerationStore(): GenerationStore {
     async setInputImagePath() {
       return undefined;
     },
-    async markQueued() {
+    async markQueued(_generationId, _options) {
       return undefined;
     },
     async claimNextQueued() {
@@ -436,6 +436,7 @@ function createTestCatalog() {
     template: {
       id: 'img2img-basic',
       type: 'img2img' as const,
+      implicitRuntimeParamKeys: [],
       workflow: {
         '1': {
           class_type: 'PromptNode',

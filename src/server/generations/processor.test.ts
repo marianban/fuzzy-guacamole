@@ -812,6 +812,7 @@ function createPresetDetail(type: 'img2img' | 'txt2img' = 'img2img') {
     template: {
       id: summary.templateId,
       type,
+      implicitRuntimeParamKeys: type === 'img2img' ? ['inputImagePath'] : [],
       workflow:
         type === 'img2img'
           ? {

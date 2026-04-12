@@ -172,6 +172,61 @@ describe('createPostgresGenerationStore', () => {
     ).rejects.toThrow(/prompt response metadata.*json-serializable/i);
   });
 
+  test('given_completed_generation_when_marking_queued_with_normalized_params_then_store_resets_prompt_metadata_and_persists_params', async () => {
+    const generation = createGeneration({
+      status: 'completed',
+      presetParams: {
+        prompt: 'test prompt'
+      },
+      error: 'previous failure'
+    });
+    const execute = vi.fn().mockResolvedValue({
+      rows: [
+        createGenerationRow({
+          ...generation,
+          status: 'queued',
+          presetParams: {
+            prompt: 'test prompt',
+            seedMode: 'random',
+            seed: 42
+          },
+          promptRequest: null,
+          promptResponse: null,
+          queuedAt: '2026-04-07T10:00:30.000Z',
+          updatedAt: '2026-04-07T10:00:30.000Z',
+          error: null
+        })
+      ]
+    });
+    const database = {
+      db: {
+        execute
+      }
+    } as unknown as AppDatabase;
+
+    const store = createPostgresGenerationStore(database);
+
+    await expect(
+      store.markQueued(generation.id, {
+        queuedAt: '2026-04-07T10:00:30.000Z',
+        presetParams: {
+          prompt: 'test prompt',
+          seedMode: 'random',
+          seed: 42
+        }
+      })
+    ).resolves.toMatchObject({
+      status: 'queued',
+      presetParams: {
+        prompt: 'test prompt',
+        seedMode: 'random',
+        seed: 42
+      },
+      error: null
+    });
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
   test('given_stale_submitted_generations_when_failing_before_cutoff_then_store_updates_them_in_one_database_call', async () => {
     const failedGeneration = createGeneration({
       status: 'failed',

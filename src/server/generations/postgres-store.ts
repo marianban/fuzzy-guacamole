@@ -14,6 +14,7 @@ import {
 import type {
   CreateGenerationInput,
   GenerationStore,
+  MarkQueuedOptions,
   SaveableGeneration
 } from './store.js';
 
@@ -174,11 +175,17 @@ class PostgresGenerationStore implements GenerationStore {
 
   async markQueued(
     generationId: string,
-    queuedAt = new Date().toISOString()
+    options: MarkQueuedOptions
   ): Promise<Generation | undefined> {
+    const { queuedAt, presetParams } = options;
+    const serializedPresetParams =
+      presetParams === undefined ? null : JSON.stringify(presetParams);
     const result = await this.#database.db.execute(sql`
       update generations
       set status = 'queued',
+          preset_params = coalesce(${serializedPresetParams}::jsonb, preset_params),
+          prompt_request = null,
+          prompt_response = null,
           queued_at = ${queuedAt},
           updated_at = ${queuedAt},
           error = null

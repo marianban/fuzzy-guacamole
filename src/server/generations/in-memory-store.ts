@@ -11,6 +11,7 @@ import {
 import type {
   CreateGenerationInput,
   GenerationStore,
+  MarkQueuedOptions,
   SaveableGeneration
 } from './store.js';
 
@@ -102,7 +103,7 @@ class InMemoryGenerationStore implements GenerationStore {
 
   async markQueued(
     generationId: string,
-    queuedAt = new Date().toISOString()
+    options: MarkQueuedOptions
   ): Promise<Generation | undefined> {
     const generation = this.#byId.get(generationId);
     if (
@@ -113,9 +114,14 @@ class InMemoryGenerationStore implements GenerationStore {
       return undefined;
     }
 
+    const { queuedAt, presetParams } = options;
+
     const updatedGeneration: StoredGeneration = {
       ...generation,
       status: 'queued',
+      presetParams: presetParams ?? generation.presetParams,
+      promptRequest: null,
+      promptResponse: null,
       queuedAt,
       updatedAt: queuedAt,
       error: null

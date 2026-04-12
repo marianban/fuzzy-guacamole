@@ -12,6 +12,7 @@ export const localizedTextSchema = z
 export const workflowTemplateSchema = z.object({
   id: z.string().min(1),
   type: presetTypeSchema,
+  implicitRuntimeParamKeys: z.array(z.string().min(1)),
   workflow: z.record(z.string(), z.unknown())
 });
 
