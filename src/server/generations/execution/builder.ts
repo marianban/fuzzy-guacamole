@@ -36,6 +36,11 @@ export interface GenerationExecutionPlan {
 export function buildGenerationExecution(
   options: BuildGenerationExecutionOptions
 ): GenerationExecutionPlan {
+  const optionalFieldTokenIds = new Set(
+    options.preset.model.fields
+      .filter((field) => field.validation.required === false)
+      .map((field) => field.id)
+  );
   const { userParams, systemParams } = splitGenerationParams(
     options.preset,
     options.generation.presetParams
@@ -64,7 +69,8 @@ export function buildGenerationExecution(
   const workflow = materializeValue(
     structuredClone(options.preset.template.workflow),
     resolvedParams,
-    issues
+    issues,
+    optionalFieldTokenIds
   );
 
   if (issues.length > 0) {
@@ -142,21 +148,24 @@ function generateRandomSeed(): number {
 function materializeValue(
   value: unknown,
   resolvedParams: Record<string, unknown>,
-  issues: string[]
+  issues: string[],
+  optionalFieldTokenIds: ReadonlySet<string>
 ): unknown {
   if (typeof value === 'string') {
-    return materializeString(value, resolvedParams, issues);
+    return materializeString(value, resolvedParams, issues, optionalFieldTokenIds);
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => materializeValue(item, resolvedParams, issues));
+    return value.map((item) =>
+      materializeValue(item, resolvedParams, issues, optionalFieldTokenIds)
+    );
   }
 
   if (typeof value === 'object' && value !== null) {
     return Object.fromEntries(
       Object.entries(value).map(([key, nestedValue]) => [
         key,
-        materializeValue(nestedValue, resolvedParams, issues)
+        materializeValue(nestedValue, resolvedParams, issues, optionalFieldTokenIds)
       ])
     );
   }
@@ -167,18 +176,19 @@ function materializeValue(
 function materializeString(
   value: string,
   resolvedParams: Record<string, unknown>,
-  issues: string[]
+  issues: string[],
+  optionalFieldTokenIds: ReadonlySet<string>
 ): unknown {
   const fullMatch = value.match(FULL_TOKEN_PATTERN);
   if (fullMatch?.[1] !== undefined) {
     const token = fullMatch[1].trim();
     const resolvedValue = resolvedParams[token];
-    if (!hasResolvedValue(resolvedValue)) {
+    if (!canMaterializeTokenValue(token, resolvedValue, optionalFieldTokenIds)) {
       issues.push(`Runtime parameter "${token}" is required before execution.`);
       return value;
     }
 
-    return resolvedValue;
+    return normalizeFullTokenValue(token, resolvedValue, optionalFieldTokenIds);
   }
 
   if (!value.includes('{{')) {
@@ -188,13 +198,57 @@ function materializeString(
   return value.replace(TOKEN_PATTERN, (_, rawToken: string) => {
     const token = rawToken.trim();
     const resolvedValue = resolvedParams[token];
-    if (!hasResolvedValue(resolvedValue)) {
+    if (!canMaterializeTokenValue(token, resolvedValue, optionalFieldTokenIds)) {
       issues.push(`Runtime parameter "${token}" is required before execution.`);
       return `{{${token}}}`;
     }
 
-    return String(resolvedValue);
+    return normalizeEmbeddedTokenValue(token, resolvedValue, optionalFieldTokenIds);
   });
+}
+
+function canMaterializeTokenValue(
+  token: string,
+  value: unknown,
+  optionalFieldTokenIds: ReadonlySet<string>
+): boolean {
+  if (isMissingOptionalFieldToken(token, value, optionalFieldTokenIds)) {
+    return true;
+  }
+
+  return hasResolvedValue(value);
+}
+
+function normalizeFullTokenValue(
+  token: string,
+  value: unknown,
+  optionalFieldTokenIds: ReadonlySet<string>
+): unknown {
+  if (isMissingOptionalFieldToken(token, value, optionalFieldTokenIds)) {
+    return null;
+  }
+
+  return value;
+}
+
+function normalizeEmbeddedTokenValue(
+  token: string,
+  value: unknown,
+  optionalFieldTokenIds: ReadonlySet<string>
+): string {
+  if (isMissingOptionalFieldToken(token, value, optionalFieldTokenIds)) {
+    return '';
+  }
+
+  return String(value);
+}
+
+function isMissingOptionalFieldToken(
+  token: string,
+  value: unknown,
+  optionalFieldTokenIds: ReadonlySet<string>
+): boolean {
+  return optionalFieldTokenIds.has(token) && !hasResolvedValue(value);
 }
 
 function hasResolvedValue(value: unknown): boolean {
