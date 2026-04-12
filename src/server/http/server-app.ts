@@ -10,36 +10,32 @@ import {
 } from 'fastify-type-provider-zod';
 
 import type { AppConfig } from '../config/app-config.js';
-import {
-  createGenerationEventBus,
-  type GenerationEventBus
-} from '../generations/events.js';
-import { createGenerationStore, type GenerationStore } from '../generations/store.js';
-import {
-  type PresetCatalog,
-  createEmptyPresetCatalog
-} from '../presets/preset-catalog.js';
+import { type GenerationEventBus } from '../generations/events.js';
+import { type GenerationStore } from '../generations/store.js';
+import { type PresetCatalog } from '../presets/preset-catalog.js';
 import {
   createServerLogger,
   registerRequestLogging,
   type ServerLoggerOptions
 } from '../logging/server-logging.js';
+import { type AppRuntimeStatusService } from '../status/runtime-status.js';
+import { registerComfyRoutes } from './routes/comfy.js';
 import { registerEventRoutes } from './routes/events.js';
 import { registerGenerationRoutes } from './routes/generations.js';
 import { registerPresetRoutes } from './routes/presets.js';
 import { registerStatusRoutes } from './routes/status.js';
 
 export interface BuildServerOptions {
-  stateSince?: string;
+  presetCatalog: PresetCatalog;
+  generationStore: GenerationStore;
+  generationEventBus: GenerationEventBus;
+  runtimeStatus: Pick<AppRuntimeStatusService, 'getStatus' | 'start'>;
   config?: AppConfig;
-  presetCatalog?: PresetCatalog;
-  generationStore?: GenerationStore;
-  generationEventBus?: GenerationEventBus;
   logger?: ServerLoggerOptions;
   loggerInstance?: FastifyBaseLogger;
 }
 
-export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
+export function buildServer(options: BuildServerOptions): FastifyInstance {
   const app = Fastify({
     disableRequestLogging: true,
     loggerInstance: options.loggerInstance ?? createServerLogger(options.logger)
@@ -65,11 +61,6 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
   });
   void app.register(fastifyMultipart);
 
-  const stateSince = options.stateSince ?? new Date().toISOString();
-  const presetCatalog = options.presetCatalog ?? createEmptyPresetCatalog();
-  const generationStore = options.generationStore ?? createGenerationStore();
-  const generationEventBus = options.generationEventBus ?? createGenerationEventBus();
-
   app.after(() => {
     app.get(
       '/healthz',
@@ -86,15 +77,16 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
       },
       async () => ({ ok: true })
     );
-    registerStatusRoutes(app, stateSince);
-    registerPresetRoutes(app, presetCatalog);
+    registerStatusRoutes(app, options.runtimeStatus);
+    registerComfyRoutes(app, options.runtimeStatus);
+    registerPresetRoutes(app, options.presetCatalog);
     registerGenerationRoutes(app, {
       config: options.config,
-      presetCatalog,
-      store: generationStore,
-      eventBus: generationEventBus
+      presetCatalog: options.presetCatalog,
+      store: options.generationStore,
+      eventBus: options.generationEventBus
     });
-    registerEventRoutes(app, generationEventBus);
+    registerEventRoutes(app, options.generationEventBus);
   });
 
   return app;

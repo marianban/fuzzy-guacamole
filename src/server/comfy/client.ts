@@ -46,6 +46,7 @@ const systemStatsSchema = z.object({
 export interface ComfyClientOptions {
   baseUrl: string;
   fetchImpl?: typeof fetch;
+  requestTimeoutMs?: number;
   historyPollMs?: number;
   historyTimeoutMs?: number;
 }
@@ -91,22 +92,37 @@ interface ComfyRequestOptions {
 
 const DEFAULT_HISTORY_POLL_MS = 1_000;
 const DEFAULT_HISTORY_TIMEOUT_MS = 180_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 
 export class ComfyClient {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly requestTimeoutMs: number;
   private readonly historyPollMs: number;
   private readonly historyTimeoutMs: number;
 
   constructor(options: ComfyClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     this.historyPollMs = options.historyPollMs ?? DEFAULT_HISTORY_POLL_MS;
     this.historyTimeoutMs = options.historyTimeoutMs ?? DEFAULT_HISTORY_TIMEOUT_MS;
   }
 
-  async healthCheck(): Promise<ComfyHealthCheckResult> {
-    const response = await this.fetchImpl(this.buildUrl('/api/system_stats'));
+  async healthCheck(options: ComfyRequestOptions = {}): Promise<ComfyHealthCheckResult> {
+    const { signal, timeoutSignal } = this.createRequestSignal(options.signal);
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(this.buildUrl('/api/system_stats'), { signal });
+    } catch (error) {
+      if (timeoutSignal.aborted && !options.signal?.aborted) {
+        return { ok: false };
+      }
+
+      throw error;
+    }
+
     if (!response.ok) {
       return { ok: false };
     }
@@ -138,9 +154,7 @@ export class ComfyClient {
     return {
       promptId: parsed.prompt_id,
       ...(parsed.number !== undefined ? { queueNumber: parsed.number } : {}),
-      ...(parsed.node_errors !== undefined
-        ? { nodeErrors: parsed.node_errors }
-        : {})
+      ...(parsed.node_errors !== undefined ? { nodeErrors: parsed.node_errors } : {})
     };
   }
 
@@ -230,9 +244,11 @@ export class ComfyClient {
         return { history, entry };
       }
 
-      await sleep(pollMs, undefined, overrides.signal
-        ? { signal: overrides.signal }
-        : undefined);
+      await sleep(
+        pollMs,
+        undefined,
+        overrides.signal ? { signal: overrides.signal } : undefined
+      );
     }
 
     throw new Error(`History timeout for prompt ${promptId} after ${timeoutMs}ms.`);
@@ -266,7 +282,19 @@ export class ComfyClient {
   ): Promise<Buffer> {
     let lastFailure: Error | undefined;
     for (const relativePath of paths) {
-      const response = await this.fetchImpl(this.buildUrl(relativePath), init);
+      const { requestInit, timeoutSignal } = this.withRequestTimeout(init);
+      let response: Response;
+
+      try {
+        response = await this.fetchImpl(this.buildUrl(relativePath), requestInit);
+      } catch (error) {
+        if (timeoutSignal.aborted && !init?.signal?.aborted) {
+          throw new Error(`${actionLabel} timed out after ${this.requestTimeoutMs}ms.`);
+        }
+
+        throw error;
+      }
+
       if (response.ok) {
         return Buffer.from(await response.arrayBuffer());
       }
@@ -295,23 +323,34 @@ export class ComfyClient {
     let lastFailure: Error | undefined;
     for (const relativePath of paths) {
       const headers = {
-        ...(init?.body instanceof FormData
-          ? {}
-          : { 'Content-Type': 'application/json' }),
+        ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
         ...(init?.headers ?? {})
       };
 
-      const requestInit: RequestInit = {
+      const requestInitBase: RequestInit = {
         ...(init?.method !== undefined ? { method: init.method } : {}),
-        headers,
-        ...(init?.signal !== undefined ? { signal: init.signal } : {})
+        headers
       };
       if (init?.body !== undefined) {
-        requestInit.body =
+        requestInitBase.body =
           init.body instanceof FormData ? init.body : JSON.stringify(init.body);
       }
 
-      const response = await this.fetchImpl(this.buildUrl(relativePath), requestInit);
+      const { requestInit, timeoutSignal } = this.withRequestTimeout({
+        ...requestInitBase,
+        ...(init?.signal !== undefined ? { signal: init.signal } : {})
+      });
+
+      let response: Response;
+      try {
+        response = await this.fetchImpl(this.buildUrl(relativePath), requestInit);
+      } catch (error) {
+        if (timeoutSignal.aborted && !init?.signal?.aborted) {
+          throw new Error(`${actionLabel} timed out after ${this.requestTimeoutMs}ms.`);
+        }
+
+        throw error;
+      }
 
       if (response.ok) {
         const contentType = response.headers.get('content-type') ?? '';
@@ -349,6 +388,34 @@ export class ComfyClient {
 
   private buildUrl(relativePath: string): string {
     return `${this.baseUrl}${relativePath.startsWith('/') ? '' : '/'}${relativePath}`;
+  }
+
+  private createRequestSignal(signal: AbortSignal | undefined): {
+    signal: AbortSignal;
+    timeoutSignal: AbortSignal;
+  } {
+    const timeoutSignal = AbortSignal.timeout(this.requestTimeoutMs);
+
+    return {
+      signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
+      timeoutSignal
+    };
+  }
+
+  private withRequestTimeout(init: RequestInit | undefined): {
+    requestInit: RequestInit;
+    timeoutSignal: AbortSignal;
+  } {
+    const requestSignal = init?.signal ?? undefined;
+    const { signal, timeoutSignal } = this.createRequestSignal(requestSignal);
+
+    return {
+      requestInit: {
+        ...(init ?? {}),
+        signal
+      },
+      timeoutSignal
+    };
   }
 }
 

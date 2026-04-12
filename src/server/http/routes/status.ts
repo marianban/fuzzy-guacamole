@@ -2,8 +2,12 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 
 import { appStatusResponseSchema } from '../../../shared/status.js';
+import type { AppRuntimeStatusService } from '../../status/runtime-status.js';
 
-export function registerStatusRoutes(app: FastifyInstance, stateSince: string): void {
+export function registerStatusRoutes(
+  app: FastifyInstance,
+  runtimeStatus: Pick<AppRuntimeStatusService, 'getStatus'>
+): void {
   app.withTypeProvider<ZodTypeProvider>().get(
     '/api/status',
     {
@@ -16,10 +20,7 @@ export function registerStatusRoutes(app: FastifyInstance, stateSince: string): 
       }
     },
     async () => {
-      return appStatusResponseSchema.parse({
-        state: 'Starting',
-        since: stateSince
-      });
+      return appStatusResponseSchema.parse(runtimeStatus.getStatus());
     }
   );
 }

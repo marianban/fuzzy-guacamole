@@ -3,10 +3,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildServer } from './server-app.js';
+import { createBuildServerOptions } from '../test-support/build-server-options.js';
 
 describe('openapi documentation', () => {
   it('given_server_when_requesting_openapi_json_then_contains_api_endpoints', async () => {
-    const app = buildServer();
+    const app = buildServer(createBuildServerOptions());
 
     const response = await app.inject({
       method: 'GET',
@@ -22,6 +23,7 @@ describe('openapi documentation', () => {
     expect(payload.paths).toMatchObject({
       '/healthz': expect.any(Object),
       '/api/status': expect.any(Object),
+      '/api/comfy/start': expect.any(Object),
       '/api/presets': expect.any(Object),
       '/api/presets/{*}': expect.any(Object),
       '/api/generations': expect.any(Object),

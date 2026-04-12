@@ -88,6 +88,48 @@ describe('ComfyClient', () => {
     await expect(badSchemaClient.healthCheck()).resolves.toEqual({ ok: false });
   });
 
+  it('given_healthcheck_request_times_out_when_running_healthcheck_then_false_is_returned', async () => {
+    const fetchImpl: typeof fetch = async (_input, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          'abort',
+          () => {
+            reject(createAbortError());
+          },
+          { once: true }
+        );
+      });
+    const client = new ComfyClient({
+      baseUrl: 'http://localhost:8188',
+      fetchImpl,
+      requestTimeoutMs: 1
+    });
+
+    await expect(client.healthCheck()).resolves.toEqual({ ok: false });
+  });
+
+  it('given_request_times_out_when_submitting_prompt_then_timeout_error_is_thrown', async () => {
+    const fetchImpl: typeof fetch = async (_input, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          'abort',
+          () => {
+            reject(createAbortError());
+          },
+          { once: true }
+        );
+      });
+    const client = new ComfyClient({
+      baseUrl: 'http://localhost:8188',
+      fetchImpl,
+      requestTimeoutMs: 1
+    });
+
+    await expect(client.submitPrompt({ foo: 'bar' })).rejects.toThrow(
+      'submit prompt timed out after 1ms.'
+    );
+  });
+
   it('given_prompt_fallback_when_primary_endpoint_404_then_secondary_endpoint_is_used', async () => {
     const calls: { url: string; body: unknown }[] = [];
     const fetchImpl: typeof fetch = async (input, init) => {
@@ -127,9 +169,13 @@ describe('ComfyClient', () => {
   });
 
   it('given_abort_signal_when_submitting_prompt_then_fetch_receives_the_same_signal', async () => {
-    const signal = new AbortController().signal;
+    const controller = new AbortController();
+    const signal = controller.signal;
     const fetchImpl: typeof fetch = vi.fn(async (_input, init) => {
-      expect(init?.signal).toBe(signal);
+      expect(init?.signal).toBeDefined();
+      expect(init?.signal).not.toBe(signal);
+      controller.abort();
+      expect(init?.signal?.aborted).toBe(true);
       return createJsonResponse({
         body: { prompt_id: 'prompt-1' }
       });
@@ -293,7 +339,9 @@ describe('ComfyClient', () => {
       client.downloadImage({
         filename: 'result.png'
       })
-    ).rejects.toThrow('download image result.png failed at /api/view?filename=result.png: 500 cannot read file');
+    ).rejects.toThrow(
+      'download image result.png failed at /api/view?filename=result.png: 500 cannot read file'
+    );
   });
 });
 
@@ -333,7 +381,9 @@ describe('Comfy client helpers', () => {
     const history: Record<string, { outputs?: Record<string, unknown> | undefined }> = {
       p1: {
         outputs: {
-          '10': { images: [{ filename: 'late.png', subfolder: 'output', type: 'output' }] },
+          '10': {
+            images: [{ filename: 'late.png', subfolder: 'output', type: 'output' }]
+          },
           '3': { gifs: [{ filename: 'early.gif' }] },
           alpha: { audio: [{ filename: 'clip.wav' }] }
         }
@@ -377,3 +427,9 @@ describe('Comfy client helpers', () => {
     );
   });
 });
+
+function createAbortError(): Error {
+  const error = new Error('The operation was aborted.');
+  error.name = 'AbortError';
+  return error;
+}

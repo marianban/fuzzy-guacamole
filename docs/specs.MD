@@ -472,20 +472,22 @@ UI generation rules:
 ### Status
 
 States:
+- Offline
 - Starting
 - Online
-- Offline
+- StartupFailed
 
 Notes:
+- `Offline` means no startup attempt is in progress. This is the default state on app boot until the user explicitly initiates startup.
+- `Starting` means an explicit user-initiated startup sequence is in progress.
 - `Online` means ComfyUI responds successfully to `GET /api/system_stats` (see readiness below) with the required fields.
-- `Starting` means the backend is actively trying to bring the remote machine + ComfyUI online (WOL/SSH/start/poll).
-- `Offline` means no bring-up is in progress and ComfyUI is not currently reachable.
+- `StartupFailed` means the latest explicit startup attempt ended unsuccessfully and `lastError` describes the failure.
 
 Recommended response shape (v1):
-- `state`: `Starting | Online | Offline`
+- `state`: `Offline | Starting | Online | StartupFailed`
 - `lastError`: optional string
 - `since`: timestamp for current state
-- `comfy`: optional object populated when `Online` (and optionally best-effort while `Starting`):
+- `comfy`: optional object populated when `Online`:
   - `comfyuiVersion` (from `/api/system_stats.system.comfyui_version`)
   - `pytorchVersion` (from `/api/system_stats.system.pytorch_version`)
   - `devices[]`: `name`, `type`, `vram_total`, `vram_free` (when provided)
@@ -557,17 +559,18 @@ Re-run behavior:
 
 ## 8) Backend behavior
 
-- Backend ensures ComfyUI availability transparently
-- Uses WOL + SSH + polling
-- No public ensure-online API
-- Bring-up flow (v1):
-  1. Send WOL packet.
-  2. Poll until the remote machine is reachable via SSH (successful auth + can run a trivial command).
-  3. Start ComfyUI on the remote machine via SSH by running the configured `remoteStart.startComfyCommand` in the background (detached from the SSH session).
-  4. Poll ComfyUI readiness via `GET /api/system_stats` until success or timeout.
+- Backend does not auto-start ComfyUI on app boot.
+- A user must explicitly initiate startup through `POST /api/comfy/start`.
+- Current startup flow (this version):
+  1. Transition app status from `Offline` to `Starting`.
+  2. Poll ComfyUI readiness via `GET /api/system_stats` until success or timeout.
+  3. Transition to `Online` on success or `StartupFailed` on failure.
+- Future versions may extend the explicit startup action with WOL, SSH, and remote process launch, but that is out of scope for the current implementation.
 - Implementation requirements:
-  - Must be idempotent: if ComfyUI is already ready, do not start a new instance.
-  - Must be concurrency-safe: multiple callers share the same in-flight bring-up attempt (single-flight).
+  - Must be idempotent: if ComfyUI is already ready, do not start a new startup attempt.
+  - Must be concurrency-safe: multiple callers share the same in-flight startup attempt (single-flight).
+  - `GET /api/status` is observational only and must not initiate startup.
+  - Internal execution gates may wait on an in-flight `Starting` attempt, but must not implicitly move `Offline` to `Starting`.
 
 ---
 
@@ -684,6 +687,7 @@ All API endpoints must be documented in the OpenAPI Specification.
 
 ### REST endpoints
 - `GET /api/status`
+- `POST /api/comfy/start`
 - `GET /api/presets`
 - `GET /api/presets/{presetId}`
 - `GET /api/generations`

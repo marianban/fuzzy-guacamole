@@ -18,15 +18,23 @@ Milestone 1 scaffold for the LAN-only Comfy Frontend Orchestrator.
    - `http://localhost:5173`
 4. Check API status endpoint:
    - `http://localhost:3000/api/status`
+5. Start the Comfy readiness sequence explicitly when needed:
+   - `POST http://localhost:3000/api/comfy/start`
 
-Expected `/api/status` response shape:
+Expected initial `/api/status` response shape:
 
 ```json
 {
-  "state": "Starting",
+  "state": "Offline",
   "since": "2026-02-22T10:00:00.000Z"
 }
 ```
+
+Status lifecycle for the current implementation:
+
+- The app boots into `Offline` and does not auto-start ComfyUI.
+- `POST /api/comfy/start` moves the app into `Starting` and begins a bounded readiness probe.
+- Status then transitions to `Online` on success or `StartupFailed` with `lastError` when readiness is not confirmed.
 
 ## Scripts
 

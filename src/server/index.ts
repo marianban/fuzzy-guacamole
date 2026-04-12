@@ -10,6 +10,7 @@ import { createPostgresGenerationStore } from './generations/store.js';
 import { createGenerationWorker } from './generations/worker.js';
 import { createServerLogger } from './logging/server-logging.js';
 import { loadPresetCatalog } from './presets/preset-catalog.js';
+import { createAppRuntimeStatusService } from './status/runtime-status.js';
 
 try {
   process.loadEnvFile?.();
@@ -45,6 +46,13 @@ try {
     baseUrl: config.comfyBaseUrl,
     historyPollMs: config.timeouts.historyPollMs
   });
+  const runtimeStatus = createAppRuntimeStatusService({
+    comfyClient,
+    healthPollMs: config.timeouts.healthPollMs,
+    startupTimeoutMs: config.timeouts.comfyBootMs,
+    logger,
+    now: () => new Date()
+  });
   const generationWorker = createGenerationWorker({
     eventBus: generationEventBus,
     store: generationStore,
@@ -53,6 +61,7 @@ try {
       presetCatalog,
       comfyClient,
       config,
+      runtimeStatus,
       logger
     }),
     pollIntervalMs: config.timeouts.historyPollMs,
@@ -65,10 +74,12 @@ try {
     presetCatalog,
     generationStore,
     generationEventBus,
+    runtimeStatus,
     loggerInstance: logger
   });
   app.addHook('onClose', async () => {
     await generationWorker.stop();
+    await runtimeStatus.stop();
     await database.close();
   });
 

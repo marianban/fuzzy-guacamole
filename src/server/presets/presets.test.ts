@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { buildServer } from '../http/server-app.js';
+import { createBuildServerOptions } from '../test-support/build-server-options.js';
 import { loadPresetCatalog } from './preset-catalog.js';
 
 async function writeJsonFile(filePath: string, value: unknown): Promise<void> {
@@ -107,7 +108,11 @@ describe('preset loading and routes', () => {
       }
     ]);
 
-    const app = buildServer({ presetCatalog: catalog });
+    const app = buildServer(
+      createBuildServerOptions({
+        presetCatalog: catalog
+      })
+    );
     const listResponse = await app.inject({
       method: 'GET',
       url: '/api/presets'

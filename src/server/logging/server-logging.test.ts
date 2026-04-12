@@ -8,11 +8,11 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
-import type { BuildServerOptions } from '../http/server-app.js';
 import { buildServer } from '../http/server-app.js';
 import { loadAppConfig } from '../config/app-config.js';
 import type { GenerationStore } from '../generations/store.js';
 import { createPresetCatalog } from '../presets/preset-catalog.js';
+import { createBuildServerOptions } from '../test-support/build-server-options.js';
 import { generationSchema, type Generation } from '../../shared/generations.js';
 
 type LogEntry = Record<string, unknown> & {
@@ -46,14 +46,16 @@ describe.sequential('server logging', () => {
     const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-logging-'));
     tempDirs.push(tempDir);
     const logs = createLogCollector();
-    const app = buildServer({
-      config: await loadTestConfig(tempDir),
-      presetCatalog: createTestCatalog(),
-      logger: {
-        level: 'info',
-        stream: logs.stream
-      }
-    } as BuildServerOptions);
+    const app = buildServer(
+      createBuildServerOptions({
+        config: await loadTestConfig(tempDir),
+        presetCatalog: createTestCatalog(),
+        logger: {
+          level: 'info',
+          stream: logs.stream
+        }
+      })
+    );
 
     try {
       const response = await app.inject({
@@ -103,14 +105,16 @@ describe.sequential('server logging', () => {
     const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-logging-'));
     tempDirs.push(tempDir);
     const logs = createLogCollector();
-    const app = buildServer({
-      config: await loadTestConfig(tempDir),
-      presetCatalog: createTestCatalog(),
-      logger: {
-        level: 'info',
-        stream: logs.stream
-      }
-    } as BuildServerOptions);
+    const app = buildServer(
+      createBuildServerOptions({
+        config: await loadTestConfig(tempDir),
+        presetCatalog: createTestCatalog(),
+        logger: {
+          level: 'info',
+          stream: logs.stream
+        }
+      })
+    );
 
     try {
       const generation = await createGenerationWithInject(app);
@@ -154,14 +158,16 @@ describe.sequential('server logging', () => {
     const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-logging-'));
     tempDirs.push(tempDir);
     const logs = createLogCollector();
-    const app = buildServer({
-      config: await loadTestConfig(tempDir),
-      presetCatalog: createTestCatalog(),
-      logger: {
-        level: 'info',
-        stream: logs.stream
-      }
-    } as BuildServerOptions);
+    const app = buildServer(
+      createBuildServerOptions({
+        config: await loadTestConfig(tempDir),
+        presetCatalog: createTestCatalog(),
+        logger: {
+          level: 'info',
+          stream: logs.stream
+        }
+      })
+    );
 
     try {
       const generationId = '11111111-1111-4111-8111-111111111111';
@@ -189,15 +195,17 @@ describe.sequential('server logging', () => {
     const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-logging-'));
     tempDirs.push(tempDir);
     const logs = createLogCollector();
-    const app = buildServer({
-      config: await loadTestConfig(tempDir),
-      presetCatalog: createTestCatalog(),
-      generationStore: createFailingGenerationStore(),
-      logger: {
-        level: 'info',
-        stream: logs.stream
-      }
-    } as BuildServerOptions);
+    const app = buildServer(
+      createBuildServerOptions({
+        config: await loadTestConfig(tempDir),
+        presetCatalog: createTestCatalog(),
+        generationStore: createFailingGenerationStore(),
+        logger: {
+          level: 'info',
+          stream: logs.stream
+        }
+      })
+    );
 
     try {
       const response = await app.inject({

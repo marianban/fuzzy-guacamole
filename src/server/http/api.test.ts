@@ -4,13 +4,15 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { z } from 'zod';
 
-import type { BuildServerOptions } from './server-app.js';
+import { appStatusResponseSchema } from '../../shared/status.js';
 import { buildServer } from './server-app.js';
 import { loadAppConfig } from '../config/app-config.js';
 import { createPresetCatalog } from '../presets/preset-catalog.js';
+import type { AppRuntimeStatusService } from '../status/runtime-status.js';
+import { createBuildServerOptions } from '../test-support/build-server-options.js';
 import { generationSchema } from '../../shared/generations.js';
 
 const openApiDocumentSchema = z.object({
@@ -24,10 +26,10 @@ describe.sequential('API unit (memory)', () => {
   beforeAll(async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'fg-api-memory-'));
     const config = await loadTestConfig(tempDir);
-    const options: BuildServerOptions = {
+    const options = createBuildServerOptions({
       config,
       presetCatalog: createTestCatalog()
-    };
+    });
     app = buildServer(options);
   });
 
@@ -115,7 +117,90 @@ describe.sequential('API unit (memory)', () => {
     expect(path.basename(inputImagePath)).toBe('input.bin');
     await expect(readFile(inputImagePath)).resolves.toEqual(fileBuffer);
   });
+
+  test('given_runtime_status_service_when_requesting_status_then_live_state_is_returned', async () => {
+    const runtimeStatus = createRuntimeStatusStub({
+      current: {
+        state: 'Offline',
+        since: '2026-04-11T09:00:00.000Z'
+      },
+      started: {
+        state: 'Starting',
+        since: '2026-04-11T09:05:00.000Z'
+      }
+    });
+    const statusApp = buildServer(
+      createBuildServerOptions({
+        config: await loadTestConfig(tempDir),
+        presetCatalog: createTestCatalog(),
+        runtimeStatus
+      })
+    );
+
+    try {
+      const response = await statusApp.inject({
+        method: 'GET',
+        url: '/api/status'
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual(runtimeStatus.current);
+      expect(runtimeStatus.getStatus).toHaveBeenCalledTimes(1);
+    } finally {
+      await statusApp.close();
+    }
+  });
+
+  test('given_runtime_status_service_when_starting_comfy_then_current_starting_state_is_returned', async () => {
+    const runtimeStatus = createRuntimeStatusStub({
+      current: {
+        state: 'Offline',
+        since: '2026-04-11T09:00:00.000Z'
+      },
+      started: {
+        state: 'Starting',
+        since: '2026-04-11T09:05:00.000Z'
+      }
+    });
+    const statusApp = buildServer(
+      createBuildServerOptions({
+        config: await loadTestConfig(tempDir),
+        presetCatalog: createTestCatalog(),
+        runtimeStatus
+      })
+    );
+
+    try {
+      const response = await statusApp.inject({
+        method: 'POST',
+        url: '/api/comfy/start'
+      });
+
+      expect(response.statusCode).toBe(202);
+      expect(response.json()).toEqual(runtimeStatus.started);
+      expect(runtimeStatus.start).toHaveBeenCalledTimes(1);
+    } finally {
+      await statusApp.close();
+    }
+  });
 });
+
+function createRuntimeStatusStub(values: {
+  current: z.infer<typeof appStatusResponseSchema>;
+  started: z.infer<typeof appStatusResponseSchema>;
+}) {
+  const runtimeStatus: Pick<AppRuntimeStatusService, 'getStatus' | 'start'> & {
+    current: z.infer<typeof appStatusResponseSchema>;
+    started: z.infer<typeof appStatusResponseSchema>;
+  } = {
+    current: appStatusResponseSchema.parse(values.current),
+    started: appStatusResponseSchema.parse(values.started),
+    getStatus: vi.fn(() => appStatusResponseSchema.parse(values.current)),
+    start: vi.fn(async () => appStatusResponseSchema.parse(values.started))
+  };
+
+  return runtimeStatus;
+}
 
 async function createGenerationWithInject(
   app: ReturnType<typeof buildServer>,

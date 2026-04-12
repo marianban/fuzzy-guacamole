@@ -36,6 +36,12 @@ export function App() {
             <dd>{data.state}</dd>
             <dt>Since</dt>
             <dd>{new Date(data.since).toLocaleString()}</dd>
+            {data.lastError !== undefined && (
+              <>
+                <dt>Last Error</dt>
+                <dd>{data.lastError}</dd>
+              </>
+            )}
           </dl>
         )}
       </section>

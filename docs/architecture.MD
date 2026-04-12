@@ -56,6 +56,7 @@ flowchart TD
   Start --> Worker["createGenerationWorker()"]
   Build --> Health["GET /healthz"]
   Build --> Status["GET /api/status"]
+  Build --> ComfyStart["POST /api/comfy/start"]
   Build --> PresetsList["GET /api/presets"]
   Build --> PresetsDetail["GET /api/presets/*"]
   Build --> GenerationsList["GET /api/generations"]
@@ -68,7 +69,8 @@ flowchart TD
   Build --> GenerationEvents["GET /api/events/generations (SSE)"]
   Build --> OpenApiJson["GET /openapi/json"]
   Build --> OpenApiUi["GET /openapi"]
-  Status --> Payload["state: Starting<br/>since: startup timestamp"]
+  Status --> Payload["state: Offline|Starting|Online|StartupFailed<br/>since: transition timestamp"]
+  ComfyStart --> StartupTransition["Offline -> Starting -> Online|StartupFailed"]
   PresetsList --> PresetPayload["preset summaries only"]
   PresetsDetail --> PresetDetailPayload["preset summary + template workflow + model metadata"]
   GenerationCreate --> GenerationPayload["status=draft<br/>templateId resolved from preset<br/>model-backed param validation"]
@@ -85,7 +87,8 @@ flowchart TD
 
 Implemented routes:
 - `GET /healthz` -> `{ ok: true }`
-- `GET /api/status` -> status payload validated via shared Zod schema
+- `GET /api/status` -> live runtime status payload validated via shared Zod schema
+- `POST /api/comfy/start` -> initiates or joins the explicit startup sequence and returns current startup state
 - `GET /api/presets` -> preset metadata list loaded from disk at startup
 - `GET /api/presets/{presetId}` -> wildcard-backed route (`/api/presets/*`) returning metadata + resolved template + resolved `model.json`
 - `GET /api/generations` -> generation list ordered by `createdAt` descending
@@ -244,5 +247,5 @@ flowchart TD
   T --> C
 ```
 
-The Comfy client has integration tests and endpoint-fallback handling, but current Fastify routes do not call it.
+The Comfy client has integration tests and endpoint-fallback handling. The runtime status service now uses it for readiness polling behind `GET /api/status` and `POST /api/comfy/start`.
 The generation processor now uses this client directly for upload, submit, history polling, interrupt, and output download. The routes also use it for submitted cancellation via interrupt.

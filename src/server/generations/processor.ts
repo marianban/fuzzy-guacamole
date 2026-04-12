@@ -8,6 +8,7 @@ import {
   setLoadImageReference,
   type ComfyClient
 } from '../comfy/client.js';
+import type { AppRuntimeStatusService } from '../status/runtime-status.js';
 import type { PresetCatalog } from '../presets/preset-catalog.js';
 import {
   buildGenerationExecution,
@@ -47,9 +48,7 @@ export interface GenerationProcessorOptions {
     'uploadInputImage' | 'submitPrompt' | 'pollHistory' | 'downloadImage'
   >;
   config: Pick<AppConfig, 'paths' | 'timeouts'>;
-  readiness?: {
-    ensureReady(): Promise<void>;
-  };
+  runtimeStatus?: Pick<AppRuntimeStatusService, 'ensureOnline'>;
   logger?: FastifyBaseLogger;
   now?: () => Date;
 }
@@ -76,7 +75,7 @@ class DefaultGenerationProcessor implements GenerationProcessor {
   readonly #presetCatalog: PresetCatalog;
   readonly #comfyClient: GenerationProcessorOptions['comfyClient'];
   readonly #config: Pick<AppConfig, 'paths' | 'timeouts'>;
-  readonly #readiness: GenerationProcessorOptions['readiness'];
+  readonly #runtimeStatus: GenerationProcessorOptions['runtimeStatus'];
   readonly #logger: FastifyBaseLogger | undefined;
   readonly #now: () => Date;
 
@@ -85,7 +84,7 @@ class DefaultGenerationProcessor implements GenerationProcessor {
     this.#presetCatalog = options.presetCatalog;
     this.#comfyClient = options.comfyClient;
     this.#config = options.config;
-    this.#readiness = options.readiness;
+    this.#runtimeStatus = options.runtimeStatus;
     this.#logger = options.logger;
     this.#now = options.now ?? (() => new Date());
   }
@@ -97,7 +96,7 @@ class DefaultGenerationProcessor implements GenerationProcessor {
     try {
       throwIfAborted(signal);
       await this.#ensureGenerationActive(generation.id);
-      await this.#readiness?.ensureReady();
+      await this.#runtimeStatus?.ensureOnline();
       throwIfAborted(signal);
 
       const preset = this.#presetCatalog.getById(generation.presetId);

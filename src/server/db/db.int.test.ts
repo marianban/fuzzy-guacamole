@@ -13,7 +13,12 @@ import { createGenerationProcessor } from '../generations/processor.js';
 import { createGenerationWorker } from '../generations/worker.js';
 import { createPostgresGenerationStore } from '../generations/store.js';
 import { createPresetCatalog } from '../presets/preset-catalog.js';
+import { createBuildServerOptions } from '../test-support/build-server-options.js';
 import { createTestDatabaseContext } from './test-database-context.js';
+
+function buildTestServer(options: Parameters<typeof createBuildServerOptions>[0]) {
+  return buildServer(createBuildServerOptions(options));
+}
 
 describe('postgres-backed generations', () => {
   const tempDirs: string[] = [];
@@ -106,7 +111,7 @@ describe('postgres-backed generations', () => {
 
     try {
       const firstDatabase = testDatabase.createAppDatabase();
-      const firstApp = buildServer({
+      const firstApp = buildTestServer({
         config,
         presetCatalog,
         generationStore: createPostgresGenerationStore(firstDatabase)
@@ -129,7 +134,7 @@ describe('postgres-backed generations', () => {
       await firstDatabase.close();
 
       const secondDatabase = testDatabase.createAppDatabase();
-      const secondApp = buildServer({
+      const secondApp = buildTestServer({
         config,
         presetCatalog,
         generationStore: createPostgresGenerationStore(secondDatabase)
@@ -165,7 +170,7 @@ describe('postgres-backed generations', () => {
 
     try {
       const database = testDatabase.createAppDatabase();
-      const app = buildServer({
+      const app = buildTestServer({
         config,
         presetCatalog,
         generationStore: createPostgresGenerationStore(database)
@@ -231,7 +236,7 @@ describe('postgres-backed generations', () => {
       const database = testDatabase.createAppDatabase();
       const generationStore = createPostgresGenerationStore(database);
       const eventBus = createGenerationEventBus();
-      const app = buildServer({
+      const app = buildTestServer({
         config,
         presetCatalog,
         generationStore,
@@ -295,7 +300,7 @@ describe('postgres-backed generations', () => {
       const database = testDatabase.createAppDatabase();
       const generationStore = createPostgresGenerationStore(database);
       const eventBus = createGenerationEventBus();
-      const app = buildServer({
+      const app = buildTestServer({
         config,
         presetCatalog,
         generationStore,
@@ -416,7 +421,7 @@ describe('postgres-backed generations', () => {
 
     try {
       const firstDatabase = testDatabase.createAppDatabase();
-      const firstApp = buildServer({
+      const firstApp = buildTestServer({
         config,
         presetCatalog,
         generationStore: createPostgresGenerationStore(firstDatabase)
@@ -452,7 +457,7 @@ describe('postgres-backed generations', () => {
       await firstDatabase.close();
 
       const secondDatabase = testDatabase.createAppDatabase();
-      const secondApp = buildServer({
+      const secondApp = buildTestServer({
         config,
         presetCatalog,
         generationStore: createPostgresGenerationStore(secondDatabase)

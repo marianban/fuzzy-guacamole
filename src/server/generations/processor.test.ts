@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { AppConfig } from '../config/app-config.js';
+import type { AppRuntimeStatusService } from '../status/runtime-status.js';
 import { createStoredGeneration, type StoredGeneration } from './stored-generation.js';
 import { createGenerationProcessor } from './processor.js';
 import { createPresetCatalog } from '../presets/preset-catalog.js';
@@ -94,9 +95,9 @@ describe('createGenerationProcessor', () => {
         downloadImage
       },
       config: createTestConfig(root),
-      readiness: {
-        ensureReady: vi.fn(async () => undefined)
-      },
+      runtimeStatus: createRuntimeStatusStub({
+        ensureOnline: vi.fn(async () => undefined)
+      }),
       now: () => new Date('2026-04-07T10:15:16.000Z')
     });
 
@@ -253,6 +254,61 @@ describe('createGenerationProcessor', () => {
       error: expect.stringMatching(/invalid sampler inputs/i)
     });
     expect(submitPrompt).toHaveBeenCalledTimes(1);
+  });
+
+  it('given_readiness_gate_rejects_when_processed_then_generation_fails_before_comfy_calls_begin', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
+    tempDirs.push(root);
+
+    const store = createTestStore(
+      createTestGeneration({
+        presetParams: {
+          prompt: 'manual startup required',
+          steps: 5,
+          seedMode: 'fixed',
+          seed: 123
+        }
+      })
+    );
+    const ensureOnline = vi.fn(async () => {
+      throw new Error('ComfyUI startup has not been initiated.');
+    });
+
+    const processor = createGenerationProcessor({
+      store,
+      presetCatalog: createPresetCatalog(
+        [createPresetSummary('txt2img')],
+        new Map([[createPresetDetail('txt2img').id, createPresetDetail('txt2img')]])
+      ),
+      comfyClient: {
+        uploadInputImage: vi.fn(async () => {
+          throw new Error('should not upload');
+        }),
+        submitPrompt: vi.fn(async () => {
+          throw new Error('should not submit');
+        }),
+        pollHistory: vi.fn(async () => {
+          throw new Error('should not poll history');
+        }),
+        downloadImage: vi.fn(async () => {
+          throw new Error('should not download');
+        })
+      },
+      config: createTestConfig(root),
+      runtimeStatus: createRuntimeStatusStub({ ensureOnline })
+    });
+
+    const result = await processor.process({
+      ...store.current,
+      presetId: 'txt2img-basic/basic',
+      templateId: 'txt2img-basic'
+    });
+
+    expect(result).toEqual({
+      status: 'failed',
+      error: 'ComfyUI startup has not been initiated.'
+    });
+    expect(ensureOnline).toHaveBeenCalledTimes(1);
   });
 
   it('given_generation_is_canceled_during_execution_when_processed_then_processor_returns_canceled', async () => {
@@ -630,6 +686,14 @@ function createTestStore(initial: StoredGeneration) {
       };
       return state.current;
     }
+  };
+}
+
+function createRuntimeStatusStub(
+  overrides: Partial<Pick<AppRuntimeStatusService, 'ensureOnline'>> = {}
+): Pick<AppRuntimeStatusService, 'ensureOnline'> {
+  return {
+    ensureOnline: overrides.ensureOnline ?? (async () => undefined)
   };
 }
 

@@ -9,7 +9,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildServer } from '../http/server-app.js';
 import { loadAppConfig } from '../config/app-config.js';
 import { createPresetCatalog } from '../presets/preset-catalog.js';
+import { createBuildServerOptions } from '../test-support/build-server-options.js';
 import { createGenerationStore } from './store.js';
+
+function buildTestServer(options: Parameters<typeof createBuildServerOptions>[0]) {
+  return buildServer(createBuildServerOptions(options));
+}
 
 async function loadTestConfig(root: string) {
   const configPath = path.join(root, 'config.json');
@@ -240,7 +245,7 @@ describe('generation routes', () => {
     await mkdir(root, { recursive: true });
     const config = await loadTestConfig(root);
 
-    const app = buildServer({
+    const app = buildTestServer({
       config,
       presetCatalog: createCatalog()
     });
@@ -295,7 +300,7 @@ describe('generation routes', () => {
     await mkdir(root, { recursive: true });
     const config = await loadTestConfig(root);
 
-    const app = buildServer({
+    const app = buildTestServer({
       config,
       presetCatalog: createCatalog()
     });
@@ -336,7 +341,7 @@ describe('generation routes', () => {
     await mkdir(root, { recursive: true });
     const config = await loadTestConfig(root);
 
-    const app = buildServer({
+    const app = buildTestServer({
       config,
       presetCatalog: createCatalog()
     });
@@ -410,7 +415,7 @@ describe('generation routes', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const app = buildServer({
+    const app = buildTestServer({
       config,
       presetCatalog: createCatalog(),
       generationStore: store
@@ -479,7 +484,7 @@ describe('generation routes', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const app = buildServer({
+    const app = buildTestServer({
       config,
       presetCatalog: createCatalog(),
       generationStore: store
@@ -541,7 +546,7 @@ describe('generation routes', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const app = buildServer({
+    const app = buildTestServer({
       config,
       presetCatalog: createCatalog(),
       generationStore: store
@@ -571,7 +576,7 @@ describe('generation routes', () => {
     await mkdir(root, { recursive: true });
     const config = await loadTestConfig(root);
 
-    const app = buildServer({
+    const app = buildTestServer({
       config,
       presetCatalog: createCatalog()
     });
@@ -628,7 +633,7 @@ describe('generation routes', () => {
     await mkdir(root, { recursive: true });
     const config = await loadTestConfig(root);
 
-    const app = buildServer({
+    const app = buildTestServer({
       config,
       presetCatalog: createCatalog()
     });
@@ -659,7 +664,7 @@ describe('generation routes', () => {
     await mkdir(root, { recursive: true });
     const config = await loadTestConfig(root);
 
-    const app = buildServer({
+    const app = buildTestServer({
       config,
       presetCatalog: createCatalogRequiringInput()
     });
@@ -725,7 +730,7 @@ describe('generation routes', () => {
       }
     };
 
-    const app = buildServer({
+    const app = buildTestServer({
       config: configWithOutputRoot,
       presetCatalog: createCatalog(),
       generationStore: store

@@ -68,31 +68,35 @@ Mobile/tablet behavior:
 ## 6. Global system states
 
 The app has app-wide readiness states:
-- `Starting`: full-page loader, no editing interaction.
+- `Offline`: default boot state, blocking startup state with diagnostics, preserved draft context, and an explicit start action.
+- `Starting`: full-page loader after the user initiates startup; no editing interaction.
 - `Online`: workspace fully interactive.
-- `Offline`: blocking offline state with retry/status diagnostics and preserved draft context.
+- `StartupFailed`: blocking failure state with preserved draft context, `lastError`, and a retry start action.
 
 State behavior:
-1. `Starting` uses full-page loader (required by product spec).
-2. `Offline` preserves current draft content locally and explains next recovery action.
-3. Transitions are animated subtly (fade/slide 150-250ms).
+1. `Offline` is the initial state on app boot and explains that the user must start Comfy before the workspace becomes interactive.
+2. `Starting` uses full-page loader after the explicit start action is triggered.
+3. `StartupFailed` preserves current draft content locally and surfaces the latest startup error with a retry action.
+4. Transitions are animated subtly (fade/slide 150-250ms).
 
 ## 6.1 Screen states
 
 Design the primary workspace for these user-visible screen states:
 
-1. Loading state (`Starting`)
-  - User point of view: "I just opened the app and need immediate confirmation that the workspace is loading and connecting. I should understand that the system is not ready yet, not that it is broken."
-2. Blank state (no generation yet)
+1. Offline boot state (`Offline`)
+  - User point of view: "I just opened the app and need to understand that the system is idle, not broken. I should see that Comfy is not started yet and have one clear action to begin startup."
+2. Loading state (`Starting`)
+  - User point of view: "I started Comfy and need immediate confirmation that the startup sequence is in progress. I should understand that the system is not ready yet, not that it is broken."
+3. Blank state (no generation yet)
   - User point of view: "I have not generated anything yet, so I need a clear first step. The screen should guide me toward choosing a preset, entering a prompt, and optionally uploading an image without feeling empty or intimidating."
-3. In-progress state (`queued` or `submitted`)
+4. In-progress state (`queued` or `submitted`)
   - User point of view: "My request is in motion and I need to know whether it is waiting or actively running. I should be able to track progress, keep my context, and cancel if needed."
-4. Ideal state (`completed` with image generated)
+5. Ideal state (`completed` with image generated)
   - User point of view: "My image is ready and should become the center of attention immediately. I need to review it, compare it, inspect details, and iterate again without losing momentum."
-5. Error state (`failed` or operational error)
+6. Error state (`failed` or operational error)
   - User point of view: "Something went wrong, such as a network issue or backend failure, but I should not lose my work. The screen should explain what happened in plain language and show the next safe action, such as retrying, reconnecting, or checking logs."
-6. Offline recovery state (`Offline`)
-  - User point of view: "The app lost connection, but my draft and current setup should still feel preserved. I need to understand what is unavailable right now and what will happen when the connection returns."
+7. Startup failure state (`StartupFailed`)
+  - User point of view: "Startup did not complete, but my draft and current setup should still feel preserved. I need to understand what failed and have an obvious retry path."
 
 ## 7. Screen and panel specifications
 
@@ -126,7 +130,7 @@ Required controls:
   - Visible active state
 
 Status area:
-- Global status indicator showing `Starting`/`Online`/`Offline`
+- Global status indicator showing `Offline`/`Starting`/`Online`/`StartupFailed`
 - Compact hardware summary when online (GPU name/free VRAM if available)
 
 All actions should be represented with clear crisp icons with accessible tooltips and ARIA labels.
