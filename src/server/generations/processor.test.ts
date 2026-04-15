@@ -256,6 +256,51 @@ describe('createGenerationProcessor', () => {
     expect(submitPrompt).toHaveBeenCalledTimes(1);
   });
 
+  it('given_missing_preset_when_processed_then_processor_fails_with_preset_error', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
+    tempDirs.push(root);
+
+    const store = createTestStore(
+      createTestGeneration({
+        presetId: 'missing/basic',
+        templateId: 'missing',
+        presetParams: {
+          prompt: 'missing preset',
+          steps: 5,
+          seedMode: 'fixed',
+          seed: 123
+        }
+      })
+    );
+
+    const processor = createGenerationProcessor({
+      store,
+      presetCatalog: createPresetCatalog([], new Map()),
+      comfyClient: {
+        uploadInputImage: vi.fn(async () => {
+          throw new Error('should not upload');
+        }),
+        submitPrompt: vi.fn(async () => {
+          throw new Error('should not submit');
+        }),
+        pollHistory: vi.fn(async () => {
+          throw new Error('should not poll history');
+        }),
+        downloadImage: vi.fn(async () => {
+          throw new Error('should not download');
+        })
+      },
+      config: createTestConfig(root)
+    });
+
+    const result = await processor.process(store.current);
+
+    expect(result).toEqual({
+      status: 'failed',
+      error: 'Preset "missing/basic" was not found.'
+    });
+  });
+
   it('given_readiness_gate_rejects_when_processed_then_generation_fails_before_comfy_calls_begin', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
     tempDirs.push(root);
@@ -446,6 +491,58 @@ describe('createGenerationProcessor', () => {
 
     expect(result).toEqual({ status: 'canceled' });
     await expect(readdir(path.join(root, 'outputs', store.current.id))).rejects.toThrow();
+  });
+
+  it('given_prompt_request_recording_returns_undefined_but_generation_is_still_submitted_when_processed_then_processor_fails', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
+    tempDirs.push(root);
+
+    const store = createTestStore(
+      createTestGeneration({
+        presetId: 'txt2img-basic/basic',
+        templateId: 'txt2img-basic',
+        presetParams: {
+          prompt: 'record prompt request race',
+          steps: 5,
+          seedMode: 'fixed',
+          seed: 123
+        }
+      }),
+      {
+        onRecordPromptRequest: async () => undefined
+      }
+    );
+
+    const processor = createGenerationProcessor({
+      store,
+      presetCatalog: createPresetCatalog(
+        [createPresetSummary('txt2img')],
+        new Map([[createPresetDetail('txt2img').id, createPresetDetail('txt2img')]])
+      ),
+      comfyClient: {
+        uploadInputImage: vi.fn(async () => {
+          throw new Error('should not upload');
+        }),
+        submitPrompt: vi.fn(async () => {
+          throw new Error('should not submit prompt');
+        }),
+        pollHistory: vi.fn(async () => {
+          throw new Error('should not poll history');
+        }),
+        downloadImage: vi.fn(async () => {
+          throw new Error('should not download image');
+        })
+      },
+      config: createTestConfig(root)
+    });
+
+    const result = await processor.process(store.current);
+
+    expect(result).toEqual({
+      status: 'failed',
+      error:
+        'Prompt request metadata could not be recorded because generation "11111111-1111-4111-8111-111111111111" remained in status "submitted".'
+    });
   });
 
   it('given_abort_signal_when_processing_generation_then_comfy_client_calls_receive_the_same_signal', async () => {
@@ -641,7 +738,21 @@ function createTestGeneration(
   });
 }
 
-function createTestStore(initial: StoredGeneration) {
+function createTestStore(
+  initial: StoredGeneration,
+  options: {
+    onRecordPromptRequest?: (
+      generationId: string,
+      promptRequest: unknown,
+      current: StoredGeneration
+    ) => Promise<StoredGeneration | undefined>;
+    onRecordPromptResponse?: (
+      generationId: string,
+      promptResponse: unknown,
+      current: StoredGeneration
+    ) => Promise<StoredGeneration | undefined>;
+  } = {}
+) {
   const state = {
     current: initial,
     promptRequest: null as unknown,
@@ -668,6 +779,13 @@ function createTestStore(initial: StoredGeneration) {
       if (generationId !== state.current.id) {
         return undefined;
       }
+      if (options.onRecordPromptRequest !== undefined) {
+        return options.onRecordPromptRequest(
+          generationId,
+          promptRequest,
+          state.current
+        );
+      }
       state.promptRequest = promptRequest;
       state.current = {
         ...state.current,
@@ -678,6 +796,13 @@ function createTestStore(initial: StoredGeneration) {
     async recordPromptResponse(generationId: string, promptResponse: unknown) {
       if (generationId !== state.current.id) {
         return undefined;
+      }
+      if (options.onRecordPromptResponse !== undefined) {
+        return options.onRecordPromptResponse(
+          generationId,
+          promptResponse,
+          state.current
+        );
       }
       state.promptResponse = promptResponse;
       state.current = {

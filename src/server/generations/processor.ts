@@ -6,6 +6,7 @@ import type { AppConfig } from '../config/app-config.js';
 import {
   extractDeterministicOutputImage,
   setLoadImageReference,
+  type ComfyOutputImage,
   type ComfyClient
 } from '../comfy/client.js';
 import type { AppRuntimeStatusService } from '../status/runtime-status.js';
@@ -94,99 +95,30 @@ class DefaultGenerationProcessor implements GenerationProcessor {
     signal?: AbortSignal
   ): Promise<GenerationProcessResult> {
     try {
-      throwIfAborted(signal);
-      await this.#ensureGenerationActive(generation.id);
+      await this.#guardGenerationStep(generation.id, signal);
       await this.#runtimeStatus?.ensureOnline();
       throwIfAborted(signal);
 
-      const preset = this.#presetCatalog.getById(generation.presetId);
-      if (preset === undefined) {
-        return {
-          status: 'failed',
-          error: `Preset "${generation.presetId}" was not found.`
-        };
-      }
+      const preset = this.#loadPreset(generation.presetId);
 
       const execution = buildGenerationExecution({
         generation,
         preset
       });
 
-      await this.#ensureGenerationActive(generation.id);
-      throwIfAborted(signal);
-
-      if (execution.inputImagePath !== undefined) {
-        const upload = await this.#runWithTransientRetry('upload input image', async () =>
-          this.#comfyClient.uploadInputImage(
-            execution.inputImagePath as string,
-            signal !== undefined ? { signal } : {}
-          )
-        );
-        setLoadImageReference(execution.workflow, upload.comfyImageRef);
-      }
-
-      await this.#ensureGenerationActive(generation.id);
-      throwIfAborted(signal);
-
-      const promptRequest = {
-        prompt: execution.workflow
-      };
-      const recordedPromptRequest = await this.#store.recordPromptRequest(
+      await this.#uploadInputImageIfPresent(generation.id, execution, signal);
+      await this.#recordPromptRequest(generation.id, execution.workflow, signal);
+      const promptResponse = await this.#submitPrompt(
         generation.id,
-        promptRequest
+        execution.workflow,
+        signal
       );
-      if (recordedPromptRequest === undefined) {
-        return { status: 'canceled' };
-      }
 
-      const promptResponse = await this.#runWithTransientRetry(
-        'submit prompt',
-        async () =>
-          this.#comfyClient.submitPrompt(
-            execution.workflow,
-            signal !== undefined ? { signal } : {}
-          )
-      );
-      const recordedPromptResponse = await this.#store.recordPromptResponse(
+      const historyResult = await this.#waitForHistory(
         generation.id,
-        promptResponse
+        promptResponse.promptId,
+        signal
       );
-      if (recordedPromptResponse === undefined) {
-        return { status: 'canceled' };
-      }
-
-      this.#logger?.info(
-        {
-          generationId: generation.id,
-          promptId: promptResponse.promptId
-        },
-        'generation prompt submitted'
-      );
-
-      if (
-        promptResponse.nodeErrors !== undefined &&
-        Object.keys(promptResponse.nodeErrors).length > 0
-      ) {
-        return {
-          status: 'failed',
-          error: `Execution error: ${formatNodeErrors(promptResponse.nodeErrors)}`
-        };
-      }
-
-      await this.#ensureGenerationActive(generation.id);
-      throwIfAborted(signal);
-
-      const historyResult = await this.#runWithTransientRetry(
-        'poll prompt history',
-        async () =>
-          this.#comfyClient.pollHistory(promptResponse.promptId, {
-            pollMs: this.#config.timeouts.historyPollMs,
-            ...(signal !== undefined ? { signal } : {})
-          })
-      );
-
-      await this.#ensureGenerationActive(generation.id);
-      throwIfAborted(signal);
 
       const outputImage = extractDeterministicOutputImage(
         historyResult.history,
@@ -194,28 +126,11 @@ class DefaultGenerationProcessor implements GenerationProcessor {
         execution.preferredOutputNodeId
       );
 
-      await this.#ensureGenerationActive(generation.id);
-      throwIfAborted(signal);
-
-      const imageBytes = await this.#comfyClient.downloadImage(
-        outputImage,
-        signal !== undefined ? { signal } : {}
-      );
-      await this.#ensureGenerationActive(generation.id);
-      throwIfAborted(signal);
-      const outputPath = await this.#persistOutput(
+      await this.#downloadAndPersistOutput(
         generation.id,
-        outputImage.filename,
-        imageBytes
-      );
-
-      this.#logger?.info(
-        {
-          generationId: generation.id,
-          promptId: promptResponse.promptId,
-          outputPath
-        },
-        'generation output stored'
+        promptResponse.promptId,
+        outputImage,
+        signal
       );
 
       return {
@@ -241,6 +156,20 @@ class DefaultGenerationProcessor implements GenerationProcessor {
         };
       }
 
+      if (error instanceof PresetNotFoundError) {
+        return {
+          status: 'failed',
+          error: error.message
+        };
+      }
+
+      if (error instanceof PromptExecutionError) {
+        return {
+          status: 'failed',
+          error: error.message
+        };
+      }
+
       this.#logger?.error(
         {
           err: error,
@@ -254,6 +183,172 @@ class DefaultGenerationProcessor implements GenerationProcessor {
         error: normalizeErrorMessage(error)
       };
     }
+  }
+
+  #loadPreset(generationPresetId: string) {
+    const preset = this.#presetCatalog.getById(generationPresetId);
+    if (preset === undefined) {
+      throw new PresetNotFoundError(generationPresetId);
+    }
+
+    return preset;
+  }
+
+  async #uploadInputImageIfPresent(
+    generationId: string,
+    execution: ReturnType<typeof buildGenerationExecution>,
+    signal: AbortSignal | undefined
+  ): Promise<void> {
+    await this.#guardGenerationStep(generationId, signal);
+    if (execution.inputImagePath === undefined) {
+      return;
+    }
+    const inputImagePath = execution.inputImagePath;
+
+    const upload = await this.#runWithTransientRetry('upload input image', async () =>
+      this.#comfyClient.uploadInputImage(
+        inputImagePath,
+        signal !== undefined ? { signal } : {}
+      )
+    );
+    setLoadImageReference(execution.workflow, upload.comfyImageRef);
+  }
+
+  async #recordPromptRequest(
+    generationId: string,
+    workflow: Record<string, unknown>,
+    signal: AbortSignal | undefined
+  ): Promise<void> {
+    await this.#guardGenerationStep(generationId, signal);
+    await this.#recordPromptMetadata({
+      generationId,
+      label: 'Prompt request',
+      record: () =>
+        this.#store.recordPromptRequest(generationId, {
+          prompt: workflow
+        })
+    });
+  }
+
+  async #submitPrompt(
+    generationId: string,
+    workflow: Record<string, unknown>,
+    signal: AbortSignal | undefined
+  ): Promise<{ promptId: string; nodeErrors?: Record<string, unknown> }> {
+    await this.#guardGenerationStep(generationId, signal);
+
+    const promptResponse = await this.#runWithTransientRetry('submit prompt', async () =>
+      this.#comfyClient.submitPrompt(workflow, signal !== undefined ? { signal } : {})
+    );
+
+    await this.#recordPromptMetadata({
+      generationId,
+      label: 'Prompt response',
+      record: () => this.#store.recordPromptResponse(generationId, promptResponse)
+    });
+
+    this.#logger?.info(
+      {
+        generationId,
+        promptId: promptResponse.promptId
+      },
+      'generation prompt submitted'
+    );
+
+    this.#throwIfPromptHasNodeErrors(promptResponse);
+
+    return promptResponse;
+  }
+
+  #throwIfPromptHasNodeErrors(promptResponse: {
+    promptId: string;
+    nodeErrors?: Record<string, unknown>;
+  }): void {
+    if (
+      promptResponse.nodeErrors === undefined ||
+      Object.keys(promptResponse.nodeErrors).length === 0
+    ) {
+      return;
+    }
+
+    throw new PromptExecutionError(
+      `Execution error: ${formatNodeErrors(promptResponse.nodeErrors)}`
+    );
+  }
+
+  async #waitForHistory(
+    generationId: string,
+    promptId: string,
+    signal: AbortSignal | undefined
+  ) {
+    await this.#guardGenerationStep(generationId, signal);
+
+    return this.#runWithTransientRetry('poll prompt history', async () =>
+      this.#comfyClient.pollHistory(promptId, {
+        pollMs: this.#config.timeouts.historyPollMs,
+        ...(signal !== undefined ? { signal } : {})
+      })
+    );
+  }
+
+  async #downloadAndPersistOutput(
+    generationId: string,
+    promptId: string,
+    outputImage: ComfyOutputImage,
+    signal: AbortSignal | undefined
+  ): Promise<void> {
+    await this.#guardGenerationStep(generationId, signal);
+    const imageBytes = await this.#comfyClient.downloadImage(
+      outputImage,
+      signal !== undefined ? { signal } : {}
+    );
+
+    await this.#guardGenerationStep(generationId, signal);
+    const outputPath = await this.#persistOutput(
+      generationId,
+      outputImage.filename,
+      imageBytes
+    );
+
+    this.#logger?.info(
+      {
+        generationId,
+        promptId,
+        outputPath
+      },
+      'generation output stored'
+    );
+  }
+
+  async #recordPromptMetadata(options: {
+    generationId: string;
+    label: 'Prompt request' | 'Prompt response';
+    record: () => Promise<StoredGeneration | undefined>;
+  }): Promise<void> {
+    const recorded = await options.record();
+    if (recorded !== undefined) {
+      return;
+    }
+
+    const current = await this.#store.getStoredById(options.generationId);
+    if (current?.status === 'canceled') {
+      throw new CanceledGenerationError();
+    }
+
+    if (current === undefined) {
+      throw new PromptMetadataPersistenceError(
+        `${options.label} metadata could not be recorded because generation "${options.generationId}" no longer exists.`
+      );
+    }
+
+    throw new PromptMetadataPersistenceError(
+      `${options.label} metadata could not be recorded because generation "${options.generationId}" remained in status "${current.status}".`
+    );
+  }
+
+  async #guardGenerationStep(generationId: string, signal?: AbortSignal): Promise<void> {
+    await this.#ensureGenerationActive(generationId);
+    throwIfAborted(signal);
   }
 
   async #ensureGenerationActive(generationId: string): Promise<void> {
@@ -312,6 +407,27 @@ class CanceledGenerationError extends Error {
   constructor() {
     super('Generation execution was canceled.');
     this.name = 'CanceledGenerationError';
+  }
+}
+
+class PromptMetadataPersistenceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PromptMetadataPersistenceError';
+  }
+}
+
+class PresetNotFoundError extends Error {
+  constructor(presetId: string) {
+    super(`Preset "${presetId}" was not found.`);
+    this.name = 'PresetNotFoundError';
+  }
+}
+
+class PromptExecutionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PromptExecutionError';
   }
 }
 
