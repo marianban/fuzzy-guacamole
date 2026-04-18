@@ -26,6 +26,7 @@ This repo currently contains the product specification and agent workflow docs f
 - group related server code into responsibility-focused folders that behave like internal modules (without creating actual Node package modules)
 - use descriptive filenames that communicate purpose, and avoid generic entrypoint names like `index.ts`
 - document important decisions and trade-offs
+- for database schema changes during the current development phase, do not preserve backward compatibility or existing data by default; prefer resetting/recreating the database and updating the current schema directly instead of adding backward-compatibility layers or maintaining old migrations, unless explicitly asked otherwise
 - use environment-driven configuration with committed non-secret config files:
   - commit `data/config.json` with the full config shape visible in git
   - represent secret/runtime-specific values as `ENV:VARIABLE_NAME` tokens inside `data/config.json`
