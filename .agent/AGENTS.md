@@ -110,4 +110,96 @@ Use skills from `.agents/skills/` when implementing features.
 - `src\client\src\i18n` - localization files and setup for react-i18next
 - `src\client\src\styles` - global styles, CSS variables, and design tokens
 
-# FE Development Guidelines
+## Preferred CLI tools
+
+The following tools are installed and should be preferred over older or slower alternatives.
+
+### Source code search
+Use `rg` (ripgrep) for recursive text search in source code.
+
+Examples:
+```sh
+rg "UserService"
+rg "TODO|FIXME" src
+rg --files | rg "\.ts$"
+```
+
+Prefer `rg` over:
+- grep -R
+- recursive shell loops
+- PowerShell Select-String for large code searches
+
+---
+
+### File and directory discovery
+Use `fd` for locating files and directories.
+
+Examples:
+```sh
+fd package.json
+fd "\.csproj$"
+fd UserController
+```
+
+Prefer `fd` over:
+- find
+- manual recursive directory traversal
+- PowerShell Get-ChildItem -Recurse for large searches
+
+---
+
+### Structural code search
+Use `sg` (ast-grep) when searching by syntax or code structure rather than plain text.
+
+Examples:
+```sh
+sg 'console.log($X)'
+sg 'await $X'
+sg 'class $NAME { $$$ }'
+```
+
+Prefer `sg` over `rg` when matching code patterns or performing syntax-aware refactors.
+
+---
+
+### File viewing
+Use `bat` for viewing source files when reading code.
+
+Examples:
+```sh
+bat src/index.ts
+bat package.json
+```
+
+Prefer `bat` over:
+- cat
+- type
+- raw Get-Content
+
+---
+
+### JSON parsing
+Use `jq` for parsing or querying JSON.
+
+Examples:
+```sh
+jq '.scripts' package.json
+jq -r '.name' package.json
+```
+
+Do not parse JSON with regex unless there is no alternative.
+
+---
+
+## Tool preference order
+Use these defaults:
+
+- Text search → `rg`
+- File discovery → `fd`
+- Structural code search → `sg`
+- File viewing → `bat`
+- JSON parsing → `jq`
+
+Assume these tools are present. Do not check whether they exist before using them.
+Use these tools first instead of probing for alternatives.
+Minimize trial-and-error command discovery.
