@@ -33,7 +33,8 @@ const generationParamsSchema = z.object({
 });
 
 const errorResponseSchema = z.object({
-  message: z.string()
+  message: z.string(),
+  issues: z.array(z.string()).optional()
 });
 
 export interface RegisterGenerationRoutesOptions {
@@ -318,14 +319,15 @@ export function registerGenerationRoutes(
       }
 
       try {
-        const execution = buildGenerationExecution({
+        const execution = await buildGenerationExecution({
           generation,
           preset
         });
 
         const updated = await options.store.markQueued(generation.id, {
           queuedAt: new Date().toISOString(),
-          presetParams: execution.resolvedParams
+          presetParams: execution.resolvedParams,
+          executionSnapshot: execution
         });
         if (updated === undefined) {
           logGenerationWarning(request, 'generation queue rejected', {
@@ -356,9 +358,13 @@ export function registerGenerationRoutes(
           logGenerationWarning(request, 'generation queue rejected', {
             generationId: generation.id,
             warningCode: 'generation_queue_validation_failed',
-            validationIssue: error.message
+            validationIssue: error.message,
+            validationIssues: error.issues
           });
-          return reply.code(400).send({ message: error.message });
+          return reply.code(400).send({
+            message: error.message,
+            issues: error.issues
+          });
         }
         throw error;
       }

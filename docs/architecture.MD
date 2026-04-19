@@ -39,10 +39,10 @@ flowchart LR
   Database --> GenerationStore
   API --> GenerationStore
   API --> GenerationEvents
+  API --> Builder
   GenerationEvents --> Worker
   Worker --> GenerationStore
   Worker --> Processor
-  Processor --> Builder
   Processor --> Comfy
 ```
 
@@ -74,9 +74,10 @@ flowchart TD
   PresetsList --> PresetPayload["preset summaries only"]
   PresetsDetail --> PresetDetailPayload["preset summary + template workflow + model metadata"]
   GenerationCreate --> GenerationPayload["status=draft<br/>templateId resolved from preset<br/>model-backed param validation"]
-  GenerationQueue --> QueueTransition["validate resolved params + workflow tokens<br/>draft/completed/failed/canceled -> queued"]
+  GenerationQueue --> QueueTransition["validate resolved params + workflow tokens<br/>persist executionSnapshot + queuedAt<br/>draft/completed/failed/canceled -> queued"]
   QueueTransition --> WorkerClaim["shared event bus wakes worker<br/>oldest queued row claimed atomically"]
   WorkerClaim --> WorkerTerminal["queued -> submitted -> completed|failed|canceled"]
+  QueueTransition --> PersistedExecution["executionSnapshot stored in DB"]
   WorkerTerminal --> PersistedPrompt["promptRequest + promptResponse stored in DB"]
   WorkerTerminal --> OutputPersist["downloaded output saved under<br/>/data/outputs/{generationId}/"]
   GenerationCancel --> CancelTransition["queued -> canceled<br/>submitted -> interrupt -> canceled|failed"]
@@ -95,7 +96,7 @@ Implemented routes:
 - `GET /api/generations/{generationId}` -> single generation detail
 - `POST /api/generations` -> creates draft generation from preset + params after model-driven validation/default resolution
 - `POST /api/generations/{generationId}/input` -> accepts multipart file upload, stores path in `presetParams.inputImagePath`, and returns `204`
-- `POST /api/generations/{generationId}/queue` -> validates resolved preset/runtime params plus workflow template tokens, then transitions generation to `queued` and sets `queuedAt`; the background worker then claims queued rows oldest-first and moves them to a terminal state
+- `POST /api/generations/{generationId}/queue` -> validates resolved preset/runtime params plus workflow template tokens, persists the full internal `executionSnapshot`, then transitions generation to `queued` and sets `queuedAt`; the background worker then claims queued rows oldest-first and moves them to a terminal state
 - `POST /api/generations/{generationId}/cancel` -> transitions `queued` generation to `canceled`, or interrupts submitted work through Comfy and resolves to `canceled` or `failed`
 - `DELETE /api/generations/{generationId}` -> deletes draft/queued/completed/failed/canceled generations and removes persisted input/output folders; submitted rows still return `409`
 - `GET /api/events/generations` -> SSE stream for live generation upsert/deleted notifications
@@ -107,7 +108,8 @@ Current worker behavior:
 - Postgres claims use one atomic SQL statement ordered by `queuedAt`, then `createdAt`, then `id`.
 - On startup, any generation left in `submitted` is marked `failed` with the error `Generation processing was interrupted during server shutdown.` and an `upsert` event is published for each recovered row.
 - On every drain pass, before claiming queued work, the worker also marks any `submitted` generation whose `updatedAt` is older than `now() - submittedTimeoutMs` as `failed` with the error `Generation processing timed out while waiting in submitted state.`, then publishes `upsert` events for those recovered rows.
-- The processor materializes the workflow from preset defaults plus runtime values, normalizes seed behavior, uploads img2img input through Comfy when needed, persists prompt request/response metadata, polls history until an output is available, downloads one deterministic output image, and saves it under `/data/outputs/{generationId}/` with a timestamp-prefixed filename.
+- Queue time is the only place where preset defaults and runtime values are resolved into a workflow: the route builds one `executionSnapshot`, normalizes random seeds once, and stores that snapshot on the generation row.
+- The processor consumes the persisted `executionSnapshot` as the authoritative worker input, uploads img2img input through Comfy when needed, persists prompt request/response metadata, polls history until an output is available, downloads one deterministic output image, and saves it under `/data/outputs/{generationId}/` with a timestamp-prefixed filename.
 - Submitted cancellation is route-driven: the API interrupts Comfy, marks the generation `canceled` on success or `failed` on cancel failure, and the worker/processor stop if the row is no longer `submitted`.
 - Internal prompt submission metadata stays server-local in the generation store; the public generation API and SSE payloads still expose only the minimal shared generation DTO.
 

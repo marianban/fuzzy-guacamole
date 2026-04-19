@@ -64,8 +64,11 @@ describe.sequential('ComfyClient unit (mock replay)', () => {
       expect(upload.image.filename).toBe(fixture.responses.uploadImage.name);
       expect(upload.comfyImageRef).toContain('vitest_uploaded_input.png');
 
-      const img2imgWorkflow = await loadWorkflow(img2imgTemplatePath);
-      setLoadImageReference(img2imgWorkflow, upload.comfyImageRef, '12');
+      const img2imgWorkflow = setLoadImageReference(
+        await loadWorkflow(img2imgTemplatePath),
+        upload.comfyImageRef,
+        '12'
+      );
       const loadImageNode = img2imgWorkflow['12'] as { inputs: { image: string } };
       expect(loadImageNode.inputs.image).toBe(upload.comfyImageRef);
 

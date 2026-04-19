@@ -1,5 +1,6 @@
 import type { Generation } from '../../shared/generations.js';
 import type { AppDatabase } from '../db/client.js';
+import type { GenerationExecutionPlan } from './execution/plan.js';
 import { createInMemoryGenerationStore } from './in-memory-store.js';
 import { createPostgresGenerationStore as createPostgresGenerationStoreImpl } from './postgres-store.js';
 import type { StoredGeneration } from './stored-generation.js';
@@ -12,7 +13,8 @@ export interface CreateGenerationInput {
 
 export interface MarkQueuedOptions {
   queuedAt: string;
-  presetParams?: Record<string, unknown>;
+  presetParams: Record<string, unknown>;
+  executionSnapshot: GenerationExecutionPlan;
 }
 
 export type SaveableGeneration = Generation | StoredGeneration;
@@ -57,4 +59,16 @@ export function createGenerationStore(): GenerationStore {
 }
 export function createPostgresGenerationStore(database: AppDatabase): GenerationStore {
   return createPostgresGenerationStoreImpl(database);
+}
+
+export function assertMarkQueuedOptions(
+  options: MarkQueuedOptions
+): asserts options is MarkQueuedOptions {
+  if (options.presetParams === undefined || options.presetParams === null) {
+    throw new Error('MarkQueuedOptions.presetParams is required.');
+  }
+
+  if (options.executionSnapshot === undefined || options.executionSnapshot === null) {
+    throw new Error('MarkQueuedOptions.executionSnapshot is required.');
+  }
 }

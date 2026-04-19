@@ -191,6 +191,27 @@ function createCatalogRequiringInput() {
           control: {
             type: 'input' as const
           }
+        },
+        {
+          id: 'steps',
+          fieldType: 'integer' as const,
+          categoryId: 'main',
+          order: 20,
+          label: {
+            en: 'Steps'
+          },
+          default: 30,
+          validation: {
+            required: true,
+            min: 1,
+            max: 100
+          },
+          control: {
+            type: 'slider' as const,
+            min: 1,
+            max: 100,
+            step: 1
+          }
         }
       ]
     },
@@ -848,6 +869,142 @@ describe('generation routes', () => {
     await app.close();
   });
 
+  it('given_deleted_uploaded_input_when_queueing_generation_then_request_is_rejected_before_remote_execution', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalogRequiringInput()
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/generations',
+      payload: {
+        presetId: 'img2img-basic/basic',
+        presetParams: {
+          prompt: 'queue me'
+        }
+      }
+    });
+    const created = createResponse.json() as { id: string };
+
+    const fileBuffer = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    const multipart = buildMultipartPayload('input.png', fileBuffer);
+    const uploadResponse = await app.inject({
+      method: 'POST',
+      url: `/api/generations/${created.id}/input`,
+      headers: {
+        'content-type': `multipart/form-data; boundary=${multipart.boundary}`
+      },
+      payload: multipart.payload
+    });
+    expect(uploadResponse.statusCode).toBe(204);
+
+    const detailResponse = await app.inject({
+      method: 'GET',
+      url: `/api/generations/${created.id}`
+    });
+    const detail = detailResponse.json() as {
+      presetParams: {
+        inputImagePath: string;
+      };
+    };
+
+    await rm(detail.presetParams.inputImagePath, { force: true });
+
+    const queueResponse = await app.inject({
+      method: 'POST',
+      url: `/api/generations/${created.id}/queue`
+    });
+
+    expect(queueResponse.statusCode).toBe(400);
+    expect(queueResponse.json()).toMatchObject({
+      message: expect.stringMatching(/inputImagePath/i),
+      issues: expect.arrayContaining([expect.stringMatching(/inputImagePath/i)])
+    });
+
+    await app.close();
+  });
+
+  it('given_directory_input_when_queueing_generation_then_request_is_rejected_as_unreadable', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+    const store = createGenerationStore();
+
+    const generation = await store.create({
+      presetId: 'img2img-basic/basic',
+      templateId: 'img2img-basic',
+      presetParams: {
+        prompt: 'queue me',
+        inputImagePath: root
+      }
+    });
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalogRequiringInput(),
+      generationStore: store
+    });
+
+    const queueResponse = await app.inject({
+      method: 'POST',
+      url: `/api/generations/${generation.id}/queue`
+    });
+
+    expect(queueResponse.statusCode).toBe(400);
+    expect(queueResponse.json()).toMatchObject({
+      message: expect.stringMatching(/inputImagePath/i),
+      issues: expect.arrayContaining([expect.stringMatching(/readable/i)])
+    });
+
+    await app.close();
+  });
+
+  it('given_multiple_queue_validation_issues_when_queueing_generation_then_all_issues_are_returned', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+    const store = createGenerationStore();
+
+    const generation = await store.create({
+      presetId: 'img2img-basic/basic',
+      templateId: 'img2img-basic',
+      presetParams: {
+        prompt: 'queue me',
+        steps: 0
+      }
+    });
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalogRequiringInput(),
+      generationStore: store
+    });
+
+    const queueResponse = await app.inject({
+      method: 'POST',
+      url: `/api/generations/${generation.id}/queue`
+    });
+
+    expect(queueResponse.statusCode).toBe(400);
+    expect(queueResponse.json()).toMatchObject({
+      message: expect.stringMatching(/inputImagePath|steps/i),
+      issues: expect.arrayContaining([
+        expect.stringMatching(/inputImagePath/i),
+        expect.stringMatching(/steps/i)
+      ])
+    });
+
+    await app.close();
+  });
+
   it('given_random_seed_mode_when_queueing_generation_then_generated_seed_is_persisted_for_that_run', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
     tempDirs.push(root);
@@ -889,6 +1046,30 @@ describe('generation routes', () => {
       expect(stored?.presetParams.seedMode).toBe('random');
       expect(stored?.presetParams.seed).toEqual(expect.any(Number));
       expect(Number.isInteger(stored?.presetParams.seed)).toBe(true);
+      expect(
+        (
+          stored as
+            | (typeof stored & {
+                executionSnapshot?: {
+                  resolvedParams?: Record<string, unknown>;
+                  workflow?: Record<string, unknown>;
+                };
+              })
+            | undefined
+        )?.executionSnapshot
+      ).toMatchObject({
+        resolvedParams: {
+          seedMode: 'random',
+          seed: stored?.presetParams.seed
+        },
+        workflow: {
+          '7': {
+            inputs: {
+              seed: stored?.presetParams.seed
+            }
+          }
+        }
+      });
     } finally {
       await app.close();
     }
@@ -930,11 +1111,12 @@ describe('generation routes', () => {
       expect(firstQueueResponse.statusCode).toBe(200);
 
       const firstStored = await store.getStoredById(created.id);
+      expect(firstStored).toBeDefined();
       const firstSeed = Number(firstStored?.presetParams.seed);
       expect(Number.isInteger(firstSeed)).toBe(true);
 
       await store.save({
-        ...(firstStored ?? created),
+        ...firstStored!,
         status: 'completed',
         error: null,
         updatedAt: '2026-04-07T10:00:00.000Z'

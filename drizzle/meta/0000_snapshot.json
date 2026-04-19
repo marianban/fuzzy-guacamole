@@ -38,6 +38,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "execution_snapshot": {
+          "name": "execution_snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "prompt_request": {
           "name": "prompt_request",
           "type": "jsonb",

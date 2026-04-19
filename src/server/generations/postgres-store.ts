@@ -5,17 +5,19 @@ import { desc, eq, sql } from 'drizzle-orm';
 import { generationStatusSchema, type Generation } from '../../shared/generations.js';
 import type { AppDatabase } from '../db/client.js';
 import { generations } from '../db/schema.js';
+import type { GenerationExecutionPlan } from './execution/plan.js';
 import {
   createStoredGeneration,
   isStoredGeneration,
   toPublicGeneration,
   type StoredGeneration
 } from './stored-generation.js';
-import type {
-  CreateGenerationInput,
-  GenerationStore,
-  MarkQueuedOptions,
-  SaveableGeneration
+import {
+  assertMarkQueuedOptions,
+  type CreateGenerationInput,
+  type GenerationStore,
+  type MarkQueuedOptions,
+  type SaveableGeneration
 } from './store.js';
 
 class PostgresGenerationStore implements GenerationStore {
@@ -84,6 +86,7 @@ class PostgresGenerationStore implements GenerationStore {
     const storedGeneration = isStoredGeneration(generation)
       ? generation
       : createStoredGeneration(generation, {
+          executionSnapshot: existing?.executionSnapshot ?? null,
           promptRequest: existing?.promptRequest ?? null,
           promptResponse: existing?.promptResponse ?? null
         });
@@ -98,6 +101,7 @@ class PostgresGenerationStore implements GenerationStore {
           presetId: storedGeneration.presetId,
           templateId: storedGeneration.templateId,
           presetParams: storedGeneration.presetParams,
+          executionSnapshot: storedGeneration.executionSnapshot,
           promptRequest: storedGeneration.promptRequest,
           promptResponse: storedGeneration.promptResponse,
           queuedAt: storedGeneration.queuedAt,
@@ -159,6 +163,7 @@ class PostgresGenerationStore implements GenerationStore {
                 preset_id as "presetId",
                 template_id as "templateId",
                 preset_params as "presetParams",
+                execution_snapshot as "executionSnapshot",
                 prompt_request as "promptRequest",
                 prompt_response as "promptResponse",
                 queued_at as "queuedAt",
@@ -177,13 +182,15 @@ class PostgresGenerationStore implements GenerationStore {
     generationId: string,
     options: MarkQueuedOptions
   ): Promise<Generation | undefined> {
-    const { queuedAt, presetParams } = options;
-    const serializedPresetParams =
-      presetParams === undefined ? null : JSON.stringify(presetParams);
+    assertMarkQueuedOptions(options);
+    const { queuedAt, presetParams, executionSnapshot } = options;
+    const serializedPresetParams = JSON.stringify(presetParams);
+    const serializedExecutionSnapshot = JSON.stringify(executionSnapshot);
     const result = await this.#database.db.execute(sql`
       update generations
       set status = 'queued',
-          preset_params = coalesce(${serializedPresetParams}::jsonb, preset_params),
+          preset_params = ${serializedPresetParams}::jsonb,
+          execution_snapshot = ${serializedExecutionSnapshot}::jsonb,
           prompt_request = null,
           prompt_response = null,
           queued_at = ${queuedAt},
@@ -196,6 +203,7 @@ class PostgresGenerationStore implements GenerationStore {
                 preset_id as "presetId",
                 template_id as "templateId",
                 preset_params as "presetParams",
+                execution_snapshot as "executionSnapshot",
                 prompt_request as "promptRequest",
                 prompt_response as "promptResponse",
                 queued_at as "queuedAt",
@@ -232,6 +240,7 @@ class PostgresGenerationStore implements GenerationStore {
                 generations.preset_id as "presetId",
                 generations.template_id as "templateId",
                 generations.preset_params as "presetParams",
+                generations.execution_snapshot as "executionSnapshot",
                 generations.prompt_request as "promptRequest",
                 generations.prompt_response as "promptResponse",
                 generations.queued_at as "queuedAt",
@@ -264,6 +273,7 @@ class PostgresGenerationStore implements GenerationStore {
                 preset_id as "presetId",
                 template_id as "templateId",
                 preset_params as "presetParams",
+                execution_snapshot as "executionSnapshot",
                 prompt_request as "promptRequest",
                 prompt_response as "promptResponse",
                 queued_at as "queuedAt",
@@ -296,6 +306,7 @@ class PostgresGenerationStore implements GenerationStore {
                 preset_id as "presetId",
                 template_id as "templateId",
                 preset_params as "presetParams",
+                execution_snapshot as "executionSnapshot",
                 prompt_request as "promptRequest",
                 prompt_response as "promptResponse",
                 queued_at as "queuedAt",
@@ -322,6 +333,7 @@ class PostgresGenerationStore implements GenerationStore {
                 preset_id as "presetId",
                 template_id as "templateId",
                 preset_params as "presetParams",
+                execution_snapshot as "executionSnapshot",
                 prompt_request as "promptRequest",
                 prompt_response as "promptResponse",
                 queued_at as "queuedAt",
@@ -348,6 +360,7 @@ class PostgresGenerationStore implements GenerationStore {
                 preset_id as "presetId",
                 template_id as "templateId",
                 preset_params as "presetParams",
+                execution_snapshot as "executionSnapshot",
                 prompt_request as "promptRequest",
                 prompt_response as "promptResponse",
                 queued_at as "queuedAt",
@@ -377,6 +390,7 @@ class PostgresGenerationStore implements GenerationStore {
                 preset_id as "presetId",
                 template_id as "templateId",
                 preset_params as "presetParams",
+                execution_snapshot as "executionSnapshot",
                 prompt_request as "promptRequest",
                 prompt_response as "promptResponse",
                 queued_at as "queuedAt",
@@ -402,6 +416,7 @@ class PostgresGenerationStore implements GenerationStore {
                 preset_id as "presetId",
                 template_id as "templateId",
                 preset_params as "presetParams",
+                execution_snapshot as "executionSnapshot",
                 prompt_request as "promptRequest",
                 prompt_response as "promptResponse",
                 queued_at as "queuedAt",
@@ -432,6 +447,7 @@ class PostgresGenerationStore implements GenerationStore {
                 preset_id as "presetId",
                 template_id as "templateId",
                 preset_params as "presetParams",
+                execution_snapshot as "executionSnapshot",
                 prompt_request as "promptRequest",
                 prompt_response as "promptResponse",
                 queued_at as "queuedAt",
@@ -462,6 +478,7 @@ function mapRowToStoredGeneration(
       updatedAt: normalizeTimestamp(row.updatedAt)
     },
     {
+      executionSnapshot: row.executionSnapshot as GenerationExecutionPlan | null,
       promptRequest: row.promptRequest,
       promptResponse: row.promptResponse
     }
@@ -487,6 +504,7 @@ function mapGenerationToInsertValues(generation: StoredGeneration) {
     presetId: generation.presetId,
     templateId: generation.templateId,
     presetParams: generation.presetParams,
+    executionSnapshot: generation.executionSnapshot,
     promptRequest: generation.promptRequest,
     promptResponse: generation.promptResponse,
     queuedAt: generation.queuedAt,

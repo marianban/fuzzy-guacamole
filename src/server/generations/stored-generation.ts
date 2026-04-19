@@ -1,6 +1,8 @@
 import type { Generation } from '../../shared/generations.js';
+import type { GenerationExecutionPlan } from './execution/plan.js';
 
 export interface StoredGeneration extends Generation {
+  executionSnapshot: GenerationExecutionPlan | null;
   promptRequest: unknown | null;
   promptResponse: unknown | null;
 }
@@ -8,12 +10,14 @@ export interface StoredGeneration extends Generation {
 export function createStoredGeneration(
   generation: Generation,
   metadata: {
+    executionSnapshot?: GenerationExecutionPlan | null;
     promptRequest?: unknown | null;
     promptResponse?: unknown | null;
   } = {}
 ): StoredGeneration {
   return structuredClone({
     ...copyGeneration(generation),
+    executionSnapshot: metadata.executionSnapshot ?? null,
     promptRequest: metadata.promptRequest ?? null,
     promptResponse: metadata.promptResponse ?? null
   });
@@ -30,7 +34,11 @@ export function toPublicGeneration(generation: StoredGeneration): Generation {
 export function isStoredGeneration(
   generation: Generation | StoredGeneration
 ): generation is StoredGeneration {
-  return 'promptRequest' in generation && 'promptResponse' in generation;
+  return (
+    'executionSnapshot' in generation &&
+    'promptRequest' in generation &&
+    'promptResponse' in generation
+  );
 }
 
 function copyGeneration(generation: Generation): Generation {

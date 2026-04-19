@@ -58,7 +58,6 @@ try {
     store: generationStore,
     processor: createGenerationProcessor({
       store: generationStore,
-      presetCatalog,
       comfyClient,
       config,
       runtimeStatus,

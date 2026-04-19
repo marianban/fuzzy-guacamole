@@ -190,6 +190,20 @@ describe('createPostgresGenerationStore', () => {
             seedMode: 'random',
             seed: 42
           },
+          executionSnapshot: {
+            workflow: {
+              '7': {
+                inputs: {
+                  seed: 42
+                }
+              }
+            },
+            resolvedParams: {
+              prompt: 'test prompt',
+              seedMode: 'random',
+              seed: 42
+            }
+          },
           promptRequest: null,
           promptResponse: null,
           queuedAt: '2026-04-07T10:00:30.000Z',
@@ -213,6 +227,20 @@ describe('createPostgresGenerationStore', () => {
           prompt: 'test prompt',
           seedMode: 'random',
           seed: 42
+        },
+        executionSnapshot: {
+          workflow: {
+            '7': {
+              inputs: {
+                seed: 42
+              }
+            }
+          },
+          resolvedParams: {
+            prompt: 'test prompt',
+            seedMode: 'random',
+            seed: 42
+          }
         }
       })
     ).resolves.toMatchObject({
@@ -225,6 +253,24 @@ describe('createPostgresGenerationStore', () => {
       error: null
     });
     expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  test('given_missing_execution_data_when_marking_queued_then_store_fails_before_database_call', async () => {
+    const execute = vi.fn();
+    const database = {
+      db: {
+        execute
+      }
+    } as unknown as AppDatabase;
+
+    const store = createPostgresGenerationStore(database);
+
+    await expect(
+      store.markQueued('11111111-1111-4111-8111-111111111111', {
+        queuedAt: '2026-04-07T10:00:30.000Z'
+      } as unknown as Parameters<typeof store.markQueued>[1])
+    ).rejects.toThrow(/presetParams.*required/i);
+    expect(execute).not.toHaveBeenCalled();
   });
 
   test('given_stale_submitted_generations_when_failing_before_cutoff_then_store_updates_them_in_one_database_call', async () => {
@@ -274,11 +320,13 @@ function createGeneration(overrides: Partial<Generation> = {}): Generation {
 function createGenerationRow(
   generation:
     | (Generation & {
+        executionSnapshot?: Record<string, unknown> | null;
         promptRequest?: unknown | null;
         promptResponse?: unknown | null;
       })
     | (Omit<Generation, 'status'> & {
         status: string;
+        executionSnapshot?: Record<string, unknown> | null;
         promptRequest?: unknown | null;
         promptResponse?: unknown | null;
       })
@@ -289,6 +337,7 @@ function createGenerationRow(
     presetId: generation.presetId,
     templateId: generation.templateId,
     presetParams: generation.presetParams,
+    executionSnapshot: generation.executionSnapshot ?? null,
     promptRequest: generation.promptRequest ?? null,
     promptResponse: generation.promptResponse ?? null,
     queuedAt: generation.queuedAt,

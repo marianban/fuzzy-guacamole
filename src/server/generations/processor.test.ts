@@ -6,11 +6,12 @@ import { tmpdir } from 'node:os';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { Generation } from '../../shared/generations.js';
 import type { AppConfig } from '../config/app-config.js';
 import type { AppRuntimeStatusService } from '../status/runtime-status.js';
+import type { GenerationExecutionPlan } from './execution/plan.js';
 import { createStoredGeneration, type StoredGeneration } from './stored-generation.js';
 import { createGenerationProcessor } from './processor.js';
-import { createPresetCatalog } from '../presets/preset-catalog.js';
 
 describe('createGenerationProcessor', () => {
   const tempDirs: string[] = [];
@@ -48,10 +49,6 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
-      presetCatalog: createPresetCatalog(
-        [createPresetSummary()],
-        new Map([[createPresetDetail().id, createPresetDetail()]])
-      ),
       comfyClient: {
         uploadInputImage: vi.fn(async () => ({
           comfyImageRef: 'input/uploaded.png',
@@ -116,6 +113,15 @@ describe('createGenerationProcessor', () => {
     expect(store.promptResponse).toMatchObject({
       promptId: 'prompt-1'
     });
+    expect(store.current.executionSnapshot).toMatchObject({
+      workflow: {
+        '12': {
+          inputs: {
+            image: inputPath
+          }
+        }
+      }
+    });
 
     const outputDir = path.join(root, 'outputs', store.current.id);
     const outputFiles = await readdir(outputDir);
@@ -125,6 +131,189 @@ describe('createGenerationProcessor', () => {
     expect(outputBytes.equals(Buffer.from([9, 8, 7]))).toBe(true);
     expect(submitPrompt).toHaveBeenCalledTimes(1);
     expect(downloadImage).toHaveBeenCalledTimes(1);
+  });
+
+  it('given_queued_random_seed_when_processed_then_submit_prompt_uses_the_stored_seed', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
+    tempDirs.push(root);
+
+    const store = createTestStore(
+      createTestGeneration({
+        presetId: 'txt2img-basic/basic',
+        templateId: 'txt2img-basic',
+        presetParams: {
+          prompt: 'reuse queued seed',
+          steps: 5,
+          seedMode: 'random',
+          seed: 8675309
+        }
+      })
+    );
+    const submitPrompt = vi.fn(async () => ({ promptId: 'prompt-1' }));
+
+    const processor = createGenerationProcessor({
+      store,
+      comfyClient: {
+        uploadInputImage: vi.fn(async () => {
+          throw new Error('should not upload');
+        }),
+        submitPrompt,
+        pollHistory: vi.fn(async () => ({
+          history: {
+            'prompt-1': {
+              outputs: {
+                '3': {
+                  images: [
+                    {
+                      filename: 'remote.png',
+                      subfolder: 'output',
+                      type: 'output'
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          entry: {
+            outputs: {
+              '3': {
+                images: [
+                  {
+                    filename: 'remote.png',
+                    subfolder: 'output',
+                    type: 'output'
+                  }
+                ]
+              }
+            }
+          }
+        })),
+        downloadImage: vi.fn(async () => Buffer.from([9, 8, 7]))
+      },
+      config: createTestConfig(root)
+    });
+
+    const result = await processor.process(store.current);
+
+    expect(result).toEqual({ status: 'completed' });
+    expect(submitPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        '7': expect.objectContaining({
+          inputs: expect.objectContaining({
+            seed: 8675309
+          })
+        })
+      }),
+      expect.anything()
+    );
+  });
+
+  it('given_stored_execution_snapshot_when_processed_then_processor_does_not_depend_on_preset_catalog', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
+    tempDirs.push(root);
+
+    const generation = {
+      ...createTestGeneration({
+        presetId: 'missing/basic',
+        templateId: 'missing',
+        presetParams: {
+          prompt: 'queue snapshot',
+          steps: 5,
+          seedMode: 'random',
+          seed: 8675309
+        }
+      }),
+      executionSnapshot: {
+        workflow: {
+          '3': {
+            class_type: 'SaveImage',
+            inputs: {
+              filename_prefix: 'result'
+            }
+          },
+          '7': {
+            class_type: 'KSampler',
+            inputs: {
+              seed: 8675309,
+              steps: 5
+            }
+          },
+          '14': {
+            class_type: 'PromptNode',
+            inputs: {
+              prompt: 'queue snapshot'
+            }
+          }
+        },
+        resolvedParams: {
+          prompt: 'queue snapshot',
+          steps: 5,
+          seedMode: 'random',
+          seed: 8675309
+        },
+        preferredOutputNodeId: '3'
+      }
+    } as StoredGeneration & {
+      executionSnapshot: GenerationExecutionPlan;
+    };
+    const store = createTestStore(generation as StoredGeneration);
+    const submitPrompt = vi.fn(async () => ({ promptId: 'prompt-1' }));
+
+    const processor = createGenerationProcessor({
+      store,
+      comfyClient: {
+        uploadInputImage: vi.fn(async () => {
+          throw new Error('should not upload');
+        }),
+        submitPrompt,
+        pollHistory: vi.fn(async () => ({
+          history: {
+            'prompt-1': {
+              outputs: {
+                '3': {
+                  images: [
+                    {
+                      filename: 'remote.png',
+                      subfolder: 'output',
+                      type: 'output'
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          entry: {
+            outputs: {
+              '3': {
+                images: [
+                  {
+                    filename: 'remote.png',
+                    subfolder: 'output',
+                    type: 'output'
+                  }
+                ]
+              }
+            }
+          }
+        })),
+        downloadImage: vi.fn(async () => Buffer.from([9, 8, 7]))
+      },
+      config: createTestConfig(root)
+    });
+
+    const result = await processor.process(generation as StoredGeneration);
+
+    expect(result).toEqual({ status: 'completed' });
+    expect(submitPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        '7': expect.objectContaining({
+          inputs: expect.objectContaining({
+            seed: 8675309
+          })
+        })
+      }),
+      expect.anything()
+    );
   });
 
   it('given_transient_upload_failure_when_processed_then_upload_is_retried_once', async () => {
@@ -163,10 +352,6 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
-      presetCatalog: createPresetCatalog(
-        [createPresetSummary()],
-        new Map([[createPresetDetail().id, createPresetDetail()]])
-      ),
       comfyClient: {
         uploadInputImage,
         submitPrompt: vi.fn(async () => ({ promptId: 'prompt-1' })),
@@ -224,10 +409,6 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
-      presetCatalog: createPresetCatalog(
-        [createPresetSummary()],
-        new Map([[createPresetDetail('txt2img').id, createPresetDetail('txt2img')]])
-      ),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -262,20 +443,12 @@ describe('createGenerationProcessor', () => {
 
     const store = createTestStore(
       createTestGeneration({
-        presetId: 'missing/basic',
-        templateId: 'missing',
-        presetParams: {
-          prompt: 'missing preset',
-          steps: 5,
-          seedMode: 'fixed',
-          seed: 123
-        }
+        executionSnapshot: null
       })
     );
 
     const processor = createGenerationProcessor({
       store,
-      presetCatalog: createPresetCatalog([], new Map()),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -297,7 +470,8 @@ describe('createGenerationProcessor', () => {
 
     expect(result).toEqual({
       status: 'failed',
-      error: 'Preset "missing/basic" was not found.'
+      error:
+        'Generation "11111111-1111-4111-8111-111111111111" is missing an execution snapshot.'
     });
   });
 
@@ -321,10 +495,6 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
-      presetCatalog: createPresetCatalog(
-        [createPresetSummary('txt2img')],
-        new Map([[createPresetDetail('txt2img').id, createPresetDetail('txt2img')]])
-      ),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -374,10 +544,6 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
-      presetCatalog: createPresetCatalog(
-        [createPresetSummary('txt2img')],
-        new Map([[createPresetDetail('txt2img').id, createPresetDetail('txt2img')]])
-      ),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -443,10 +609,6 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
-      presetCatalog: createPresetCatalog(
-        [createPresetSummary('txt2img')],
-        new Map([[createPresetDetail('txt2img').id, createPresetDetail('txt2img')]])
-      ),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -515,10 +677,6 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
-      presetCatalog: createPresetCatalog(
-        [createPresetSummary('txt2img')],
-        new Map([[createPresetDetail('txt2img').id, createPresetDetail('txt2img')]])
-      ),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -566,10 +724,6 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
-      presetCatalog: createPresetCatalog(
-        [createPresetSummary('txt2img')],
-        new Map([[createPresetDetail('txt2img').id, createPresetDetail('txt2img')]])
-      ),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -637,10 +791,6 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
-      presetCatalog: createPresetCatalog(
-        [createPresetSummary('txt2img')],
-        new Map([[createPresetDetail('txt2img').id, createPresetDetail('txt2img')]])
-      ),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -718,7 +868,9 @@ function createTestConfig(root: string): AppConfig {
 function createTestGeneration(
   overrides: Partial<StoredGeneration> = {}
 ): StoredGeneration {
-  return createStoredGeneration({
+  const { executionSnapshot, promptRequest, promptResponse, ...generationOverrides } =
+    overrides;
+  const generation: Generation = {
     id: '11111111-1111-4111-8111-111111111111',
     status: 'submitted',
     presetId: 'img2img-basic/basic',
@@ -734,8 +886,66 @@ function createTestGeneration(
     error: null,
     createdAt: '2026-04-07T09:59:00.000Z',
     updatedAt: '2026-04-07T10:00:00.000Z',
-    ...overrides
+    ...generationOverrides
+  };
+
+  return createStoredGeneration(generation, {
+    executionSnapshot:
+      executionSnapshot === undefined
+        ? createExecutionSnapshot(generation)
+        : executionSnapshot,
+    promptRequest: promptRequest ?? null,
+    promptResponse: promptResponse ?? null
   });
+}
+
+function createExecutionSnapshot(
+  generation: Pick<StoredGeneration, 'templateId' | 'presetParams'>
+): GenerationExecutionPlan {
+  const workflow: Record<string, unknown> = {
+    '3': {
+      class_type: 'SaveImage',
+      inputs: {
+        filename_prefix: 'result'
+      }
+    },
+    '7': {
+      class_type: 'KSampler',
+      inputs: {
+        seed: generation.presetParams.seed,
+        steps: generation.presetParams.steps
+      }
+    },
+    '14': {
+      class_type: 'PromptNode',
+      inputs: {
+        prompt: generation.presetParams.prompt
+      }
+    }
+  };
+
+  const inputImagePath = generation.presetParams.inputImagePath;
+  if (
+    generation.templateId === 'img2img-basic' &&
+    typeof inputImagePath === 'string' &&
+    inputImagePath.length > 0
+  ) {
+    workflow['12'] = {
+      class_type: 'LoadImage',
+      inputs: {
+        image: inputImagePath
+      }
+    };
+  }
+
+  return {
+    workflow,
+    resolvedParams: structuredClone(generation.presetParams),
+    ...(typeof inputImagePath === 'string' && inputImagePath.length > 0
+      ? { inputImagePath }
+      : {}),
+    preferredOutputNodeId: '3'
+  };
 }
 
 function createTestStore(
@@ -780,11 +990,7 @@ function createTestStore(
         return undefined;
       }
       if (options.onRecordPromptRequest !== undefined) {
-        return options.onRecordPromptRequest(
-          generationId,
-          promptRequest,
-          state.current
-        );
+        return options.onRecordPromptRequest(generationId, promptRequest, state.current);
       }
       state.promptRequest = promptRequest;
       state.current = {
@@ -819,175 +1025,5 @@ function createRuntimeStatusStub(
 ): Pick<AppRuntimeStatusService, 'ensureOnline'> {
   return {
     ensureOnline: overrides.ensureOnline ?? (async () => undefined)
-  };
-}
-
-function createPresetSummary(type: 'img2img' | 'txt2img' = 'img2img') {
-  return {
-    id: `${type}-basic/basic`,
-    name: `${type} basic`,
-    type,
-    templateId: `${type}-basic`,
-    templateFile: 'preset.template.json',
-    defaults: {
-      prompt: 'default prompt',
-      steps: 5,
-      seedMode: 'random'
-    }
-  };
-}
-
-function createPresetDetail(type: 'img2img' | 'txt2img' = 'img2img') {
-  const summary = createPresetSummary(type);
-  return {
-    ...summary,
-    model: {
-      categories: [
-        {
-          id: 'main',
-          label: { en: 'Main' },
-          order: 10,
-          presentation: {
-            collapsible: false,
-            defaultExpanded: true
-          }
-        },
-        {
-          id: 'advanced',
-          label: { en: 'Advanced' },
-          order: 20,
-          presentation: {
-            collapsible: true,
-            defaultExpanded: false
-          }
-        }
-      ],
-      fields: [
-        {
-          id: 'prompt',
-          fieldType: 'string' as const,
-          categoryId: 'main',
-          order: 10,
-          label: { en: 'Prompt' },
-          validation: {
-            required: true,
-            maxLength: 4000
-          },
-          control: {
-            type: 'input' as const
-          }
-        },
-        {
-          id: 'steps',
-          fieldType: 'integer' as const,
-          categoryId: 'advanced',
-          order: 20,
-          label: { en: 'Steps' },
-          default: 5,
-          validation: {
-            required: true,
-            min: 1,
-            max: 100
-          },
-          control: {
-            type: 'slider' as const,
-            min: 1,
-            max: 100,
-            step: 1
-          }
-        },
-        {
-          id: 'seedMode',
-          fieldType: 'enum' as const,
-          categoryId: 'advanced',
-          order: 30,
-          label: { en: 'Seed Mode' },
-          default: 'random',
-          validation: {
-            required: true
-          },
-          control: {
-            type: 'select' as const,
-            options: [
-              { value: 'random', label: { en: 'Random' } },
-              { value: 'fixed', label: { en: 'Fixed' } }
-            ]
-          }
-        },
-        {
-          id: 'seed',
-          fieldType: 'integer' as const,
-          categoryId: 'advanced',
-          order: 40,
-          label: { en: 'Seed' },
-          validation: {
-            required: false,
-            min: 0
-          },
-          visibility: {
-            field: 'seedMode',
-            equals: 'fixed'
-          },
-          control: {
-            type: 'input' as const
-          }
-        }
-      ]
-    },
-    template: {
-      id: summary.templateId,
-      type,
-      implicitRuntimeParamKeys: type === 'img2img' ? ['inputImagePath'] : [],
-      workflow:
-        type === 'img2img'
-          ? {
-              '12': {
-                class_type: 'LoadImage',
-                inputs: {
-                  image: '{{inputImagePath}}'
-                }
-              },
-              '14': {
-                class_type: 'PromptNode',
-                inputs: {
-                  prompt: '{{prompt}}'
-                }
-              },
-              '7': {
-                class_type: 'KSampler',
-                inputs: {
-                  seed: '{{seed}}',
-                  steps: '{{steps}}'
-                }
-              },
-              '3': {
-                class_type: 'SaveImage',
-                inputs: {
-                  filename_prefix: 'result'
-                }
-              }
-            }
-          : {
-              '14': {
-                class_type: 'PromptNode',
-                inputs: {
-                  prompt: '{{prompt}}'
-                }
-              },
-              '7': {
-                class_type: 'KSampler',
-                inputs: {
-                  seed: '{{seed}}',
-                  steps: '{{steps}}'
-                }
-              },
-              '3': {
-                class_type: 'SaveImage',
-                inputs: {
-                  filename_prefix: 'result'
-                }
-              }
-            }
-    }
   };
 }

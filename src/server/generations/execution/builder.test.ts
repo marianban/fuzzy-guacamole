@@ -9,7 +9,7 @@ import {
 } from './builder.js';
 
 describe('buildGenerationExecution', () => {
-  it('given_tokenized_workflow_when_materializing_then_raw_values_and_embedded_strings_are_preserved', () => {
+  it('given_tokenized_workflow_when_materializing_then_raw_values_and_embedded_strings_are_preserved', async () => {
     const preset = createPreset({
       implicitRuntimeParamKeys: ['enabled'],
       type: 'txt2img',
@@ -31,7 +31,7 @@ describe('buildGenerationExecution', () => {
       }
     });
 
-    const execution = buildGenerationExecution({
+    const execution = await buildGenerationExecution({
       generation: {
         id: '11111111-1111-4111-8111-111111111111',
         presetId: preset.id,
@@ -58,7 +58,7 @@ describe('buildGenerationExecution', () => {
     expect(execution.preferredOutputNodeId).toBe('3');
   });
 
-  it('given_random_seed_mode_when_materializing_then_seed_is_replaced_with_generated_integer', () => {
+  it('given_random_seed_mode_when_materializing_then_seed_is_replaced_with_generated_integer', async () => {
     const preset = createPreset({
       workflow: {
         '7': {
@@ -82,7 +82,7 @@ describe('buildGenerationExecution', () => {
       }
     });
 
-    const execution = buildGenerationExecution({
+    const execution = await buildGenerationExecution({
       generation: {
         id: '11111111-1111-4111-8111-111111111111',
         presetId: preset.id,
@@ -104,52 +104,7 @@ describe('buildGenerationExecution', () => {
     expect(execution.preferredOutputNodeId).toBe('60');
   });
 
-  it('given_random_seed_mode_with_stored_seed_when_materializing_then_new_seed_is_generated', () => {
-    const preset = createPreset({
-      workflow: {
-        '7': {
-          class_type: 'KSampler',
-          inputs: {
-            seed: '{{seed}}'
-          }
-        },
-        '60': {
-          class_type: 'SaveImage',
-          inputs: {
-            filename_prefix: 'result'
-          }
-        }
-      },
-      defaults: {
-        prompt: 'preset prompt',
-        steps: 5,
-        seedMode: 'random'
-      }
-    });
-
-    const execution = buildGenerationExecution({
-      generation: {
-        id: '11111111-1111-4111-8111-111111111111',
-        presetId: preset.id,
-        templateId: preset.templateId,
-        presetParams: {
-          prompt: 'city lights',
-          seed: 10101
-        }
-      },
-      preset,
-      randomSeed: () => 424242
-    });
-
-    expect(execution.resolvedParams.seed).toBe(424242);
-    expect(execution.workflow['7']).toMatchObject({
-      inputs: {
-        seed: 424242
-      }
-    });
-  });
-
-  it('given_missing_runtime_param_when_materializing_then_validation_error_mentions_missing_token', () => {
+  it('given_missing_runtime_param_when_materializing_then_validation_error_mentions_missing_token', async () => {
     const preset = createPreset({
       type: 'img2img',
       implicitRuntimeParamKeys: ['inputImagePath'],
@@ -169,7 +124,7 @@ describe('buildGenerationExecution', () => {
       }
     });
 
-    expect(() =>
+    await expect(
       buildGenerationExecution({
         generation: {
           id: '11111111-1111-4111-8111-111111111111',
@@ -181,10 +136,10 @@ describe('buildGenerationExecution', () => {
         },
         preset
       })
-    ).toThrowError(GenerationExecutionValidationError);
+    ).rejects.toThrowError(GenerationExecutionValidationError);
 
     try {
-      buildGenerationExecution({
+      await buildGenerationExecution({
         generation: {
           id: '11111111-1111-4111-8111-111111111111',
           presetId: preset.id,
@@ -201,7 +156,7 @@ describe('buildGenerationExecution', () => {
     }
   });
 
-  it('given_optional_string_token_with_blank_value_when_materializing_then_null_is_preserved', () => {
+  it('given_optional_string_token_with_blank_value_when_materializing_then_null_is_preserved', async () => {
     const preset = createPreset({
       workflow: {
         '13': {
@@ -219,7 +174,7 @@ describe('buildGenerationExecution', () => {
       }
     });
 
-    const execution = buildGenerationExecution({
+    const execution = await buildGenerationExecution({
       generation: {
         id: '11111111-1111-4111-8111-111111111111',
         presetId: preset.id,
@@ -239,7 +194,7 @@ describe('buildGenerationExecution', () => {
     });
   });
 
-  it('given_missing_optional_tokens_when_materializing_then_full_token_values_fall_back_to_null', () => {
+  it('given_missing_optional_tokens_when_materializing_then_full_token_values_fall_back_to_null', async () => {
     const preset = createPreset({
       workflow: {
         '13': {
@@ -275,7 +230,7 @@ describe('buildGenerationExecution', () => {
       }
     });
 
-    const execution = buildGenerationExecution({
+    const execution = await buildGenerationExecution({
       generation: {
         id: '11111111-1111-4111-8111-111111111111',
         presetId: preset.id,
@@ -309,7 +264,7 @@ describe('buildGenerationExecution', () => {
     });
   });
 
-  it('given_runtime_only_token_not_declared_by_template_when_materializing_then_validation_rejects_it', () => {
+  it('given_runtime_only_token_not_declared_by_template_when_materializing_then_validation_rejects_it', async () => {
     const preset = createPreset({
       type: 'txt2img',
       implicitRuntimeParamKeys: [],
@@ -324,7 +279,7 @@ describe('buildGenerationExecution', () => {
       }
     });
 
-    expect(() =>
+    await expect(
       buildGenerationExecution({
         generation: {
           id: '11111111-1111-4111-8111-111111111111',
@@ -337,7 +292,7 @@ describe('buildGenerationExecution', () => {
         },
         preset
       })
-    ).toThrowError(/available runtime parameter/i);
+    ).rejects.toThrowError(/available runtime parameter/i);
   });
 });
 

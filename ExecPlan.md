@@ -120,6 +120,9 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - Decision: Reuse preset resolution and queue validation rules inside a dedicated execution builder, with one explicit transient retry for upload/submit/history operations only.
   Rationale: This keeps route-time and worker-time validation aligned while matching the spec's retry boundary and avoiding silent retries for validation, execution, output, or cancel failures.
   Date/Author: 2026-04-07 / Codex (GPT-5.4)
+- Decision: Treat the queued generation row as the authoritative execution contract by persisting one queue-time `executionSnapshot` JSON blob and having the processor consume that snapshot directly.
+  Rationale: This removes worker-time preset rebuilding, makes random seed normalization happen exactly once, keeps restart behavior deterministic, and preserves the exact queued workflow for debugging.
+  Date/Author: 2026-04-18 / User + GitHub Copilot (GPT-5.4)
 - Decision (superseded): Use Postgres with a minimal SQL migration runner checked into the repo.
   Rationale: Avoided heavy ORM lock-in while keeping schema changes explicit and reproducible for novices.
   Date/Author: 2026-01-24 / Codex (GPT-5.2)
@@ -130,6 +133,7 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - (2026-04-07) Internal server structure is now clearer: transport code lives under `src/server/http`, infrastructure concerns have dedicated folders, and test-only helpers are separated from runtime modules. This did not change user-visible behavior, but it reduced structural ambiguity for future work.
 - (2026-04-07) Queueing now triggers automatic server-side processing: the app starts one worker, Postgres claims the oldest queued row atomically, transitions flow through `submitted` to a terminal state, and SSE consumers continue to receive the same generation upsert events. Current limitation: bootstrap still uses a placeholder processor, so queued generations terminate with an explicit not-yet-implemented execution error until workflow materialization and Comfy execution land.
 - (2026-04-07) Queueing now drives the real execution path: the server materializes workflows from preset bundles, uploads img2img inputs when required, persists prompt request/response metadata, downloads one deterministic output image into the generation output folder, and keeps submitted cancel plus delete cleanup consistent with the persisted lifecycle state.
+- (2026-04-18) Queueing now persists a full internal `executionSnapshot` on the generation row, and the processor executes from that stored snapshot instead of rebuilding from current preset definitions. This tightened determinism, preserved the exact queued workflow for debugging, and kept prompt request/response metadata as separate execution artifacts.
 
 Revision Note (2026-04-07): Updated this ExecPlan to record the internal `src/server` module refactor and the reasoning behind the new folder boundaries so future contributors understand the current layout.
 

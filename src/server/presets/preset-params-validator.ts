@@ -1,3 +1,6 @@
+import { constants } from 'node:fs';
+import { access, stat } from 'node:fs/promises';
+
 import type { PresetDetail, PresetModelField } from '../../shared/presets.js';
 
 export class PresetParamsValidationError extends Error {
@@ -40,9 +43,9 @@ export function validateCreatePresetParams(
   }
 }
 
-export function validateQueuePresetParams(
+export async function validateQueuePresetParams(
   options: ValidateQueuePresetParamsOptions
-): void {
+): Promise<void> {
   const issues: string[] = [];
   const modelFieldsById = new Map(
     options.preset.model.fields.map((field) => [field.id, field])
@@ -68,9 +71,45 @@ export function validateQueuePresetParams(
   }
 
   validateModelFieldValues(options.preset.model.fields, options.resolvedParams, issues);
+  await validateRuntimeFileInputs(options, issues);
 
   if (issues.length > 0) {
     throw new PresetParamsValidationError(issues);
+  }
+}
+
+async function validateRuntimeFileInputs(
+  options: ValidateQueuePresetParamsOptions,
+  issues: string[]
+): Promise<void> {
+  if (!options.preset.template.implicitRuntimeParamKeys.includes('inputImagePath')) {
+    return;
+  }
+
+  const inputImagePath = options.resolvedParams.inputImagePath;
+  if (!hasResolvedValue(inputImagePath)) {
+    return;
+  }
+
+  if (typeof inputImagePath !== 'string') {
+    issues.push(
+      'Runtime parameter "inputImagePath" must reference an existing readable file before queueing.'
+    );
+    return;
+  }
+
+  try {
+    await access(inputImagePath, constants.R_OK);
+    const inputStats = await stat(inputImagePath);
+    if (!inputStats.isFile()) {
+      issues.push(
+        'Runtime parameter "inputImagePath" must reference an existing readable file before queueing.'
+      );
+    }
+  } catch {
+    issues.push(
+      'Runtime parameter "inputImagePath" must reference an existing readable file before queueing.'
+    );
   }
 }
 

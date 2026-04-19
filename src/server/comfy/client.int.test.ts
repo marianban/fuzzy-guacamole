@@ -70,12 +70,14 @@ describe.sequential('ComfyClient integration (local ComfyUI)', () => {
 
   test('given_local_comfy_when_uploading_img2img_input_then_comfy_reference_is_returned_for_loadimage', async () => {
     const client = new ComfyClient({ baseUrl });
-    const img2imgWorkflow = await loadWorkflow(img2imgTemplatePath);
-
     const upload = await client.uploadInputImage(tinyPngPath);
     expect(upload.image.filename).toContain('.png');
+    const img2imgWorkflow = setLoadImageReference(
+      await loadWorkflow(img2imgTemplatePath),
+      upload.comfyImageRef,
+      '12'
+    );
 
-    setLoadImageReference(img2imgWorkflow, upload.comfyImageRef, '12');
     const loadImageNode = img2imgWorkflow['12'] as { inputs: { image: string } };
     expect(loadImageNode.inputs.image).toBe(upload.comfyImageRef);
   });
@@ -121,10 +123,14 @@ describe.sequential('ComfyClient integration (local ComfyUI)', () => {
         historyPollMs: 1_500,
         historyTimeoutMs: 720_000
       });
-      const img2imgWorkflow = await loadWorkflow(img2imgTemplatePath);
+      let img2imgWorkflow = await loadWorkflow(img2imgTemplatePath);
 
       const upload = await client.uploadInputImage(liankaInputImagePath);
-      setLoadImageReference(img2imgWorkflow, upload.comfyImageRef, '12');
+      img2imgWorkflow = setLoadImageReference(
+        img2imgWorkflow,
+        upload.comfyImageRef,
+        '12'
+      );
       setImg2ImgPrompt(img2imgWorkflow, startedAt);
 
       const submitted = await client.submitPrompt(img2imgWorkflow);

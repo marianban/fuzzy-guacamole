@@ -11,6 +11,7 @@
     "dev:client": "vite --config src/client/vite.config.ts",
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "tsx scripts/migrate-db.mjs",
+    "db:reset": "tsx scripts/reset-db.ts",
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build --config src/client/vite.config.ts",
     "build:server": "tsc -p src/server/tsconfig.json",

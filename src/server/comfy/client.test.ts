@@ -353,7 +353,7 @@ describe('Comfy client helpers', () => {
     );
   });
 
-  it('given_workflow_with_loadimage_when_setting_reference_then_target_node_is_updated', () => {
+  it('given_workflow_with_loadimage_when_setting_reference_then_target_node_is_updated_without_mutating_input', () => {
     const workflow: Record<string, unknown> = {
       '12': { class_type: 'LoadImage', inputs: {} },
       '14': { class_type: 'OtherNode', inputs: {} }
@@ -361,9 +361,14 @@ describe('Comfy client helpers', () => {
 
     const updated = setLoadImageReference(workflow, 'input/my-file.png');
 
+    expect(updated).not.toBe(workflow);
     expect(updated['12']).toMatchObject({
       class_type: 'LoadImage',
       inputs: { image: 'input/my-file.png' }
+    });
+    expect(workflow['12']).toMatchObject({
+      class_type: 'LoadImage',
+      inputs: {}
     });
   });
 

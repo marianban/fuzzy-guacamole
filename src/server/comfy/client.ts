@@ -470,15 +470,16 @@ export function setLoadImageReference(
       ? (currentNodeValue.inputs as Record<string, unknown>)
       : {};
 
-  workflow[targetNodeId] = {
-    ...currentNodeValue,
-    inputs: {
-      ...currentInputs,
-      image: comfyImageRef
+  return {
+    ...workflow,
+    [targetNodeId]: {
+      ...currentNodeValue,
+      inputs: {
+        ...currentInputs,
+        image: comfyImageRef
+      }
     }
   };
-
-  return workflow;
 }
 
 export function extractDeterministicOutputImage(

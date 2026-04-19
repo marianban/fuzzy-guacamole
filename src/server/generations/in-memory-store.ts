@@ -8,11 +8,12 @@ import {
   toPublicGeneration,
   type StoredGeneration
 } from './stored-generation.js';
-import type {
-  CreateGenerationInput,
-  GenerationStore,
-  MarkQueuedOptions,
-  SaveableGeneration
+import {
+  assertMarkQueuedOptions,
+  type CreateGenerationInput,
+  type GenerationStore,
+  type MarkQueuedOptions,
+  type SaveableGeneration
 } from './store.js';
 
 class InMemoryGenerationStore implements GenerationStore {
@@ -60,6 +61,7 @@ class InMemoryGenerationStore implements GenerationStore {
     const storedGeneration = isStoredGeneration(generation)
       ? copyStoredGeneration(generation)
       : createStoredGeneration(generation, {
+          executionSnapshot: existing?.executionSnapshot ?? null,
           promptRequest: existing?.promptRequest ?? null,
           promptResponse: existing?.promptResponse ?? null
         });
@@ -105,6 +107,7 @@ class InMemoryGenerationStore implements GenerationStore {
     generationId: string,
     options: MarkQueuedOptions
   ): Promise<Generation | undefined> {
+    assertMarkQueuedOptions(options);
     const generation = this.#byId.get(generationId);
     if (
       generation === undefined ||
@@ -114,12 +117,13 @@ class InMemoryGenerationStore implements GenerationStore {
       return undefined;
     }
 
-    const { queuedAt, presetParams } = options;
+    const { queuedAt, presetParams, executionSnapshot } = options;
 
     const updatedGeneration: StoredGeneration = {
       ...generation,
       status: 'queued',
-      presetParams: presetParams ?? generation.presetParams,
+      presetParams,
+      executionSnapshot,
       promptRequest: null,
       promptResponse: null,
       queuedAt,

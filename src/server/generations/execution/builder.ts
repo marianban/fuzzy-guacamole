@@ -4,6 +4,9 @@ import {
   validateQueuePresetParams
 } from '../../presets/preset-params-validator.js';
 import { resolvePresetParams } from '../../presets/preset-params-resolver.js';
+import {
+  type GenerationExecutionPlan
+} from './plan.js';
 
 export class GenerationExecutionValidationError extends Error {
   readonly issues: string[];
@@ -26,16 +29,9 @@ export interface BuildGenerationExecutionOptions {
   randomSeed?: () => number;
 }
 
-export interface GenerationExecutionPlan {
-  workflow: Record<string, unknown>;
-  resolvedParams: Record<string, unknown>;
-  inputImagePath?: string;
-  preferredOutputNodeId?: string;
-}
-
-export function buildGenerationExecution(
+export async function buildGenerationExecution(
   options: BuildGenerationExecutionOptions
-): GenerationExecutionPlan {
+): Promise<GenerationExecutionPlan> {
   const optionalFieldTokenIds = new Set(
     options.preset.model.fields
       .filter((field) => field.validation.required === false)
@@ -54,7 +50,7 @@ export function buildGenerationExecution(
   normalizeSeedParams(resolvedParams, options.randomSeed ?? generateRandomSeed);
 
   try {
-    validateQueuePresetParams({
+    await validateQueuePresetParams({
       preset: options.preset,
       resolvedParams
     });

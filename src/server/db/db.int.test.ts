@@ -308,7 +308,6 @@ describe('postgres-backed generations', () => {
       });
       const processor = createGenerationProcessor({
         store: generationStore,
-        presetCatalog,
         comfyClient: {
           uploadInputImage: vi.fn(async () => {
             throw new Error('should not upload txt2img input');
@@ -480,6 +479,85 @@ describe('postgres-backed generations', () => {
         expect(savedContent.equals(fileBuffer)).toBe(true);
       } finally {
         await secondApp.close();
+        await secondDatabase.close();
+      }
+    } finally {
+      await testDatabase.dispose();
+    }
+  });
+
+  test('given_db_backed_server_when_queueing_generation_then_execution_snapshot_remains_persisted_after_restart', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-db-execution-snapshot-'));
+    tempDirs.push(root);
+    const config = await loadTestConfig(root);
+    const presetCatalog = createExecutionTestCatalog();
+    const testDatabase = await createTestDatabaseContext();
+    await testDatabase.migrate();
+
+    try {
+      const firstDatabase = testDatabase.createAppDatabase();
+      const firstStore = createPostgresGenerationStore(firstDatabase);
+      const firstApp = buildTestServer({
+        config,
+        presetCatalog,
+        generationStore: firstStore
+      });
+
+      const createdResponse = await firstApp.inject({
+        method: 'POST',
+        url: '/api/generations',
+        payload: {
+          presetId: 'txt2img-basic/basic',
+          presetParams: {
+            prompt: 'persist snapshot',
+            steps: 5,
+            seedMode: 'fixed',
+            seed: 123
+          }
+        }
+      });
+      expect(createdResponse.statusCode).toBe(201);
+      const created = createdResponse.json() as { id: string };
+
+      const queueResponse = await firstApp.inject({
+        method: 'POST',
+        url: `/api/generations/${created.id}/queue`
+      });
+      expect(queueResponse.statusCode).toBe(200);
+
+      await firstApp.close();
+      await firstDatabase.close();
+
+      const secondDatabase = testDatabase.createAppDatabase();
+      const secondStore = createPostgresGenerationStore(secondDatabase);
+
+      try {
+        const stored = (await secondStore.getStoredById(created.id)) as
+          | (Awaited<ReturnType<typeof secondStore.getStoredById>> & {
+              executionSnapshot?: {
+                resolvedParams?: Record<string, unknown>;
+                workflow?: Record<string, unknown>;
+              };
+            })
+          | undefined;
+
+        expect(stored?.executionSnapshot).toMatchObject({
+          resolvedParams: {
+            prompt: 'persist snapshot',
+            steps: 5,
+            seedMode: 'fixed',
+            seed: 123
+          },
+          workflow: {
+            '7': {
+              inputs: {
+                seed: 123,
+                steps: 5
+              }
+            }
+          }
+        });
+      } finally {
         await secondDatabase.close();
       }
     } finally {

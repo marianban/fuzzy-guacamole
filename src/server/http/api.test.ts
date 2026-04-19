@@ -189,14 +189,18 @@ function createRuntimeStatusStub(values: {
   current: z.infer<typeof appStatusResponseSchema>;
   started: z.infer<typeof appStatusResponseSchema>;
 }) {
-  const runtimeStatus: Pick<AppRuntimeStatusService, 'getStatus' | 'start'> & {
+  const runtimeStatus: Pick<
+    AppRuntimeStatusService,
+    'getStatus' | 'start' | 'ensureOnline'
+  > & {
     current: z.infer<typeof appStatusResponseSchema>;
     started: z.infer<typeof appStatusResponseSchema>;
   } = {
     current: appStatusResponseSchema.parse(values.current),
     started: appStatusResponseSchema.parse(values.started),
     getStatus: vi.fn(() => appStatusResponseSchema.parse(values.current)),
-    start: vi.fn(async () => appStatusResponseSchema.parse(values.started))
+    start: vi.fn(async () => appStatusResponseSchema.parse(values.started)),
+    ensureOnline: vi.fn(async () => undefined)
   };
 
   return runtimeStatus;

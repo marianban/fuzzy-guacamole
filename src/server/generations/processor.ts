@@ -10,11 +10,7 @@ import {
   type ComfyClient
 } from '../comfy/client.js';
 import type { AppRuntimeStatusService } from '../status/runtime-status.js';
-import type { PresetCatalog } from '../presets/preset-catalog.js';
-import {
-  buildGenerationExecution,
-  GenerationExecutionValidationError
-} from './execution/builder.js';
+import type { GenerationExecutionPlan } from './execution/plan.js';
 import { resolveGenerationArtifactPath } from './artifact-paths.js';
 import type { StoredGeneration } from './stored-generation.js';
 import type { GenerationStore } from './store.js';
@@ -43,7 +39,6 @@ export interface GenerationProcessorOptions {
     GenerationStore,
     'getStoredById' | 'recordPromptRequest' | 'recordPromptResponse'
   >;
-  presetCatalog: PresetCatalog;
   comfyClient: Pick<
     ComfyClient,
     'uploadInputImage' | 'submitPrompt' | 'pollHistory' | 'downloadImage'
@@ -73,7 +68,6 @@ export function createGenerationProcessor(
 
 class DefaultGenerationProcessor implements GenerationProcessor {
   readonly #store: GenerationProcessorOptions['store'];
-  readonly #presetCatalog: PresetCatalog;
   readonly #comfyClient: GenerationProcessorOptions['comfyClient'];
   readonly #config: Pick<AppConfig, 'paths' | 'timeouts'>;
   readonly #runtimeStatus: GenerationProcessorOptions['runtimeStatus'];
@@ -82,7 +76,6 @@ class DefaultGenerationProcessor implements GenerationProcessor {
 
   constructor(options: GenerationProcessorOptions) {
     this.#store = options.store;
-    this.#presetCatalog = options.presetCatalog;
     this.#comfyClient = options.comfyClient;
     this.#config = options.config;
     this.#runtimeStatus = options.runtimeStatus;
@@ -99,20 +92,17 @@ class DefaultGenerationProcessor implements GenerationProcessor {
       await this.#runtimeStatus?.ensureOnline();
       throwIfAborted(signal);
 
-      const preset = this.#loadPreset(generation.presetId);
+      const execution = this.#loadExecutionSnapshot(generation);
+      let workflow = execution.workflow;
 
-      const execution = buildGenerationExecution({
-        generation,
-        preset
-      });
-
-      await this.#uploadInputImageIfPresent(generation.id, execution, signal);
-      await this.#recordPromptRequest(generation.id, execution.workflow, signal);
-      const promptResponse = await this.#submitPrompt(
+      workflow = await this.#uploadInputImageIfPresent(
         generation.id,
-        execution.workflow,
+        workflow,
+        execution.inputImagePath,
         signal
       );
+      await this.#recordPromptRequest(generation.id, workflow, signal);
+      const promptResponse = await this.#submitPrompt(generation.id, workflow, signal);
 
       const historyResult = await this.#waitForHistory(
         generation.id,
@@ -149,14 +139,7 @@ class DefaultGenerationProcessor implements GenerationProcessor {
         };
       }
 
-      if (error instanceof GenerationExecutionValidationError) {
-        return {
-          status: 'failed',
-          error: error.message
-        };
-      }
-
-      if (error instanceof PresetNotFoundError) {
+      if (error instanceof ExecutionSnapshotError) {
         return {
           status: 'failed',
           error: error.message
@@ -185,25 +168,26 @@ class DefaultGenerationProcessor implements GenerationProcessor {
     }
   }
 
-  #loadPreset(generationPresetId: string) {
-    const preset = this.#presetCatalog.getById(generationPresetId);
-    if (preset === undefined) {
-      throw new PresetNotFoundError(generationPresetId);
+  #loadExecutionSnapshot(generation: StoredGeneration): GenerationExecutionPlan {
+    if (generation.executionSnapshot === null) {
+      throw new ExecutionSnapshotError(
+        `Generation "${generation.id}" is missing an execution snapshot.`
+      );
     }
 
-    return preset;
+    return generation.executionSnapshot;
   }
 
   async #uploadInputImageIfPresent(
     generationId: string,
-    execution: ReturnType<typeof buildGenerationExecution>,
+    workflow: Record<string, unknown>,
+    inputImagePath: string | undefined,
     signal: AbortSignal | undefined
-  ): Promise<void> {
+  ): Promise<Record<string, unknown>> {
     await this.#guardGenerationStep(generationId, signal);
-    if (execution.inputImagePath === undefined) {
-      return;
+    if (inputImagePath === undefined) {
+      return workflow;
     }
-    const inputImagePath = execution.inputImagePath;
 
     const upload = await this.#runWithTransientRetry('upload input image', async () =>
       this.#comfyClient.uploadInputImage(
@@ -211,7 +195,7 @@ class DefaultGenerationProcessor implements GenerationProcessor {
         signal !== undefined ? { signal } : {}
       )
     );
-    setLoadImageReference(execution.workflow, upload.comfyImageRef);
+    return setLoadImageReference(workflow, upload.comfyImageRef);
   }
 
   async #recordPromptRequest(
@@ -417,10 +401,10 @@ class PromptMetadataPersistenceError extends Error {
   }
 }
 
-class PresetNotFoundError extends Error {
-  constructor(presetId: string) {
-    super(`Preset "${presetId}" was not found.`);
-    this.name = 'PresetNotFoundError';
+class ExecutionSnapshotError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ExecutionSnapshotError';
   }
 }
 
@@ -442,7 +426,7 @@ function isAbortError(error: unknown): boolean {
 }
 
 function isTransientExecutionError(error: unknown): boolean {
-  if (error instanceof GenerationExecutionValidationError) {
+  if (error instanceof ExecutionSnapshotError) {
     return false;
   }
 

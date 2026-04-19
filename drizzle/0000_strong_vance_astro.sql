@@ -4,6 +4,7 @@ CREATE TABLE "generations" (
 	"preset_id" text NOT NULL,
 	"template_id" text NOT NULL,
 	"preset_params" jsonb NOT NULL,
+	"execution_snapshot" jsonb,
 	"prompt_request" jsonb,
 	"prompt_response" jsonb,
 	"queued_at" timestamp with time zone,
