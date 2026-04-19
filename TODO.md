@@ -2,6 +2,10 @@
 
 Review scope: `src/server`, shared server contracts in `src/shared`, and the current architecture/spec docs. The items below are missing server capabilities, not polish tasks. Each item is scoped to be implementable as one meaningful PR.
 
+## Review create generation and queue generation endpoints
+
+Probably the create/should not take preset + params and there should be an PUT for update
+
 ## P1. Expand SSE/events into an execution telemetry stream the UI can actually use
 
 Why this is missing:
