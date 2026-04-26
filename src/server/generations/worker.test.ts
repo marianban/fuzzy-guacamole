@@ -352,8 +352,8 @@ describe('createGenerationWorker', () => {
       prompt: 'first',
       queuedAt: '2026-04-07T10:00:00.000Z'
     });
-    const firstStarted = createDeferred<void>();
-    const releaseFirst = createDeferred<void>();
+    const firstStarted = createDeferred();
+    const releaseFirst = createDeferred();
     const processedGenerationIds: string[] = [];
 
     const worker = createGenerationWorker({
@@ -406,8 +406,8 @@ describe('createGenerationWorker', () => {
       prompt: 'abort on stop',
       queuedAt: '2026-04-07T10:00:00.000Z'
     });
-    const processingStarted = createDeferred<void>();
-    const observedAbort = createDeferred<void>();
+    const processingStarted = createDeferred();
+    const observedAbort = createDeferred();
 
     const worker = createGenerationWorker({
       eventBus,
@@ -477,9 +477,9 @@ async function createQueuedGeneration(
   });
 }
 
-function createDeferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  const promise = new Promise<T>((promiseResolve) => {
+function createDeferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((promiseResolve) => {
     resolve = promiseResolve;
   });
 

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import * as generations from './generations.js';
 
-const { generationEventSchema, generationSchema } = generations;
+const { generationEventSchema, generationSchema, updateGenerationRequestSchema } =
+  generations;
 
 const validGeneration = generationSchema.parse({
   id: '11111111-1111-4111-8111-111111111111',
@@ -60,11 +61,7 @@ describe('generationEventSchema', () => {
 
 describe('updateGenerationRequestSchema', () => {
   it('given_patch_body_with_preset_and_params_when_parsed_then_validation_succeeds', () => {
-    const result = (
-      generations as typeof generations & {
-        updateGenerationRequestSchema?: typeof generations.createGenerationRequestSchema;
-      }
-    ).updateGenerationRequestSchema?.safeParse({
+    const result = updateGenerationRequestSchema.safeParse({
       presetId: 'img2img-basic/basic',
       presetParams: {
         prompt: 'hello'
@@ -75,14 +72,19 @@ describe('updateGenerationRequestSchema', () => {
   });
 
   it('given_patch_body_missing_params_when_parsed_then_validation_fails', () => {
-    const result = (
-      generations as typeof generations & {
-        updateGenerationRequestSchema?: typeof generations.createGenerationRequestSchema;
-      }
-    ).updateGenerationRequestSchema?.safeParse({
+    const result = updateGenerationRequestSchema.safeParse({
       presetId: 'img2img-basic/basic'
     });
 
-    expect(result?.success).toBe(false);
+    expect(result.success).toBe(false);
+  });
+
+  it('given_patch_body_with_empty_preset_id_when_parsed_then_validation_fails', () => {
+    const result = updateGenerationRequestSchema.safeParse({
+      presetId: '',
+      presetParams: {}
+    });
+
+    expect(result.success).toBe(false);
   });
 });

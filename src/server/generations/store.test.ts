@@ -280,18 +280,7 @@ describe('createPostgresGenerationStore', () => {
     const store = createPostgresGenerationStore(database);
 
     await expect(
-      (
-        store as typeof store & {
-          updateEditableGeneration?: (
-            generationId: string,
-            input: {
-              presetId: string;
-              templateId: string;
-              presetParams: Record<string, unknown>;
-            }
-          ) => ReturnType<typeof store.getById>;
-        }
-      ).updateEditableGeneration?.(generation.id, {
+      store.updateEditableGeneration(generation.id, {
         presetId: 'txt2img-basic/basic',
         templateId: 'txt2img-basic',
         presetParams: {
@@ -322,18 +311,7 @@ describe('createPostgresGenerationStore', () => {
     const store = createPostgresGenerationStore(database);
 
     await expect(
-      (
-        store as typeof store & {
-          updateEditableGeneration?: (
-            generationId: string,
-            input: {
-              presetId: string;
-              templateId: string;
-              presetParams: Record<string, unknown>;
-            }
-          ) => ReturnType<typeof store.getById>;
-        }
-      ).updateEditableGeneration?.('11111111-1111-4111-8111-111111111111', {
+      store.updateEditableGeneration('11111111-1111-4111-8111-111111111111', {
         presetId: 'img2img-basic/basic',
         templateId: 'img2img-basic',
         presetParams: {

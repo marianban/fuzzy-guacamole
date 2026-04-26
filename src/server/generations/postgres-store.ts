@@ -20,6 +20,12 @@ import {
   type SaveableGeneration,
   type UpdateEditableGenerationInput
 } from './store.js';
+import { EDITABLE_GENERATION_STATUSES } from './editable-statuses.js';
+
+const editableGenerationStatusesSql = sql.join(
+  EDITABLE_GENERATION_STATUSES.map((status) => sql`${status}`),
+  sql`, `
+);
 
 class PostgresGenerationStore implements GenerationStore {
   readonly #database: AppDatabase;
@@ -192,7 +198,7 @@ class PostgresGenerationStore implements GenerationStore {
           preset_params = ${serializedPresetParams}::jsonb,
           updated_at = ${updatedAt}
       where id = ${generationId}
-        and status in ('draft', 'completed', 'failed', 'canceled')
+        and status in (${editableGenerationStatusesSql})
       returning id,
                 status,
                 preset_id as "presetId",
@@ -232,7 +238,7 @@ class PostgresGenerationStore implements GenerationStore {
           updated_at = ${queuedAt},
           error = null
       where id = ${generationId}
-        and status in ('draft', 'completed', 'failed', 'canceled')
+        and status in (${editableGenerationStatusesSql})
       returning id,
                 status,
                 preset_id as "presetId",

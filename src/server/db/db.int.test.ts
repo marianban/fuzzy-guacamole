@@ -251,8 +251,11 @@ describe('postgres-backed generations', () => {
       const created = createdResponse.json() as { id: string };
       const stored = await firstStore.getById(created.id);
       expect(stored).toBeDefined();
+      if (stored === undefined) {
+        throw new Error(`Generation "${created.id}" was not stored before patching.`);
+      }
       await firstStore.save({
-        ...stored!,
+        ...stored,
         status: 'completed',
         updatedAt: '2026-04-07T10:00:00.000Z'
       });

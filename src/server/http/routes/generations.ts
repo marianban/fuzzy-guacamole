@@ -17,6 +17,7 @@ import { ComfyClient } from '../../comfy/client.js';
 import type { AppConfig } from '../../config/app-config.js';
 import type { GenerationEventBus } from '../../generations/events.js';
 import type { GenerationStore } from '../../generations/store.js';
+import { isEditableGenerationStatus } from '../../generations/editable-statuses.js';
 import {
   buildGenerationExecution,
   GenerationExecutionValidationError
@@ -28,6 +29,7 @@ import {
 import { resolvePresetParams } from '../../presets/preset-params-resolver.js';
 import type { PresetCatalog } from '../../presets/preset-catalog.js';
 import { resolveGenerationArtifactPath } from '../../generations/artifact-paths.js';
+import { pickNonModelPresetParams } from '../../generations/preset-params.js';
 
 const generationParamsSchema = z.object({
   generationId: z.uuid()
@@ -149,6 +151,7 @@ export function registerGenerationRoutes(
       const generation = await options.store.create({
         presetId: request.body.presetId,
         templateId: preset.templateId,
+        // Persist resolved defaults so later reads and queue execution use the same snapshot.
         presetParams: resolvedParams
       });
       options.eventBus.publish({
@@ -197,7 +200,7 @@ export function registerGenerationRoutes(
         });
       }
 
-      if (generation.status === 'queued' || generation.status === 'submitted') {
+      if (!isEditableGenerationStatus(generation.status)) {
         logGenerationWarning(request, 'generation update rejected', {
           generationId: generation.id,
           status: generation.status,
@@ -256,6 +259,28 @@ export function registerGenerationRoutes(
         presetParams: resolvedParams
       });
       if (updated === undefined) {
+        const current = await options.store.getById(generation.id);
+        if (current === undefined) {
+          logGenerationWarning(request, 'generation update rejected', {
+            generationId: generation.id,
+            warningCode: 'generation_not_found'
+          });
+          return reply.code(404).send({
+            message: `Generation "${generation.id}" was not found.`
+          });
+        }
+
+        if (!isEditableGenerationStatus(current.status)) {
+          logGenerationWarning(request, 'generation update rejected', {
+            generationId: current.id,
+            status: current.status,
+            warningCode: 'generation_update_not_allowed'
+          });
+          return reply.code(409).send({
+            message: `Generation "${current.id}" cannot be updated in status "${current.status}".`
+          });
+        }
+
         logGenerationWarning(request, 'generation update rejected', {
           generationId: generation.id,
           warningCode: 'generation_update_not_allowed'
@@ -713,16 +738,6 @@ async function cleanupGenerationArtifacts(
 
 function isTerminalGenerationStatus(status: string): boolean {
   return status === 'completed' || status === 'failed' || status === 'canceled';
-}
-
-function pickNonModelPresetParams(
-  presetParams: Record<string, unknown>,
-  preset: Parameters<typeof resolvePresetParams>[0]['preset']
-): Record<string, unknown> {
-  const modelFieldIds = new Set(preset.model.fields.map((field) => field.id));
-  return Object.fromEntries(
-    Object.entries(presetParams).filter(([key]) => !modelFieldIds.has(key))
-  );
 }
 
 function createComfyClient(config: AppConfig | undefined): ComfyClient {

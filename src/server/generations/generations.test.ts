@@ -10,7 +10,8 @@ import { buildServer } from '../http/server-app.js';
 import { loadAppConfig } from '../config/app-config.js';
 import { createPresetCatalog } from '../presets/preset-catalog.js';
 import { createBuildServerOptions } from '../test-support/build-server-options.js';
-import { createGenerationStore } from './store.js';
+import type { PresetDetail } from '../../shared/presets.js';
+import { createGenerationStore, type GenerationStore } from './store.js';
 
 function buildTestServer(options: Parameters<typeof createBuildServerOptions>[0]) {
   return buildServer(createBuildServerOptions(options));
@@ -411,7 +412,7 @@ function createCatalogWithBasicAndSeed() {
     }
   };
 
-  const basicDetail = {
+  const basicDetail: PresetDetail = {
     ...basicSummary,
     model: createBasicModel(),
     template: {
@@ -426,7 +427,7 @@ function createCatalogWithBasicAndSeed() {
       }
     }
   };
-  const seedDetail = {
+  const seedDetail: PresetDetail = {
     ...seedSummary,
     model: createSeedModel(),
     template: {
@@ -916,6 +917,142 @@ describe('generation routes', () => {
 
       expect(patchResponse.statusCode).toBe(409);
     }
+
+    await app.close();
+  });
+
+  it('given_generation_becomes_active_during_patch_when_updating_then_conflict_names_current_status', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+    const baseStore = createGenerationStore();
+    const generation = await baseStore.create({
+      presetId: 'img2img-basic/basic',
+      templateId: 'img2img-basic',
+      presetParams: {
+        prompt: 'racing'
+      }
+    });
+
+    const racingStore: GenerationStore = {
+      create: (input) => baseStore.create(input),
+      list: () => baseStore.list(),
+      getById: (generationId) => baseStore.getById(generationId),
+      getStoredById: (generationId) => baseStore.getStoredById(generationId),
+      save: (input) => baseStore.save(input),
+      delete: (generationId) => baseStore.delete(generationId),
+      deleteDeletable: (generationId) => baseStore.deleteDeletable(generationId),
+      setInputImagePath: (generationId, inputImagePath) =>
+        baseStore.setInputImagePath(generationId, inputImagePath),
+      async updateEditableGeneration(generationId, input) {
+        await baseStore.save({
+          ...generation,
+          status: 'submitted',
+          updatedAt: '2026-04-07T10:00:00.000Z'
+        });
+        return baseStore.updateEditableGeneration(generationId, input);
+      },
+      markQueued: (generationId, options) => baseStore.markQueued(generationId, options),
+      claimNextQueued: () => baseStore.claimNextQueued(),
+      recordPromptRequest: (generationId, promptRequest) =>
+        baseStore.recordPromptRequest(generationId, promptRequest),
+      recordPromptResponse: (generationId, promptResponse) =>
+        baseStore.recordPromptResponse(generationId, promptResponse),
+      markCanceled: (generationId) => baseStore.markCanceled(generationId),
+      markCompleted: (generationId) => baseStore.markCompleted(generationId),
+      markFailed: (generationId, error) => baseStore.markFailed(generationId, error),
+      failSubmittedOnStartup: (error) => baseStore.failSubmittedOnStartup(error),
+      failStaleSubmittedBefore: (staleBefore, error) =>
+        baseStore.failStaleSubmittedBefore(staleBefore, error)
+    };
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalog(),
+      generationStore: racingStore
+    });
+
+    const patchResponse = await app.inject({
+      method: 'PATCH',
+      url: `/api/generations/${generation.id}`,
+      payload: {
+        presetId: 'img2img-basic/basic',
+        presetParams: {
+          prompt: 'patched'
+        }
+      }
+    });
+
+    expect(patchResponse.statusCode).toBe(409);
+    expect(patchResponse.json()).toMatchObject({
+      message: `Generation "${generation.id}" cannot be updated in status "submitted".`
+    });
+
+    await app.close();
+  });
+
+  it('given_missing_generation_when_patched_then_not_found_is_returned', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalog()
+    });
+
+    const patchResponse = await app.inject({
+      method: 'PATCH',
+      url: '/api/generations/11111111-1111-4111-8111-111111111111',
+      payload: {
+        presetId: 'img2img-basic/basic',
+        presetParams: {
+          prompt: 'patched'
+        }
+      }
+    });
+
+    expect(patchResponse.statusCode).toBe(404);
+
+    await app.close();
+  });
+
+  it('given_missing_preset_when_patching_generation_then_not_found_is_returned', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalog()
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/generations',
+      payload: {
+        presetId: 'img2img-basic/basic',
+        presetParams: {}
+      }
+    });
+    const created = createResponse.json() as { id: string };
+
+    const patchResponse = await app.inject({
+      method: 'PATCH',
+      url: `/api/generations/${created.id}`,
+      payload: {
+        presetId: 'missing/basic',
+        presetParams: {}
+      }
+    });
+
+    expect(patchResponse.statusCode).toBe(404);
+    expect(patchResponse.json()).toMatchObject({
+      message: 'Preset "missing/basic" was not found.'
+    });
 
     await app.close();
   });
@@ -1631,11 +1768,14 @@ describe('generation routes', () => {
 
       const firstStored = await store.getStoredById(created.id);
       expect(firstStored).toBeDefined();
-      const firstSeed = Number(firstStored?.presetParams.seed);
+      if (firstStored === undefined) {
+        throw new Error(`Generation "${created.id}" was not stored after queueing.`);
+      }
+      const firstSeed = Number(firstStored.presetParams.seed);
       expect(Number.isInteger(firstSeed)).toBe(true);
 
       await store.save({
-        ...firstStored!,
+        ...firstStored,
         status: 'completed',
         error: null,
         updatedAt: '2026-04-07T10:00:00.000Z'

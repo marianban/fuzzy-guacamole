@@ -288,7 +288,10 @@ function createFailingGenerationStore(): GenerationStore {
     async setInputImagePath() {
       return undefined;
     },
-    async markQueued(_generationId, _options) {
+    async updateEditableGeneration() {
+      return undefined;
+    },
+    async markQueued() {
       return undefined;
     },
     async claimNextQueued() {

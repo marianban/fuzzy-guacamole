@@ -16,6 +16,7 @@ import {
   type SaveableGeneration,
   type UpdateEditableGenerationInput
 } from './store.js';
+import { isEditableGenerationStatus } from './editable-statuses.js';
 
 class InMemoryGenerationStore implements GenerationStore {
   readonly #byId = new Map<string, StoredGeneration>();
@@ -109,7 +110,7 @@ class InMemoryGenerationStore implements GenerationStore {
     input: UpdateEditableGenerationInput
   ): Promise<Generation | undefined> {
     const generation = this.#byId.get(generationId);
-    if (generation === undefined || !isEditableStatus(generation.status)) {
+    if (generation === undefined || !isEditableGenerationStatus(generation.status)) {
       return undefined;
     }
 
@@ -302,15 +303,6 @@ class InMemoryGenerationStore implements GenerationStore {
     this.#byId.set(updatedGeneration.id, copyStoredGeneration(updatedGeneration));
     return copyStoredGeneration(updatedGeneration);
   }
-}
-
-function isEditableStatus(status: Generation['status']): boolean {
-  return (
-    status === 'draft' ||
-    status === 'completed' ||
-    status === 'failed' ||
-    status === 'canceled'
-  );
 }
 
 function compareQueuedGenerationOrder(

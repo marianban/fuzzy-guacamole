@@ -4,6 +4,10 @@ import type { GenerationExecutionPlan } from './execution/plan.js';
 import { createInMemoryGenerationStore } from './in-memory-store.js';
 import { createPostgresGenerationStore as createPostgresGenerationStoreImpl } from './postgres-store.js';
 import type { StoredGeneration } from './stored-generation.js';
+export {
+  EDITABLE_GENERATION_STATUSES,
+  isEditableGenerationStatus
+} from './editable-statuses.js';
 
 export interface CreateGenerationInput {
   presetId: string;

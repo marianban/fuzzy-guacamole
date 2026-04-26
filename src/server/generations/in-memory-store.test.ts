@@ -15,18 +15,7 @@ describe('createInMemoryGenerationStore', () => {
       }
     });
 
-    const updated = await (
-      store as typeof store & {
-        updateEditableGeneration?: (
-          generationId: string,
-          input: {
-            presetId: string;
-            templateId: string;
-            presetParams: Record<string, unknown>;
-          }
-        ) => ReturnType<typeof store.getById>;
-      }
-    ).updateEditableGeneration?.(created.id, {
+    const updated = await store.updateEditableGeneration(created.id, {
       presetId: 'txt2img-basic/basic',
       templateId: 'txt2img-basic',
       presetParams: {
@@ -48,40 +37,31 @@ describe('createInMemoryGenerationStore', () => {
   });
 
   test('given_active_generation_when_updating_editable_snapshot_then_store_returns_undefined', async () => {
-    const store = createInMemoryGenerationStore();
-    const created = await store.create({
-      presetId: 'img2img-basic/basic',
-      templateId: 'img2img-basic',
-      presetParams: {
-        prompt: 'test prompt'
-      }
-    });
-    await store.save({
-      ...created,
-      status: 'queued',
-      updatedAt: '2026-04-07T10:00:00.000Z'
-    });
+    for (const status of ['queued', 'submitted'] as const) {
+      const store = createInMemoryGenerationStore();
+      const created = await store.create({
+        presetId: 'img2img-basic/basic',
+        templateId: 'img2img-basic',
+        presetParams: {
+          prompt: 'test prompt'
+        }
+      });
+      await store.save({
+        ...created,
+        status,
+        updatedAt: '2026-04-07T10:00:00.000Z'
+      });
 
-    const updated = await (
-      store as typeof store & {
-        updateEditableGeneration?: (
-          generationId: string,
-          input: {
-            presetId: string;
-            templateId: string;
-            presetParams: Record<string, unknown>;
-          }
-        ) => ReturnType<typeof store.getById>;
-      }
-    ).updateEditableGeneration?.(created.id, {
-      presetId: 'img2img-basic/basic',
-      templateId: 'img2img-basic',
-      presetParams: {
-        prompt: 'updated prompt'
-      }
-    });
+      const updated = await store.updateEditableGeneration(created.id, {
+        presetId: 'img2img-basic/basic',
+        templateId: 'img2img-basic',
+        presetParams: {
+          prompt: 'updated prompt'
+        }
+      });
 
-    expect(updated).toBeUndefined();
+      expect(updated).toBeUndefined();
+    }
   });
 
   test('given_missing_execution_data_when_marking_queued_then_store_throws_clear_error', async () => {
