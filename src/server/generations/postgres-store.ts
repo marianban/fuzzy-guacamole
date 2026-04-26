@@ -17,7 +17,8 @@ import {
   type CreateGenerationInput,
   type GenerationStore,
   type MarkQueuedOptions,
-  type SaveableGeneration
+  type SaveableGeneration,
+  type UpdateEditableGenerationInput
 } from './store.js';
 
 class PostgresGenerationStore implements GenerationStore {
@@ -158,6 +159,40 @@ class PostgresGenerationStore implements GenerationStore {
       })}::jsonb,
           updated_at = ${updatedAt}
       where id = ${generationId}
+      returning id,
+                status,
+                preset_id as "presetId",
+                template_id as "templateId",
+                preset_params as "presetParams",
+                execution_snapshot as "executionSnapshot",
+                prompt_request as "promptRequest",
+                prompt_response as "promptResponse",
+                queued_at as "queuedAt",
+                error,
+                created_at as "createdAt",
+                updated_at as "updatedAt"
+    `);
+
+    const row = result.rows[0] as typeof generations.$inferSelect | undefined;
+    return row === undefined
+      ? undefined
+      : toPublicGeneration(mapRowToStoredGeneration(row));
+  }
+
+  async updateEditableGeneration(
+    generationId: string,
+    input: UpdateEditableGenerationInput
+  ): Promise<Generation | undefined> {
+    const updatedAt = new Date().toISOString();
+    const serializedPresetParams = JSON.stringify(input.presetParams);
+    const result = await this.#database.db.execute(sql`
+      update generations
+      set preset_id = ${input.presetId},
+          template_id = ${input.templateId},
+          preset_params = ${serializedPresetParams}::jsonb,
+          updated_at = ${updatedAt}
+      where id = ${generationId}
+        and status in ('draft', 'completed', 'failed', 'canceled')
       returning id,
                 status,
                 preset_id as "presetId",

@@ -10,7 +10,8 @@ import { z } from 'zod';
 import {
   createGenerationRequestSchema,
   generationListResponseSchema,
-  generationSchema
+  generationSchema,
+  updateGenerationRequestSchema
 } from '../../../shared/generations.js';
 import { ComfyClient } from '../../comfy/client.js';
 import type { AppConfig } from '../../config/app-config.js';
@@ -122,8 +123,9 @@ export function registerGenerationRoutes(
           .send({ message: `Preset "${request.body.presetId}" was not found.` });
       }
 
+      let resolvedParams: Record<string, unknown>;
       try {
-        const resolvedParams = resolvePresetParams({
+        resolvedParams = resolvePresetParams({
           preset,
           userParams: request.body.presetParams
         });
@@ -147,7 +149,7 @@ export function registerGenerationRoutes(
       const generation = await options.store.create({
         presetId: request.body.presetId,
         templateId: preset.templateId,
-        presetParams: request.body.presetParams
+        presetParams: resolvedParams
       });
       options.eventBus.publish({
         type: 'upsert',
@@ -164,6 +166,120 @@ export function registerGenerationRoutes(
       );
 
       return reply.code(201).send(generationSchema.parse(generation));
+    }
+  );
+
+  typed.patch(
+    '/api/generations/:generationId',
+    {
+      schema: {
+        tags: ['generations'],
+        summary: 'Update editable generation',
+        params: generationParamsSchema,
+        body: updateGenerationRequestSchema,
+        response: {
+          400: errorResponseSchema,
+          200: generationSchema,
+          404: errorResponseSchema,
+          409: errorResponseSchema
+        }
+      }
+    },
+    async (request, reply) => {
+      const generation = await options.store.getById(request.params.generationId);
+      if (generation === undefined) {
+        logGenerationWarning(request, 'generation update rejected', {
+          generationId: request.params.generationId,
+          warningCode: 'generation_not_found'
+        });
+        return reply.code(404).send({
+          message: `Generation "${request.params.generationId}" was not found.`
+        });
+      }
+
+      if (generation.status === 'queued' || generation.status === 'submitted') {
+        logGenerationWarning(request, 'generation update rejected', {
+          generationId: generation.id,
+          status: generation.status,
+          warningCode: 'generation_update_not_allowed'
+        });
+        return reply.code(409).send({
+          message: `Generation "${generation.id}" cannot be updated in status "${generation.status}".`
+        });
+      }
+
+      const preset = options.presetCatalog.getById(request.body.presetId);
+      if (preset === undefined) {
+        logGenerationWarning(request, 'generation update rejected', {
+          generationId: generation.id,
+          presetId: request.body.presetId,
+          warningCode: 'preset_not_found'
+        });
+        return reply
+          .code(404)
+          .send({ message: `Preset "${request.body.presetId}" was not found.` });
+      }
+
+      const preservedRuntimeParams =
+        generation.presetId === request.body.presetId
+          ? pickNonModelPresetParams(generation.presetParams, preset)
+          : {};
+
+      let resolvedParams: Record<string, unknown>;
+      try {
+        resolvedParams = resolvePresetParams({
+          preset,
+          systemParams: preservedRuntimeParams,
+          userParams: request.body.presetParams
+        });
+        validateCreatePresetParams({
+          preset,
+          rawParams: request.body.presetParams,
+          resolvedParams
+        });
+      } catch (error) {
+        if (error instanceof PresetParamsValidationError) {
+          logGenerationWarning(request, 'generation update rejected', {
+            generationId: generation.id,
+            presetId: request.body.presetId,
+            warningCode: 'generation_validation_failed',
+            validationIssue: error.message
+          });
+          return reply.code(400).send({ message: error.message });
+        }
+        throw error;
+      }
+
+      const updated = await options.store.updateEditableGeneration(generation.id, {
+        presetId: request.body.presetId,
+        templateId: preset.templateId,
+        presetParams: resolvedParams
+      });
+      if (updated === undefined) {
+        logGenerationWarning(request, 'generation update rejected', {
+          generationId: generation.id,
+          warningCode: 'generation_update_not_allowed'
+        });
+        return reply.code(409).send({
+          message: `Generation "${generation.id}" cannot be updated in its current state.`
+        });
+      }
+
+      options.eventBus.publish({
+        type: 'upsert',
+        generationId: updated.id,
+        generation: updated
+      });
+      request.log.info(
+        {
+          generationId: updated.id,
+          presetId: updated.presetId,
+          templateId: updated.templateId
+        },
+        'generation updated'
+      );
+
+      return generationSchema.parse(updated);
     }
   );
 
@@ -597,6 +713,16 @@ async function cleanupGenerationArtifacts(
 
 function isTerminalGenerationStatus(status: string): boolean {
   return status === 'completed' || status === 'failed' || status === 'canceled';
+}
+
+function pickNonModelPresetParams(
+  presetParams: Record<string, unknown>,
+  preset: Parameters<typeof resolvePresetParams>[0]['preset']
+): Record<string, unknown> {
+  const modelFieldIds = new Set(preset.model.fields.map((field) => field.id));
+  return Object.fromEntries(
+    Object.entries(presetParams).filter(([key]) => !modelFieldIds.has(key))
+  );
 }
 
 function createComfyClient(config: AppConfig | undefined): ComfyClient {

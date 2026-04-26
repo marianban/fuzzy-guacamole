@@ -33,6 +33,9 @@ describe('openapi documentation', () => {
       '/api/generations/{generationId}/cancel': expect.any(Object),
       '/api/events/generations': expect.any(Object)
     });
+    expect(payload.paths['/api/generations/{generationId}']).toMatchObject({
+      patch: expect.any(Object)
+    });
 
     await app.close();
   });

@@ -28,6 +28,11 @@ export const createGenerationRequestSchema = z.object({
   presetParams: z.record(z.string(), z.unknown())
 });
 
+export const updateGenerationRequestSchema = z.object({
+  presetId: z.string().min(1),
+  presetParams: z.record(z.string(), z.unknown())
+});
+
 export const generationEventSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('upsert'),
@@ -44,4 +49,5 @@ export const generationEventSchema = z.discriminatedUnion('type', [
 
 export type Generation = z.infer<typeof generationSchema>;
 export type CreateGenerationRequest = z.infer<typeof createGenerationRequestSchema>;
+export type UpdateGenerationRequest = z.infer<typeof updateGenerationRequestSchema>;
 export type GenerationEvent = z.infer<typeof generationEventSchema>;

@@ -160,6 +160,153 @@ describe('postgres-backed generations', () => {
     }
   });
 
+  test('given_db_backed_server_when_created_with_empty_params_then_resolved_defaults_survive_rebuild', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-db-defaults-'));
+    tempDirs.push(root);
+    const config = await loadTestConfig(root);
+    const presetCatalog = createExecutionTestCatalog();
+    const testDatabase = await createTestDatabaseContext();
+    await testDatabase.migrate();
+
+    try {
+      const firstDatabase = testDatabase.createAppDatabase();
+      const firstApp = buildTestServer({
+        config,
+        presetCatalog,
+        generationStore: createPostgresGenerationStore(firstDatabase)
+      });
+
+      const createdResponse = await firstApp.inject({
+        method: 'POST',
+        url: '/api/generations',
+        payload: {
+          presetId: 'txt2img-basic/basic',
+          presetParams: {}
+        }
+      });
+      expect(createdResponse.statusCode).toBe(201);
+      const created = createdResponse.json() as { id: string };
+
+      await firstApp.close();
+      await firstDatabase.close();
+
+      const secondDatabase = testDatabase.createAppDatabase();
+      const secondApp = buildTestServer({
+        config,
+        presetCatalog,
+        generationStore: createPostgresGenerationStore(secondDatabase)
+      });
+
+      try {
+        const detailResponse = await secondApp.inject({
+          method: 'GET',
+          url: `/api/generations/${created.id}`
+        });
+        expect(detailResponse.statusCode).toBe(200);
+        expect(detailResponse.json()).toMatchObject({
+          id: created.id,
+          presetParams: {
+            prompt: 'default prompt',
+            steps: 5,
+            seedMode: 'random'
+          }
+        });
+      } finally {
+        await secondApp.close();
+        await secondDatabase.close();
+      }
+    } finally {
+      await testDatabase.dispose();
+    }
+  });
+
+  test('given_db_backed_server_when_terminal_generation_is_patched_then_params_survive_rebuild', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-db-patch-'));
+    tempDirs.push(root);
+    const config = await loadTestConfig(root);
+    const presetCatalog = createExecutionTestCatalog();
+    const testDatabase = await createTestDatabaseContext();
+    await testDatabase.migrate();
+
+    try {
+      const firstDatabase = testDatabase.createAppDatabase();
+      const firstStore = createPostgresGenerationStore(firstDatabase);
+      const firstApp = buildTestServer({
+        config,
+        presetCatalog,
+        generationStore: firstStore
+      });
+
+      const createdResponse = await firstApp.inject({
+        method: 'POST',
+        url: '/api/generations',
+        payload: {
+          presetId: 'txt2img-basic/basic',
+          presetParams: {
+            prompt: 'before patch'
+          }
+        }
+      });
+      expect(createdResponse.statusCode).toBe(201);
+      const created = createdResponse.json() as { id: string };
+      const stored = await firstStore.getById(created.id);
+      expect(stored).toBeDefined();
+      await firstStore.save({
+        ...stored!,
+        status: 'completed',
+        updatedAt: '2026-04-07T10:00:00.000Z'
+      });
+
+      const patchResponse = await firstApp.inject({
+        method: 'PATCH',
+        url: `/api/generations/${created.id}`,
+        payload: {
+          presetId: 'txt2img-basic/basic',
+          presetParams: {
+            prompt: 'after patch',
+            steps: 7,
+            seedMode: 'fixed',
+            seed: 123
+          }
+        }
+      });
+      expect(patchResponse.statusCode).toBe(200);
+
+      await firstApp.close();
+      await firstDatabase.close();
+
+      const secondDatabase = testDatabase.createAppDatabase();
+      const secondApp = buildTestServer({
+        config,
+        presetCatalog,
+        generationStore: createPostgresGenerationStore(secondDatabase)
+      });
+
+      try {
+        const detailResponse = await secondApp.inject({
+          method: 'GET',
+          url: `/api/generations/${created.id}`
+        });
+        expect(detailResponse.statusCode).toBe(200);
+        expect(detailResponse.json()).toMatchObject({
+          id: created.id,
+          status: 'completed',
+          presetParams: {
+            prompt: 'after patch',
+            steps: 7,
+            seedMode: 'fixed',
+            seed: 123
+          }
+        });
+      } finally {
+        await secondApp.close();
+        await secondDatabase.close();
+      }
+    } finally {
+      await testDatabase.dispose();
+    }
+  });
+
   test('given_db_backed_server_when_running_generation_lifecycle_then_contract_matches_existing_routes', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'fg-db-lifecycle-'));
     tempDirs.push(root);

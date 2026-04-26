@@ -17,6 +17,12 @@ export interface MarkQueuedOptions {
   executionSnapshot: GenerationExecutionPlan;
 }
 
+export interface UpdateEditableGenerationInput {
+  presetId: string;
+  templateId: string;
+  presetParams: Record<string, unknown>;
+}
+
 export type SaveableGeneration = Generation | StoredGeneration;
 
 export interface GenerationStore {
@@ -30,6 +36,10 @@ export interface GenerationStore {
   setInputImagePath(
     generationId: string,
     inputImagePath: string
+  ): Promise<Generation | undefined>;
+  updateEditableGeneration(
+    generationId: string,
+    input: UpdateEditableGenerationInput
   ): Promise<Generation | undefined>;
   markQueued(
     generationId: string,

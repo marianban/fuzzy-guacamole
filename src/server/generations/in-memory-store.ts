@@ -13,7 +13,8 @@ import {
   type CreateGenerationInput,
   type GenerationStore,
   type MarkQueuedOptions,
-  type SaveableGeneration
+  type SaveableGeneration,
+  type UpdateEditableGenerationInput
 } from './store.js';
 
 class InMemoryGenerationStore implements GenerationStore {
@@ -97,6 +98,26 @@ class InMemoryGenerationStore implements GenerationStore {
         ...generation.presetParams,
         inputImagePath
       },
+      updatedAt: new Date().toISOString()
+    };
+    this.#byId.set(updatedGeneration.id, copyStoredGeneration(updatedGeneration));
+    return toPublicGeneration(updatedGeneration);
+  }
+
+  async updateEditableGeneration(
+    generationId: string,
+    input: UpdateEditableGenerationInput
+  ): Promise<Generation | undefined> {
+    const generation = this.#byId.get(generationId);
+    if (generation === undefined || !isEditableStatus(generation.status)) {
+      return undefined;
+    }
+
+    const updatedGeneration: StoredGeneration = {
+      ...generation,
+      presetId: input.presetId,
+      templateId: input.templateId,
+      presetParams: { ...input.presetParams },
       updatedAt: new Date().toISOString()
     };
     this.#byId.set(updatedGeneration.id, copyStoredGeneration(updatedGeneration));
@@ -281,6 +302,15 @@ class InMemoryGenerationStore implements GenerationStore {
     this.#byId.set(updatedGeneration.id, copyStoredGeneration(updatedGeneration));
     return copyStoredGeneration(updatedGeneration);
   }
+}
+
+function isEditableStatus(status: Generation['status']): boolean {
+  return (
+    status === 'draft' ||
+    status === 'completed' ||
+    status === 'failed' ||
+    status === 'canceled'
+  );
 }
 
 function compareQueuedGenerationOrder(

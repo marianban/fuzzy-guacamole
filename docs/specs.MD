@@ -551,6 +551,14 @@ Transitions:
 - canceled -> queued (re-run)
 - completed/failed -> queued (re-run)
 
+Editable snapshots:
+- `POST /api/generations` accepts partial `presetParams`, validates them with preset/model defaults applied, and persists the resolved snapshot in `presetParams`.
+- `PATCH /api/generations/{generationId}` replaces editable fields (`presetId`, `presetParams`) for draft, completed, failed, and canceled generations.
+- `PATCH /api/generations/{generationId}` returns `409 Conflict` for queued and submitted generations.
+- Same-preset PATCH preserves runtime-only params already stored outside `model.json.fields`, such as `inputImagePath`, while replacing editable model params.
+- Preset-switch PATCH clears existing params, resolves the target preset defaults plus submitted params, and updates `templateId` from the target preset.
+- `GET /api/generations/{generationId}` returns the persisted resolved `presetParams`, so the client can render draft and terminal-state values without fetching preset metadata first.
+
 Re-run behavior:
 - A user can re-run any generation at any time; re-running re-queues the same generation id.
 - Each run produces new output files under the same generation output folder (no attempts table in v1).
@@ -693,6 +701,7 @@ All API endpoints must be documented in the OpenAPI Specification.
 - `GET /api/generations`
 - `GET /api/generations/{generationId}`
 - `POST /api/generations`
+- `PATCH /api/generations/{generationId}`
 - `POST /api/generations/{generationId}/input`
 - `POST /api/generations/{generationId}/queue`
 - `POST /api/generations/{generationId}/cancel`
@@ -710,6 +719,8 @@ Notes:
 - On Generate, the UI creates the server-side generation (`POST /api/generations`), then:
   - `img2img`: upload input (`POST /api/generations/{generationId}/input`), then queue (`POST /api/generations/{generationId}/queue`)
   - `txt2img`: queue directly (`POST /api/generations/{generationId}/queue`)
+- Existing draft, completed, failed, and canceled generations can be edited before queue or requeue with `PATCH /api/generations/{generationId}`.
+- `POST` and `PATCH` generation responses include resolved preset/model defaults in `presetParams`.
 
 ---
 

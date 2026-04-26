@@ -387,6 +387,220 @@ function createCatalogWithSeed() {
   return createPresetCatalog([summary], new Map([[detail.id, detail]]));
 }
 
+function createCatalogWithBasicAndSeed() {
+  const basicSummary = {
+    id: 'img2img-basic/basic',
+    name: 'Img2Img - Basic',
+    type: 'img2img' as const,
+    templateId: 'img2img-basic',
+    templateFile: 'preset.template.json',
+    defaults: {
+      prompt: 'default prompt'
+    }
+  };
+  const seedSummary = {
+    id: 'txt2img-basic/basic',
+    name: 'Txt2Img - Basic',
+    type: 'txt2img' as const,
+    templateId: 'txt2img-basic',
+    templateFile: 'preset.template.json',
+    defaults: {
+      prompt: 'seed default prompt',
+      steps: 12,
+      seedMode: 'random'
+    }
+  };
+
+  const basicDetail = {
+    ...basicSummary,
+    model: createBasicModel(),
+    template: {
+      id: 'img2img-basic',
+      type: 'img2img' as const,
+      implicitRuntimeParamKeys: [],
+      workflow: {
+        '1': {
+          class_type: 'PromptNode',
+          inputs: { prompt: '{{prompt}}' }
+        }
+      }
+    }
+  };
+  const seedDetail = {
+    ...seedSummary,
+    model: createSeedModel(),
+    template: {
+      id: 'txt2img-basic',
+      type: 'txt2img' as const,
+      implicitRuntimeParamKeys: [],
+      workflow: {
+        '7': {
+          class_type: 'KSampler',
+          inputs: {
+            seed: '{{seed}}',
+            steps: '{{steps}}'
+          }
+        }
+      }
+    }
+  };
+
+  return createPresetCatalog(
+    [basicSummary, seedSummary],
+    new Map([
+      [basicDetail.id, basicDetail],
+      [seedDetail.id, seedDetail]
+    ])
+  );
+}
+
+function createBasicModel() {
+  return {
+    categories: [
+      {
+        id: 'main',
+        label: {
+          en: 'Main'
+        },
+        order: 10,
+        presentation: {
+          collapsible: false,
+          defaultExpanded: true
+        }
+      }
+    ],
+    fields: [
+      {
+        id: 'prompt',
+        fieldType: 'string' as const,
+        categoryId: 'main',
+        order: 10,
+        label: {
+          en: 'Prompt'
+        },
+        default: 'default prompt',
+        validation: {
+          required: true,
+          maxLength: 4000
+        },
+        control: {
+          type: 'input' as const,
+          multiline: true,
+          rows: 4
+        }
+      },
+      {
+        id: 'steps',
+        fieldType: 'integer' as const,
+        categoryId: 'main',
+        order: 20,
+        label: {
+          en: 'Steps'
+        },
+        default: 30,
+        validation: {
+          required: true,
+          min: 1,
+          max: 100
+        },
+        control: {
+          type: 'slider' as const,
+          min: 1,
+          max: 100,
+          step: 1
+        }
+      }
+    ]
+  };
+}
+
+function createSeedModel() {
+  return {
+    categories: [
+      {
+        id: 'main',
+        label: {
+          en: 'Main'
+        },
+        order: 10,
+        presentation: {
+          collapsible: false,
+          defaultExpanded: true
+        }
+      }
+    ],
+    fields: [
+      {
+        id: 'prompt',
+        fieldType: 'string' as const,
+        categoryId: 'main',
+        order: 10,
+        label: {
+          en: 'Prompt'
+        },
+        validation: {
+          required: true,
+          maxLength: 4000
+        },
+        control: {
+          type: 'input' as const
+        }
+      },
+      {
+        id: 'steps',
+        fieldType: 'integer' as const,
+        categoryId: 'main',
+        order: 20,
+        label: {
+          en: 'Steps'
+        },
+        default: 12,
+        validation: {
+          required: true,
+          min: 1,
+          max: 20
+        },
+        control: {
+          type: 'slider' as const,
+          min: 1,
+          max: 20,
+          step: 1
+        }
+      },
+      {
+        id: 'seedMode',
+        fieldType: 'enum' as const,
+        categoryId: 'main',
+        order: 30,
+        label: {
+          en: 'Seed Mode'
+        },
+        default: 'random',
+        validation: {
+          required: true
+        },
+        control: {
+          type: 'select' as const,
+          options: [
+            {
+              value: 'random',
+              label: {
+                en: 'Random'
+              }
+            },
+            {
+              value: 'fixed',
+              label: {
+                en: 'Fixed'
+              }
+            }
+          ]
+        }
+      }
+    ]
+  };
+}
+
 function buildMultipartPayload(fileName: string, fileContent: Buffer) {
   const boundary = '----fg-test-boundary';
   const start = Buffer.from(
@@ -464,6 +678,311 @@ describe('generation routes', () => {
     expect(detailResponse.json()).toMatchObject({
       id: created.id,
       status: 'draft'
+    });
+
+    await app.close();
+  });
+
+  it('given_empty_preset_params_when_creating_generation_then_defaults_are_persisted_and_returned', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalog()
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/generations',
+      payload: {
+        presetId: 'img2img-basic/basic',
+        presetParams: {}
+      }
+    });
+
+    expect(createResponse.statusCode).toBe(201);
+    const created = createResponse.json() as {
+      id: string;
+      presetParams: Record<string, unknown>;
+    };
+    expect(created.presetParams).toMatchObject({
+      prompt: 'default prompt',
+      steps: 30
+    });
+
+    const detailResponse = await app.inject({
+      method: 'GET',
+      url: `/api/generations/${created.id}`
+    });
+
+    expect(detailResponse.statusCode).toBe(200);
+    expect(detailResponse.json()).toMatchObject({
+      id: created.id,
+      presetParams: {
+        prompt: 'default prompt',
+        steps: 30
+      }
+    });
+
+    await app.close();
+  });
+
+  it('given_draft_generation_when_patch_switches_preset_then_old_params_are_cleared_and_new_defaults_apply', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalogWithBasicAndSeed()
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/generations',
+      payload: {
+        presetId: 'img2img-basic/basic',
+        presetParams: {
+          prompt: 'old prompt',
+          steps: 40
+        }
+      }
+    });
+    const created = createResponse.json() as { id: string };
+
+    const patchResponse = await app.inject({
+      method: 'PATCH',
+      url: `/api/generations/${created.id}`,
+      payload: {
+        presetId: 'txt2img-basic/basic',
+        presetParams: {}
+      }
+    });
+
+    expect(patchResponse.statusCode).toBe(200);
+    expect(patchResponse.json()).toMatchObject({
+      id: created.id,
+      presetId: 'txt2img-basic/basic',
+      templateId: 'txt2img-basic',
+      presetParams: {
+        prompt: 'seed default prompt',
+        steps: 12,
+        seedMode: 'random'
+      }
+    });
+
+    await app.close();
+  });
+
+  it('given_invalid_patch_params_when_updating_generation_then_request_is_rejected', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalogWithBasicAndSeed()
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/generations',
+      payload: {
+        presetId: 'img2img-basic/basic',
+        presetParams: {}
+      }
+    });
+    const created = createResponse.json() as { id: string };
+
+    const patchResponse = await app.inject({
+      method: 'PATCH',
+      url: `/api/generations/${created.id}`,
+      payload: {
+        presetId: 'txt2img-basic/basic',
+        presetParams: {
+          steps: 99
+        }
+      }
+    });
+
+    expect(patchResponse.statusCode).toBe(400);
+    expect(patchResponse.json()).toMatchObject({
+      message: expect.stringMatching(/steps/i)
+    });
+
+    await app.close();
+  });
+
+  it('given_terminal_generation_when_patched_then_params_update_before_requeue', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+    const store = createGenerationStore();
+
+    for (const status of ['completed', 'failed', 'canceled'] as const) {
+      const generation = await store.create({
+        presetId: 'img2img-basic/basic',
+        templateId: 'img2img-basic',
+        presetParams: {
+          prompt: `${status} old`
+        }
+      });
+      await store.save({
+        ...generation,
+        status,
+        updatedAt: '2026-04-07T10:00:00.000Z'
+      });
+    }
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalog(),
+      generationStore: store
+    });
+
+    const generations = await store.list();
+    for (const generation of generations) {
+      const patchResponse = await app.inject({
+        method: 'PATCH',
+        url: `/api/generations/${generation.id}`,
+        payload: {
+          presetId: 'img2img-basic/basic',
+          presetParams: {
+            prompt: `${generation.status} patched`
+          }
+        }
+      });
+
+      expect(patchResponse.statusCode).toBe(200);
+      expect(patchResponse.json()).toMatchObject({
+        id: generation.id,
+        status: generation.status,
+        presetParams: {
+          prompt: `${generation.status} patched`,
+          steps: 30
+        }
+      });
+    }
+
+    await app.close();
+  });
+
+  it('given_active_generation_when_patched_then_conflict_is_returned', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+    const store = createGenerationStore();
+
+    for (const status of ['queued', 'submitted'] as const) {
+      const generation = await store.create({
+        presetId: 'img2img-basic/basic',
+        templateId: 'img2img-basic',
+        presetParams: {
+          prompt: `${status} old`
+        }
+      });
+      await store.save({
+        ...generation,
+        status,
+        updatedAt: '2026-04-07T10:00:00.000Z'
+      });
+    }
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalog(),
+      generationStore: store
+    });
+
+    const generations = await store.list();
+    for (const generation of generations) {
+      const patchResponse = await app.inject({
+        method: 'PATCH',
+        url: `/api/generations/${generation.id}`,
+        payload: {
+          presetId: 'img2img-basic/basic',
+          presetParams: {
+            prompt: 'patched'
+          }
+        }
+      });
+
+      expect(patchResponse.statusCode).toBe(409);
+    }
+
+    await app.close();
+  });
+
+  it('given_same_preset_patch_after_input_upload_then_runtime_input_path_is_preserved', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalogRequiringInput()
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/generations',
+      payload: {
+        presetId: 'img2img-basic/basic',
+        presetParams: {
+          prompt: 'with input'
+        }
+      }
+    });
+    const created = createResponse.json() as { id: string };
+
+    const fileBuffer = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    const multipart = buildMultipartPayload('input.png', fileBuffer);
+    const uploadResponse = await app.inject({
+      method: 'POST',
+      url: `/api/generations/${created.id}/input`,
+      headers: {
+        'content-type': `multipart/form-data; boundary=${multipart.boundary}`
+      },
+      payload: multipart.payload
+    });
+    expect(uploadResponse.statusCode).toBe(204);
+
+    const beforePatchResponse = await app.inject({
+      method: 'GET',
+      url: `/api/generations/${created.id}`
+    });
+    const inputImagePath = (
+      beforePatchResponse.json() as {
+        presetParams: { inputImagePath: string };
+      }
+    ).presetParams.inputImagePath;
+
+    const patchResponse = await app.inject({
+      method: 'PATCH',
+      url: `/api/generations/${created.id}`,
+      payload: {
+        presetId: 'img2img-basic/basic',
+        presetParams: {
+          prompt: 'patched input'
+        }
+      }
+    });
+
+    expect(patchResponse.statusCode).toBe(200);
+    expect(patchResponse.json()).toMatchObject({
+      presetParams: {
+        prompt: 'patched input',
+        steps: 30,
+        inputImagePath
+      }
     });
 
     await app.close();

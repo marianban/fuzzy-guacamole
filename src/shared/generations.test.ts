@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { generationEventSchema, generationSchema } from './generations.js';
+import * as generations from './generations.js';
+
+const { generationEventSchema, generationSchema } = generations;
 
 const validGeneration = generationSchema.parse({
   id: '11111111-1111-4111-8111-111111111111',
@@ -53,5 +55,34 @@ describe('generationEventSchema', () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe('updateGenerationRequestSchema', () => {
+  it('given_patch_body_with_preset_and_params_when_parsed_then_validation_succeeds', () => {
+    const result = (
+      generations as typeof generations & {
+        updateGenerationRequestSchema?: typeof generations.createGenerationRequestSchema;
+      }
+    ).updateGenerationRequestSchema?.safeParse({
+      presetId: 'img2img-basic/basic',
+      presetParams: {
+        prompt: 'hello'
+      }
+    });
+
+    expect(result?.success).toBe(true);
+  });
+
+  it('given_patch_body_missing_params_when_parsed_then_validation_fails', () => {
+    const result = (
+      generations as typeof generations & {
+        updateGenerationRequestSchema?: typeof generations.createGenerationRequestSchema;
+      }
+    ).updateGenerationRequestSchema?.safeParse({
+      presetId: 'img2img-basic/basic'
+    });
+
+    expect(result?.success).toBe(false);
   });
 });
