@@ -59,36 +59,7 @@ describe('createGenerationProcessor', () => {
           }
         })),
         submitPrompt,
-        pollHistory: vi.fn(async () => ({
-          history: {
-            'prompt-1': {
-              outputs: {
-                '3': {
-                  images: [
-                    {
-                      filename: 'remote.png',
-                      subfolder: 'output',
-                      type: 'output'
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          entry: {
-            outputs: {
-              '3': {
-                images: [
-                  {
-                    filename: 'remote.png',
-                    subfolder: 'output',
-                    type: 'output'
-                  }
-                ]
-              }
-            }
-          }
-        })),
+        pollHistory: vi.fn(async () => createCompletedPromptHistory()),
         downloadImage
       },
       config: createTestConfig(root),
@@ -158,36 +129,7 @@ describe('createGenerationProcessor', () => {
           throw new Error('should not upload');
         }),
         submitPrompt,
-        pollHistory: vi.fn(async () => ({
-          history: {
-            'prompt-1': {
-              outputs: {
-                '3': {
-                  images: [
-                    {
-                      filename: 'remote.png',
-                      subfolder: 'output',
-                      type: 'output'
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          entry: {
-            outputs: {
-              '3': {
-                images: [
-                  {
-                    filename: 'remote.png',
-                    subfolder: 'output',
-                    type: 'output'
-                  }
-                ]
-              }
-            }
-          }
-        })),
+        pollHistory: vi.fn(async () => createCompletedPromptHistory()),
         downloadImage: vi.fn(async () => Buffer.from([9, 8, 7]))
       },
       config: createTestConfig(root)
@@ -266,36 +208,7 @@ describe('createGenerationProcessor', () => {
           throw new Error('should not upload');
         }),
         submitPrompt,
-        pollHistory: vi.fn(async () => ({
-          history: {
-            'prompt-1': {
-              outputs: {
-                '3': {
-                  images: [
-                    {
-                      filename: 'remote.png',
-                      subfolder: 'output',
-                      type: 'output'
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          entry: {
-            outputs: {
-              '3': {
-                images: [
-                  {
-                    filename: 'remote.png',
-                    subfolder: 'output',
-                    type: 'output'
-                  }
-                ]
-              }
-            }
-          }
-        })),
+        pollHistory: vi.fn(async () => createCompletedPromptHistory()),
         downloadImage: vi.fn(async () => Buffer.from([9, 8, 7]))
       },
       config: createTestConfig(root)
@@ -355,26 +268,7 @@ describe('createGenerationProcessor', () => {
       comfyClient: {
         uploadInputImage,
         submitPrompt: vi.fn(async () => ({ promptId: 'prompt-1' })),
-        pollHistory: vi.fn(async () => ({
-          history: {
-            'prompt-1': {
-              outputs: {
-                '3': {
-                  images: [
-                    { filename: 'remote.png', subfolder: 'output', type: 'output' }
-                  ]
-                }
-              }
-            }
-          },
-          entry: {
-            outputs: {
-              '3': {
-                images: [{ filename: 'remote.png', subfolder: 'output', type: 'output' }]
-              }
-            }
-          }
-        })),
+        pollHistory: vi.fn(async () => createCompletedPromptHistory()),
         downloadImage: vi.fn(async () => Buffer.from([1, 2, 3]))
       },
       config: createTestConfig(root)
@@ -554,28 +448,7 @@ describe('createGenerationProcessor', () => {
             ...store.current,
             status: 'canceled'
           };
-          return {
-            history: {
-              'prompt-1': {
-                outputs: {
-                  '3': {
-                    images: [
-                      { filename: 'remote.png', subfolder: 'output', type: 'output' }
-                    ]
-                  }
-                }
-              }
-            },
-            entry: {
-              outputs: {
-                '3': {
-                  images: [
-                    { filename: 'remote.png', subfolder: 'output', type: 'output' }
-                  ]
-                }
-              }
-            }
-          };
+          return createCompletedPromptHistory();
         }),
         downloadImage
       },
@@ -614,26 +487,7 @@ describe('createGenerationProcessor', () => {
           throw new Error('should not upload');
         }),
         submitPrompt: vi.fn(async () => ({ promptId: 'prompt-1' })),
-        pollHistory: vi.fn(async () => ({
-          history: {
-            'prompt-1': {
-              outputs: {
-                '3': {
-                  images: [
-                    { filename: 'remote.png', subfolder: 'output', type: 'output' }
-                  ]
-                }
-              }
-            }
-          },
-          entry: {
-            outputs: {
-              '3': {
-                images: [{ filename: 'remote.png', subfolder: 'output', type: 'output' }]
-              }
-            }
-          }
-        })),
+        pollHistory: vi.fn(async () => createCompletedPromptHistory()),
         downloadImage: vi.fn(async () => {
           store.current = {
             ...store.current,
@@ -734,28 +588,7 @@ describe('createGenerationProcessor', () => {
         }),
         pollHistory: vi.fn(async (_promptId, options) => {
           receivedSignals.push(options?.signal as AbortSignal);
-          return {
-            history: {
-              'prompt-1': {
-                outputs: {
-                  '3': {
-                    images: [
-                      { filename: 'remote.png', subfolder: 'output', type: 'output' }
-                    ]
-                  }
-                }
-              }
-            },
-            entry: {
-              outputs: {
-                '3': {
-                  images: [
-                    { filename: 'remote.png', subfolder: 'output', type: 'output' }
-                  ]
-                }
-              }
-            }
-          };
+          return createCompletedPromptHistory();
         }),
         downloadImage: vi.fn(async (_image, options) => {
           receivedSignals.push(options?.signal as AbortSignal);
@@ -796,26 +629,7 @@ describe('createGenerationProcessor', () => {
           throw new Error('should not upload');
         }),
         submitPrompt: vi.fn(async () => ({ promptId: 'prompt-1' })),
-        pollHistory: vi.fn(async () => ({
-          history: {
-            'prompt-1': {
-              outputs: {
-                '3': {
-                  images: [
-                    { filename: 'remote.png', subfolder: 'output', type: 'output' }
-                  ]
-                }
-              }
-            }
-          },
-          entry: {
-            outputs: {
-              '3': {
-                images: [{ filename: 'remote.png', subfolder: 'output', type: 'output' }]
-              }
-            }
-          }
-        })),
+        pollHistory: vi.fn(async () => createCompletedPromptHistory()),
         downloadImage: vi.fn(async () => Buffer.from([9, 8, 7]))
       },
       config: createTestConfig(root)
@@ -831,6 +645,33 @@ describe('createGenerationProcessor', () => {
     await expect(stat(path.join(root, 'escaped-output'))).rejects.toThrow();
   });
 });
+
+function createCompletedPromptHistory(promptId = 'prompt-1') {
+  const outputImage = {
+    filename: 'remote.png',
+    subfolder: 'output',
+    type: 'output'
+  };
+
+  return {
+    history: {
+      [promptId]: {
+        outputs: {
+          '3': {
+            images: [outputImage]
+          }
+        }
+      }
+    },
+    entry: {
+      outputs: {
+        '3': {
+          images: [outputImage]
+        }
+      }
+    }
+  };
+}
 
 function createTestConfig(root: string): AppConfig {
   return {
