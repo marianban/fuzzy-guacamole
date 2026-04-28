@@ -144,3 +144,5 @@ vite.config.ts.timestamp-*
 # Comfy integration test artifacts
 src/server/comfy/__fixtures__/input/liankavalentincropped.png
 src/server/comfy/__fixtures__/output/
+
+.fallow

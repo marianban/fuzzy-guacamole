@@ -26,7 +26,8 @@
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "cloc": "npx cloc . --exclude-dir=coverage,dist,node_modules",
-    "lint:styles": "stylelint src/client/src/**/*.{css,scss,sass}"
+    "lint:styles": "stylelint src/client/src/**/*.{css,scss,sass}",
+    "fallow": "npx fallow"
   },
   "keywords": [
     "comfyui",

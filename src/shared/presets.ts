@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
-export const presetTypeSchema = z.enum(['img2img', 'txt2img']);
+const presetTypeSchema = z.enum(['img2img', 'txt2img']);
 
-export const localizedTextSchema = z
+const localizedTextSchema = z
   .record(z.string().min(1), z.string())
   .refine(
     (value) => Object.keys(value).length > 0,
@@ -32,7 +32,7 @@ export const presetSummarySchema = z.object({
   defaults: z.record(z.string(), z.unknown())
 });
 
-export const presetModelCategorySchema = z.object({
+const presetModelCategorySchema = z.object({
   id: z.string().min(1),
   label: localizedTextSchema,
   order: z.number().int(),
@@ -42,12 +42,12 @@ export const presetModelCategorySchema = z.object({
   })
 });
 
-export const presetModelSelectOptionSchema = z.object({
+const presetModelSelectOptionSchema = z.object({
   value: z.string().min(1),
   label: localizedTextSchema
 });
 
-export const presetModelControlSchema = z.discriminatedUnion('type', [
+const presetModelControlSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('input'),
     multiline: z.boolean().optional(),
