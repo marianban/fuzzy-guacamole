@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { PassThrough } from 'node:stream';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -9,10 +9,11 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
 import { buildServer } from '../http/server-app.js';
-import { loadAppConfig } from '../config/app-config.js';
 import type { GenerationStore } from '../generations/store.js';
-import { createPresetCatalog } from '../presets/preset-catalog.js';
 import { createBuildServerOptions } from '../test-support/build-server-options.js';
+import { buildMultipartPayload } from '../test-support/multipart-fixtures.js';
+import { createBasicImg2ImgTestCatalog as createTestCatalog } from '../test-support/preset-catalog-fixtures.js';
+import { loadTestConfig } from '../test-support/test-app-config.js';
 import { generationSchema, type Generation } from '../../shared/generations.js';
 
 type LogEntry = Record<string, unknown> & {
@@ -340,130 +341,4 @@ async function createGenerationWithInject(
 
   expect(response.statusCode).toBe(201);
   return generationSchema.parse(response.json());
-}
-
-async function loadTestConfig(root: string) {
-  const configPath = path.join(root, 'config.json');
-  await writeFile(
-    configPath,
-    JSON.stringify(
-      {
-        comfyBaseUrl: 'http://127.0.0.1:8188',
-        ssh: {
-          host: '127.0.0.1',
-          port: 22,
-          username: 'user',
-          privateKeyPath: '/tmp/id'
-        },
-        remoteStart: {
-          startComfyCommand: 'echo start'
-        },
-        wol: {
-          mac: 'AA:BB:CC:DD:EE:FF',
-          broadcast: '192.168.0.255',
-          port: 9
-        },
-        paths: {
-          presets: '/tmp/presets',
-          inputs: root,
-          outputs: '/tmp/outputs'
-        },
-        timeouts: {
-          pcBootMs: 1_000,
-          sshPollMs: 1_000,
-          comfyBootMs: 1_000,
-          healthPollMs: 1_000,
-          historyPollMs: 1_000,
-          submittedTimeoutMs: 900_000
-        }
-      },
-      null,
-      2
-    ),
-    'utf8'
-  );
-
-  return loadAppConfig({ configPath });
-}
-
-function createTestCatalog() {
-  const summary = {
-    id: 'img2img-basic/basic',
-    name: 'Img2Img - Basic',
-    type: 'img2img' as const,
-    templateId: 'img2img-basic',
-    templateFile: 'preset.template.json',
-    defaults: {
-      prompt: 'default prompt'
-    }
-  };
-
-  const detail = {
-    ...summary,
-    model: {
-      categories: [
-        {
-          id: 'main',
-          label: {
-            en: 'Main'
-          },
-          order: 10,
-          presentation: {
-            collapsible: false,
-            defaultExpanded: true
-          }
-        }
-      ],
-      fields: [
-        {
-          id: 'prompt',
-          fieldType: 'string' as const,
-          categoryId: 'main',
-          order: 10,
-          label: {
-            en: 'Prompt'
-          },
-          default: 'default prompt',
-          validation: {
-            required: true,
-            maxLength: 4000
-          },
-          control: {
-            type: 'input' as const,
-            multiline: true,
-            rows: 4
-          }
-        }
-      ]
-    },
-    template: {
-      id: 'img2img-basic',
-      type: 'img2img' as const,
-      implicitRuntimeParamKeys: [],
-      workflow: {
-        '1': {
-          class_type: 'PromptNode',
-          inputs: { prompt: '{{prompt}}' }
-        }
-      }
-    }
-  };
-
-  return createPresetCatalog([summary], new Map([[detail.id, detail]]));
-}
-
-function buildMultipartPayload(fileName: string, fileContent: Buffer) {
-  const boundary = '----fg-test-boundary';
-  const start = Buffer.from(
-    `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n` +
-      'Content-Type: image/png\r\n\r\n',
-    'utf8'
-  );
-  const end = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8');
-
-  return {
-    boundary,
-    payload: Buffer.concat([start, fileContent, end])
-  };
 }

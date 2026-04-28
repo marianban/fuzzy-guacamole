@@ -2,10 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  buildResetDatabasePlan,
-  resolveMigrationCommand
-} from '../../../scripts/reset-db.js';
+import { buildResetDatabasePlan, resolveMigrationCommand } from './reset-database.js';
 
 describe('resolveMigrationCommand', () => {
   it('given_windows_platform_when_resolving_migration_command_then_uses_npm_cmd', () => {

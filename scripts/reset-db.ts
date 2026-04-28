@@ -2,7 +2,10 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { buildDockerComposeArgs } from '../src/server/db/dev-database.js';
+import {
+  buildResetDatabasePlan,
+  type CommandSpec
+} from '../src/server/db/reset-database.js';
 
 try {
   process.loadEnvFile?.();
@@ -10,58 +13,6 @@ try {
   if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
     throw error;
   }
-}
-
-export interface CommandSpec {
-  command: string;
-  args: string[];
-}
-
-export function resolveMigrationCommand(
-  platform: NodeJS.Platform = process.platform
-): CommandSpec {
-  if (platform === 'win32') {
-    return {
-      command: 'cmd.exe',
-      args: ['/d', '/s', '/c', 'npm.cmd', 'run', 'db:migrate']
-    };
-  }
-
-  return {
-    command: 'npm',
-    args: ['run', 'db:migrate']
-  };
-}
-
-export function buildResetDatabasePlan(options: {
-  composeFile: string;
-  platform?: NodeJS.Platform;
-}): CommandSpec[] {
-  return [
-    {
-      command: 'docker',
-      args: [
-        'compose',
-        ...buildDockerComposeArgs({
-          action: 'down',
-          composeFile: options.composeFile,
-          mode: 'reset'
-        })
-      ]
-    },
-    {
-      command: 'docker',
-      args: [
-        'compose',
-        ...buildDockerComposeArgs({
-          action: 'up',
-          composeFile: options.composeFile,
-          mode: 'persist'
-        })
-      ]
-    },
-    resolveMigrationCommand(options.platform)
-  ];
 }
 
 export async function resetDatabase(options: { composeFile: string }): Promise<void> {
