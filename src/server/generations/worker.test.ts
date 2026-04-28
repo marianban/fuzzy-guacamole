@@ -6,8 +6,8 @@ import { describe, expect, test, vi } from 'vitest';
 import type { Generation } from '../../shared/generations.js';
 import type { GenerationProcessResult } from './processor.js';
 import type { StoredGeneration } from './stored-generation.js';
+import { createGenerationStore } from './default-store.js';
 import { createGenerationEventBus } from './events.js';
-import { createGenerationStore } from './store.js';
 import { createGenerationWorker } from './worker.js';
 
 describe('createGenerationWorker', () => {

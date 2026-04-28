@@ -11,7 +11,8 @@ import { loadAppConfig } from '../config/app-config.js';
 import { createPresetCatalog } from '../presets/preset-catalog.js';
 import { createBuildServerOptions } from '../test-support/build-server-options.js';
 import type { PresetDetail } from '../../shared/presets.js';
-import { createGenerationStore, type GenerationStore } from './store.js';
+import { createGenerationStore } from './default-store.js';
+import type { GenerationStore } from './store.js';
 
 function buildTestServer(options: Parameters<typeof createBuildServerOptions>[0]) {
   return buildServer(createBuildServerOptions(options));

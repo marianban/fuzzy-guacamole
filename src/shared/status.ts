@@ -1,11 +1,6 @@
 import { z } from 'zod';
 
-export const appStatusStateSchema = z.enum([
-  'Offline',
-  'Starting',
-  'Online',
-  'StartupFailed'
-]);
+const appStatusStateSchema = z.enum(['Offline', 'Starting', 'Online', 'StartupFailed']);
 
 export const appStatusResponseSchema = z
   .object({

@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 import { z } from 'zod';
 
-export const appConfigSchema = z.object({
+const appConfigSchema = z.object({
   comfyBaseUrl: z.url(),
   ssh: z.object({
     host: z.string().min(1),

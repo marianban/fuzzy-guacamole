@@ -6,7 +6,8 @@ import {
   createGenerationEventBus,
   type GenerationEventBus
 } from '../generations/events.js';
-import { createGenerationStore, type GenerationStore } from '../generations/store.js';
+import { createGenerationStore } from '../generations/default-store.js';
+import type { GenerationStore } from '../generations/store.js';
 import type { BuildServerOptions } from '../http/server-app.js';
 import type { ServerLoggerOptions } from '../logging/server-logging.js';
 import {
@@ -46,7 +47,7 @@ export function createBuildServerOptions(
   };
 }
 
-export function createStaticAppRuntimeStatusService(
+function createStaticAppRuntimeStatusService(
   initialStatus?: AppStatusResponse
 ): AppRuntimeStatusService {
   const status =

@@ -74,7 +74,7 @@ const presetModelControlSchema = z.discriminatedUnion('type', [
   })
 ]);
 
-export const presetModelValidationSchema = z.object({
+const presetModelValidationSchema = z.object({
   required: z.boolean(),
   min: z.number().optional(),
   max: z.number().optional(),
@@ -83,7 +83,7 @@ export const presetModelValidationSchema = z.object({
   pattern: z.string().min(1).optional()
 });
 
-export const presetModelVisibilitySchema = z.object({
+const presetModelVisibilitySchema = z.object({
   field: z.string().min(1),
   equals: z.unknown()
 });

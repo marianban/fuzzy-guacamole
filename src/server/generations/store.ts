@@ -1,13 +1,6 @@
 import type { Generation } from '../../shared/generations.js';
-import type { AppDatabase } from '../db/client.js';
 import type { GenerationExecutionPlan } from './execution/plan.js';
-import { createInMemoryGenerationStore } from './in-memory-store.js';
-import { createPostgresGenerationStore as createPostgresGenerationStoreImpl } from './postgres-store.js';
 import type { StoredGeneration } from './stored-generation.js';
-export {
-  EDITABLE_GENERATION_STATUSES,
-  isEditableGenerationStatus
-} from './editable-statuses.js';
 
 export interface CreateGenerationInput {
   presetId: string;
@@ -66,13 +59,6 @@ export interface GenerationStore {
     staleBefore: string,
     error: string
   ): Promise<readonly StoredGeneration[]>;
-}
-
-export function createGenerationStore(): GenerationStore {
-  return createInMemoryGenerationStore();
-}
-export function createPostgresGenerationStore(database: AppDatabase): GenerationStore {
-  return createPostgresGenerationStoreImpl(database);
 }
 
 export function assertMarkQueuedOptions(

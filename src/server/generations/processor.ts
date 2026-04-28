@@ -49,17 +49,6 @@ export interface GenerationProcessorOptions {
   now?: () => Date;
 }
 
-export function createPlaceholderGenerationProcessor(): GenerationProcessor {
-  return {
-    async process() {
-      return {
-        status: 'failed',
-        error: 'Generation execution is not implemented yet.'
-      };
-    }
-  };
-}
-
 export function createGenerationProcessor(
   options: GenerationProcessorOptions
 ): GenerationProcessor {
