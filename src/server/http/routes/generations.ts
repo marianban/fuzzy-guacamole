@@ -3,12 +3,13 @@ import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
 import {
   createGenerationRequestSchema,
+  type Generation,
   generationListResponseSchema,
   generationSchema,
   updateGenerationRequestSchema
@@ -39,6 +40,21 @@ const errorResponseSchema = z.object({
   message: z.string(),
   issues: z.array(z.string()).optional()
 });
+
+const generationConflictResponseSchemas = {
+  404: errorResponseSchema,
+  409: errorResponseSchema
+};
+
+const generationResponseSchemas = {
+  200: generationSchema,
+  ...generationConflictResponseSchemas
+};
+
+const generationValidationResponseSchemas = {
+  400: errorResponseSchema,
+  ...generationResponseSchemas
+};
 
 export interface RegisterGenerationRoutesOptions {
   config: AppConfig | undefined;
@@ -83,13 +99,12 @@ export function registerGenerationRoutes(
     async (request, reply) => {
       const generation = await options.store.getById(request.params.generationId);
       if (generation === undefined) {
-        logGenerationWarning(request, 'generation lookup failed', {
-          generationId: request.params.generationId,
-          warningCode: 'generation_not_found'
-        });
-        return reply.code(404).send({
-          message: `Generation "${request.params.generationId}" was not found.`
-        });
+        return sendGenerationNotFound(
+          request,
+          reply,
+          'generation lookup failed',
+          request.params.generationId
+        );
       }
 
       return generationSchema.parse(generation);
@@ -154,11 +169,7 @@ export function registerGenerationRoutes(
         // Persist resolved defaults so later reads and queue execution use the same snapshot.
         presetParams: resolvedParams
       });
-      options.eventBus.publish({
-        type: 'upsert',
-        generationId: generation.id,
-        generation
-      });
+      publishGenerationUpsert(options.eventBus, generation);
       request.log.info(
         {
           generationId: generation.id,
@@ -180,34 +191,29 @@ export function registerGenerationRoutes(
         summary: 'Update editable generation',
         params: generationParamsSchema,
         body: updateGenerationRequestSchema,
-        response: {
-          400: errorResponseSchema,
-          200: generationSchema,
-          404: errorResponseSchema,
-          409: errorResponseSchema
-        }
+        response: generationValidationResponseSchemas
       }
     },
     async (request, reply) => {
-      const generation = await options.store.getById(request.params.generationId);
+      const generation = await getGenerationByIdOrSendNotFound(
+        options.store,
+        request,
+        reply,
+        'generation update rejected',
+        request.params.generationId
+      );
       if (generation === undefined) {
-        logGenerationWarning(request, 'generation update rejected', {
-          generationId: request.params.generationId,
-          warningCode: 'generation_not_found'
-        });
-        return reply.code(404).send({
-          message: `Generation "${request.params.generationId}" was not found.`
-        });
+        return;
       }
 
       if (!isEditableGenerationStatus(generation.status)) {
-        logGenerationWarning(request, 'generation update rejected', {
-          generationId: generation.id,
-          status: generation.status,
-          warningCode: 'generation_update_not_allowed'
-        });
-        return reply.code(409).send({
-          message: `Generation "${generation.id}" cannot be updated in status "${generation.status}".`
+        return sendGenerationStatusConflict({
+          request,
+          reply,
+          warningMessage: 'generation update rejected',
+          generation,
+          warningCode: 'generation_update_not_allowed',
+          responseMessage: `Generation "${generation.id}" cannot be updated in status "${generation.status}".`
         });
       }
 
@@ -261,40 +267,36 @@ export function registerGenerationRoutes(
       if (updated === undefined) {
         const current = await options.store.getById(generation.id);
         if (current === undefined) {
-          logGenerationWarning(request, 'generation update rejected', {
-            generationId: generation.id,
-            warningCode: 'generation_not_found'
-          });
-          return reply.code(404).send({
-            message: `Generation "${generation.id}" was not found.`
-          });
+          return sendGenerationNotFound(
+            request,
+            reply,
+            'generation update rejected',
+            generation.id
+          );
         }
 
         if (!isEditableGenerationStatus(current.status)) {
-          logGenerationWarning(request, 'generation update rejected', {
-            generationId: current.id,
-            status: current.status,
-            warningCode: 'generation_update_not_allowed'
-          });
-          return reply.code(409).send({
-            message: `Generation "${current.id}" cannot be updated in status "${current.status}".`
+          return sendGenerationStatusConflict({
+            request,
+            reply,
+            warningMessage: 'generation update rejected',
+            generation: current,
+            warningCode: 'generation_update_not_allowed',
+            responseMessage: `Generation "${current.id}" cannot be updated in status "${current.status}".`
           });
         }
 
-        logGenerationWarning(request, 'generation update rejected', {
-          generationId: generation.id,
-          warningCode: 'generation_update_not_allowed'
-        });
-        return reply.code(409).send({
-          message: `Generation "${generation.id}" cannot be updated in its current state.`
+        return sendGenerationCurrentStateConflict({
+          request,
+          reply,
+          warningMessage: 'generation update rejected',
+          generation,
+          warningCode: 'generation_update_not_allowed',
+          responseMessage: `Generation "${generation.id}" cannot be updated in its current state.`
         });
       }
 
-      options.eventBus.publish({
-        type: 'upsert',
-        generationId: updated.id,
-        generation: updated
-      });
+      publishGenerationUpsert(options.eventBus, updated);
       request.log.info(
         {
           generationId: updated.id,
@@ -318,32 +320,31 @@ export function registerGenerationRoutes(
         response: {
           204: z.void(),
           400: errorResponseSchema,
-          404: errorResponseSchema,
-          409: errorResponseSchema,
+          ...generationConflictResponseSchemas,
           503: errorResponseSchema
         }
       }
     },
     async (request, reply) => {
-      const generation = await options.store.getById(request.params.generationId);
+      const generation = await getGenerationByIdOrSendNotFound(
+        options.store,
+        request,
+        reply,
+        'generation input rejected',
+        request.params.generationId
+      );
       if (generation === undefined) {
-        logGenerationWarning(request, 'generation input rejected', {
-          generationId: request.params.generationId,
-          warningCode: 'generation_not_found'
-        });
-        return reply.code(404).send({
-          message: `Generation "${request.params.generationId}" was not found.`
-        });
+        return;
       }
 
       if (generation.status === 'queued' || generation.status === 'submitted') {
-        logGenerationWarning(request, 'generation input rejected', {
-          generationId: generation.id,
-          status: generation.status,
-          warningCode: 'generation_input_not_allowed'
-        });
-        return reply.code(409).send({
-          message: `Generation "${generation.id}" cannot accept input in status "${generation.status}".`
+        return sendGenerationStatusConflict({
+          request,
+          reply,
+          warningMessage: 'generation input rejected',
+          generation,
+          warningCode: 'generation_input_not_allowed',
+          responseMessage: `Generation "${generation.id}" cannot accept input in status "${generation.status}".`
         });
       }
 
@@ -384,19 +385,14 @@ export function registerGenerationRoutes(
 
       const updated = await options.store.setInputImagePath(generation.id, targetPath);
       if (updated === undefined) {
-        logGenerationWarning(request, 'generation input rejected', {
-          generationId: generation.id,
-          warningCode: 'generation_not_found'
-        });
-        return reply.code(404).send({
-          message: `Generation "${generation.id}" was not found.`
-        });
+        return sendGenerationNotFound(
+          request,
+          reply,
+          'generation input rejected',
+          generation.id
+        );
       }
-      options.eventBus.publish({
-        type: 'upsert',
-        generationId: updated.id,
-        generation: updated
-      });
+      publishGenerationUpsert(options.eventBus, updated);
       request.log.info(
         {
           generationId: updated.id,
@@ -416,34 +412,29 @@ export function registerGenerationRoutes(
         tags: ['generations'],
         summary: 'Queue generation',
         params: generationParamsSchema,
-        response: {
-          400: errorResponseSchema,
-          200: generationSchema,
-          404: errorResponseSchema,
-          409: errorResponseSchema
-        }
+        response: generationValidationResponseSchemas
       }
     },
     async (request, reply) => {
-      const generation = await options.store.getById(request.params.generationId);
+      const generation = await getGenerationByIdOrSendNotFound(
+        options.store,
+        request,
+        reply,
+        'generation queue rejected',
+        request.params.generationId
+      );
       if (generation === undefined) {
-        logGenerationWarning(request, 'generation queue rejected', {
-          generationId: request.params.generationId,
-          warningCode: 'generation_not_found'
-        });
-        return reply.code(404).send({
-          message: `Generation "${request.params.generationId}" was not found.`
-        });
+        return;
       }
 
       if (generation.status === 'queued' || generation.status === 'submitted') {
-        logGenerationWarning(request, 'generation queue rejected', {
-          generationId: generation.id,
-          status: generation.status,
-          warningCode: 'generation_queue_not_allowed'
-        });
-        return reply.code(409).send({
-          message: `Generation "${generation.id}" cannot be queued in status "${generation.status}".`
+        return sendGenerationStatusConflict({
+          request,
+          reply,
+          warningMessage: 'generation queue rejected',
+          generation,
+          warningCode: 'generation_queue_not_allowed',
+          responseMessage: `Generation "${generation.id}" cannot be queued in status "${generation.status}".`
         });
       }
 
@@ -471,19 +462,16 @@ export function registerGenerationRoutes(
           executionSnapshot: execution
         });
         if (updated === undefined) {
-          logGenerationWarning(request, 'generation queue rejected', {
-            generationId: generation.id,
-            warningCode: 'generation_queue_not_allowed'
-          });
-          return reply.code(409).send({
-            message: `Generation "${generation.id}" cannot be queued in its current state.`
+          return sendGenerationCurrentStateConflict({
+            request,
+            reply,
+            warningMessage: 'generation queue rejected',
+            generation,
+            warningCode: 'generation_queue_not_allowed',
+            responseMessage: `Generation "${generation.id}" cannot be queued in its current state.`
           });
         }
-        options.eventBus.publish({
-          type: 'upsert',
-          generationId: updated.id,
-          generation: updated
-        });
+        publishGenerationUpsert(options.eventBus, updated);
         request.log.info(
           {
             generationId: updated.id,
@@ -520,41 +508,36 @@ export function registerGenerationRoutes(
         summary: 'Cancel generation',
         params: generationParamsSchema,
         response: {
-          200: generationSchema,
-          404: errorResponseSchema,
-          409: errorResponseSchema,
+          ...generationResponseSchemas,
           503: errorResponseSchema
         }
       }
     },
     async (request, reply) => {
-      const generation = await options.store.getById(request.params.generationId);
+      const generation = await getGenerationByIdOrSendNotFound(
+        options.store,
+        request,
+        reply,
+        'generation cancel rejected',
+        request.params.generationId
+      );
       if (generation === undefined) {
-        logGenerationWarning(request, 'generation cancel rejected', {
-          generationId: request.params.generationId,
-          warningCode: 'generation_not_found'
-        });
-        return reply.code(404).send({
-          message: `Generation "${request.params.generationId}" was not found.`
-        });
+        return;
       }
 
       if (generation.status === 'queued') {
         const updated = await options.store.markCanceled(generation.id);
         if (updated === undefined) {
-          logGenerationWarning(request, 'generation cancel rejected', {
-            generationId: generation.id,
-            warningCode: 'generation_cancel_not_allowed'
-          });
-          return reply.code(409).send({
-            message: `Generation "${generation.id}" cannot be canceled in its current state.`
+          return sendGenerationCurrentStateConflict({
+            request,
+            reply,
+            warningMessage: 'generation cancel rejected',
+            generation,
+            warningCode: 'generation_cancel_not_allowed',
+            responseMessage: `Generation "${generation.id}" cannot be canceled in its current state.`
           });
         }
-        options.eventBus.publish({
-          type: 'upsert',
-          generationId: updated.id,
-          generation: updated
-        });
+        publishGenerationUpsert(options.eventBus, updated);
         request.log.info(
           {
             generationId: updated.id,
@@ -577,11 +560,7 @@ export function registerGenerationRoutes(
           );
 
           if (failed !== undefined) {
-            options.eventBus.publish({
-              type: 'upsert',
-              generationId: failed.id,
-              generation: failed
-            });
+            publishGenerationUpsert(options.eventBus, failed);
             request.log.warn(
               {
                 generationId: failed.id,
@@ -609,20 +588,17 @@ export function registerGenerationRoutes(
             return generationSchema.parse(current);
           }
 
-          logGenerationWarning(request, 'generation cancel rejected', {
-            generationId: generation.id,
-            warningCode: 'generation_cancel_not_allowed'
-          });
-          return reply.code(409).send({
-            message: `Generation "${generation.id}" cannot be canceled in its current state.`
+          return sendGenerationCurrentStateConflict({
+            request,
+            reply,
+            warningMessage: 'generation cancel rejected',
+            generation,
+            warningCode: 'generation_cancel_not_allowed',
+            responseMessage: `Generation "${generation.id}" cannot be canceled in its current state.`
           });
         }
 
-        options.eventBus.publish({
-          type: 'upsert',
-          generationId: canceled.id,
-          generation: canceled
-        });
+        publishGenerationUpsert(options.eventBus, canceled);
         request.log.info(
           {
             generationId: canceled.id,
@@ -634,13 +610,13 @@ export function registerGenerationRoutes(
         return generationSchema.parse(canceled);
       }
 
-      logGenerationWarning(request, 'generation cancel rejected', {
-        generationId: generation.id,
-        status: generation.status,
-        warningCode: 'generation_cancel_not_allowed'
-      });
-      return reply.code(409).send({
-        message: `Generation "${generation.id}" cannot be canceled in status "${generation.status}".`
+      return sendGenerationStatusConflict({
+        request,
+        reply,
+        warningMessage: 'generation cancel rejected',
+        generation,
+        warningCode: 'generation_cancel_not_allowed',
+        responseMessage: `Generation "${generation.id}" cannot be canceled in status "${generation.status}".`
       });
     }
   );
@@ -654,42 +630,42 @@ export function registerGenerationRoutes(
         params: generationParamsSchema,
         response: {
           204: z.null(),
-          404: errorResponseSchema,
-          409: errorResponseSchema
+          ...generationConflictResponseSchemas
         }
       }
     },
     async (request, reply) => {
-      const generation = await options.store.getById(request.params.generationId);
+      const generation = await getGenerationByIdOrSendNotFound(
+        options.store,
+        request,
+        reply,
+        'generation delete rejected',
+        request.params.generationId
+      );
       if (generation === undefined) {
-        logGenerationWarning(request, 'generation delete rejected', {
-          generationId: request.params.generationId,
-          warningCode: 'generation_not_found'
-        });
-        return reply.code(404).send({
-          message: `Generation "${request.params.generationId}" was not found.`
-        });
+        return;
       }
 
       if (generation.status === 'submitted') {
-        logGenerationWarning(request, 'generation delete rejected', {
-          generationId: generation.id,
-          status: generation.status,
-          warningCode: 'generation_delete_not_allowed'
-        });
-        return reply.code(409).send({
-          message: `Generation "${generation.id}" cannot be deleted while submitted.`
+        return sendGenerationStatusConflict({
+          request,
+          reply,
+          warningMessage: 'generation delete rejected',
+          generation,
+          warningCode: 'generation_delete_not_allowed',
+          responseMessage: `Generation "${generation.id}" cannot be deleted while submitted.`
         });
       }
 
       const deleted = await options.store.deleteDeletable(generation.id);
       if (!deleted) {
-        logGenerationWarning(request, 'generation delete rejected', {
-          generationId: generation.id,
-          warningCode: 'generation_delete_not_allowed'
-        });
-        return reply.code(409).send({
-          message: `Generation "${generation.id}" cannot be deleted while submitted.`
+        return sendGenerationCurrentStateConflict({
+          request,
+          reply,
+          warningMessage: 'generation delete rejected',
+          generation,
+          warningCode: 'generation_delete_not_allowed',
+          responseMessage: `Generation "${generation.id}" cannot be deleted while submitted.`
         });
       }
 
@@ -718,6 +694,91 @@ function logGenerationWarning(
   context: Record<string, unknown>
 ): void {
   request.log.warn(context, message);
+}
+
+async function getGenerationByIdOrSendNotFound(
+  store: GenerationStore,
+  request: FastifyRequest,
+  reply: FastifyReply,
+  warningMessage: string,
+  generationId: string
+): Promise<Generation | undefined> {
+  const generation = await store.getById(generationId);
+  if (generation === undefined) {
+    sendGenerationNotFound(request, reply, warningMessage, generationId);
+  }
+
+  return generation;
+}
+
+function sendGenerationNotFound(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  warningMessage: string,
+  generationId: string
+) {
+  logGenerationWarning(request, warningMessage, {
+    generationId,
+    warningCode: 'generation_not_found'
+  });
+  return reply.code(404).send({
+    message: `Generation "${generationId}" was not found.`
+  });
+}
+
+interface SendGenerationConflictOptions {
+  request: FastifyRequest;
+  reply: FastifyReply;
+  warningMessage: string;
+  generation: Generation;
+  warningCode: string;
+  responseMessage: string;
+}
+
+function sendGenerationStatusConflict({
+  request,
+  reply,
+  warningMessage,
+  generation,
+  warningCode,
+  responseMessage
+}: SendGenerationConflictOptions) {
+  logGenerationWarning(request, warningMessage, {
+    generationId: generation.id,
+    status: generation.status,
+    warningCode
+  });
+  return reply.code(409).send({
+    message: responseMessage
+  });
+}
+
+function sendGenerationCurrentStateConflict({
+  request,
+  reply,
+  warningMessage,
+  generation,
+  warningCode,
+  responseMessage
+}: SendGenerationConflictOptions) {
+  logGenerationWarning(request, warningMessage, {
+    generationId: generation.id,
+    warningCode
+  });
+  return reply.code(409).send({
+    message: responseMessage
+  });
+}
+
+function publishGenerationUpsert(
+  eventBus: GenerationEventBus,
+  generation: Generation
+): void {
+  eventBus.publish({
+    type: 'upsert',
+    generationId: generation.id,
+    generation
+  });
 }
 
 async function cleanupGenerationArtifacts(
