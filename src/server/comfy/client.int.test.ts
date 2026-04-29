@@ -1,11 +1,15 @@
 // @vitest-environment node
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { describe, expect, test } from 'vitest';
 
+import {
+  comfyFixturePaths,
+  loadCapturedComfyFixture,
+  loadComfyWorkflow
+} from '../test-support/comfy-fixtures.js';
 import { requireTestEnvVar } from '../test-support/test-env.js';
 import {
   ComfyClient,
@@ -13,50 +17,7 @@ import {
   setLoadImageReference
 } from './client.js';
 
-interface CapturedFixture {
-  metadata: {
-    capturedAt: string;
-    comfyVersion: string;
-    notes?: string;
-  };
-  responses: {
-    healthCheck: unknown;
-    uploadImage: {
-      name: string;
-      subfolder?: string;
-      type?: string;
-    };
-    submitPrompt: {
-      prompt_id: string;
-      number?: number;
-      node_errors?: Record<string, unknown>;
-    };
-    historyByPrompt: Record<string, unknown>;
-  };
-}
-
 const baseUrl = requireTestEnvVar('COMFY_BASE_URL');
-
-const currentFilePath = fileURLToPath(import.meta.url);
-const currentDir = path.dirname(currentFilePath);
-const fixturePath = path.resolve(
-  currentDir,
-  '__fixtures__/captured/comfy-v0.8.2-contract.json'
-);
-const tinyPngPath = path.resolve(currentDir, '__fixtures__/input/tiny.png');
-const liankaInputImagePath = path.resolve(
-  currentDir,
-  '__fixtures__/input/liankavalentincropped.png'
-);
-const outputDirPath = path.resolve(currentDir, '__fixtures__/output');
-const txt2imgTemplatePath = path.resolve(
-  currentDir,
-  '../../../examples/prompts/txt2img.json'
-);
-const img2imgTemplatePath = path.resolve(
-  currentDir,
-  '../../../examples/prompts/img2img.json'
-);
 
 describe.sequential('ComfyClient integration (local ComfyUI)', () => {
   test('given_local_comfy_when_checking_health_then_system_stats_are_available', async () => {
@@ -70,10 +31,10 @@ describe.sequential('ComfyClient integration (local ComfyUI)', () => {
 
   test('given_local_comfy_when_uploading_img2img_input_then_comfy_reference_is_returned_for_loadimage', async () => {
     const client = new ComfyClient({ baseUrl });
-    const upload = await client.uploadInputImage(tinyPngPath);
+    const upload = await client.uploadInputImage(comfyFixturePaths.tinyInputImage);
     expect(upload.image.filename).toContain('.png');
     const img2imgWorkflow = setLoadImageReference(
-      await loadWorkflow(img2imgTemplatePath),
+      await loadComfyWorkflow(comfyFixturePaths.img2imgTemplate),
       upload.comfyImageRef,
       '12'
     );
@@ -91,7 +52,7 @@ describe.sequential('ComfyClient integration (local ComfyUI)', () => {
         historyPollMs: 1_000,
         historyTimeoutMs: 300_000
       });
-      const txt2imgWorkflow = await loadWorkflow(txt2imgTemplatePath);
+      const txt2imgWorkflow = await loadComfyWorkflow(comfyFixturePaths.txt2imgTemplate);
       prepareTxt2ImgWorkflowForFastTest(txt2imgWorkflow);
 
       const submitted = await client.submitPrompt(txt2imgWorkflow);
@@ -123,9 +84,9 @@ describe.sequential('ComfyClient integration (local ComfyUI)', () => {
         historyPollMs: 1_500,
         historyTimeoutMs: 720_000
       });
-      let img2imgWorkflow = await loadWorkflow(img2imgTemplatePath);
+      let img2imgWorkflow = await loadComfyWorkflow(comfyFixturePaths.img2imgTemplate);
 
-      const upload = await client.uploadInputImage(liankaInputImagePath);
+      const upload = await client.uploadInputImage(comfyFixturePaths.liankaInputImage);
       img2imgWorkflow = setLoadImageReference(
         img2imgWorkflow,
         upload.comfyImageRef,
@@ -159,16 +120,6 @@ describe.sequential('ComfyClient integration (local ComfyUI)', () => {
     }
   );
 });
-
-async function loadFixture(): Promise<CapturedFixture> {
-  const fixtureRaw = await readFile(fixturePath, 'utf8');
-  return JSON.parse(fixtureRaw) as CapturedFixture;
-}
-
-async function loadWorkflow(filePath: string): Promise<Record<string, unknown>> {
-  const source = await readFile(filePath, 'utf8');
-  return JSON.parse(source) as Record<string, unknown>;
-}
 
 function prepareTxt2ImgWorkflowForFastTest(workflow: Record<string, unknown>): void {
   const samplerNode = workflow['3'] as { inputs?: Record<string, unknown> } | undefined;
@@ -219,7 +170,7 @@ async function writeCapturedFixture(
   promptId: string,
   history: Record<string, { outputs?: Record<string, unknown> | undefined }>
 ): Promise<void> {
-  const fixture = await loadFixture();
+  const fixture = await loadCapturedComfyFixture();
 
   fixture.metadata.capturedAt = new Date().toISOString();
   fixture.responses.submitPrompt.prompt_id = promptId;
@@ -227,7 +178,11 @@ async function writeCapturedFixture(
     [promptId]: history
   };
 
-  await writeFile(fixturePath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+  await writeFile(
+    comfyFixturePaths.capturedContract,
+    `${JSON.stringify(fixture, null, 2)}\n`,
+    'utf8'
+  );
 }
 
 async function saveOutputImageFixture(
@@ -235,9 +190,9 @@ async function saveOutputImageFixture(
   originalFilename: string,
   imageBytes: Buffer
 ): Promise<void> {
-  await mkdir(outputDirPath, { recursive: true });
+  await mkdir(comfyFixturePaths.outputDir, { recursive: true });
   const extension = path.extname(originalFilename) || '.png';
   const outputFilename = `img2img_${promptId}${extension}`;
-  const outputPath = path.join(outputDirPath, outputFilename);
+  const outputPath = path.join(comfyFixturePaths.outputDir, outputFilename);
   await writeFile(outputPath, imageBytes);
 }
