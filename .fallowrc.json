@@ -4,11 +4,9 @@
     "src/index.{ts,tsx,js,jsx}",
     "src/main.{ts,tsx,js,jsx}"
   ],
+  "ignorePatterns": ["**/*.test.{ts,tsx,js,jsx}"],
   "rules": {
     "unused-dependencies": "warn",
     "unused-types": "off"
-  },
-  "health": {
-    "ignore": ["**/*.test.{ts,tsx,js,jsx}"]
   }
 }
