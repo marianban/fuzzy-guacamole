@@ -140,8 +140,8 @@ export class ComfyClient {
     options: ComfyRequestOptions = {}
   ): Promise<ComfyPromptSubmission> {
     const parsed = promptResponseSchema.parse(
-      await this.requestJsonWithFallback(
-        ['/api/prompt', '/prompt'],
+      await this.requestJson(
+        '/api/prompt',
         {
           method: 'POST',
           body: { prompt: workflow },
@@ -173,8 +173,8 @@ export class ComfyClient {
     form.set('overwrite', 'true');
 
     const parsed = uploadResponseSchema.parse(
-      await this.requestJsonWithFallback(
-        ['/api/upload/image', '/upload/image'],
+      await this.requestJson(
+        '/api/upload/image',
         {
           method: 'POST',
           body: form,
@@ -202,13 +202,7 @@ export class ComfyClient {
   }
 
   async interrupt(): Promise<void> {
-    await this.requestJsonWithFallback(
-      ['/api/interrupt', '/interrupt'],
-      {
-        method: 'POST'
-      },
-      'interrupt execution'
-    );
+    await this.requestJson('/api/interrupt', { method: 'POST' }, 'interrupt execution');
   }
 
   async getHistoryForPrompt(
@@ -216,8 +210,8 @@ export class ComfyClient {
     options: ComfyRequestOptions = {}
   ): Promise<Record<string, { outputs?: Record<string, unknown> | undefined }>> {
     const encodedPromptId = encodeURIComponent(promptId);
-    const historyJson = await this.requestJsonWithFallback(
-      [`/api/history_v2/${encodedPromptId}`, `/history/${encodedPromptId}`],
+    const historyJson = await this.requestJson(
+      `/history/${encodedPromptId}`,
       options.signal !== undefined ? { signal: options.signal } : undefined,
       `load history for prompt ${promptId}`
     );
@@ -266,8 +260,8 @@ export class ComfyClient {
       search.set('type', image.type);
     }
 
-    const buffer = await this.requestBinaryWithFallback(
-      [`/api/view?${search.toString()}`, `/view?${search.toString()}`],
+    const buffer = await this.requestBinary(
+      `/api/view?${search.toString()}`,
       options.signal !== undefined ? { signal: options.signal } : undefined,
       `download image ${image.filename}`
     );
@@ -275,115 +269,87 @@ export class ComfyClient {
     return buffer;
   }
 
-  private async requestBinaryWithFallback(
-    paths: string[],
+  private async requestBinary(
+    path: string,
     init: RequestInit | undefined,
     actionLabel: string
   ): Promise<Buffer> {
-    let lastFailure: Error | undefined;
-    for (const relativePath of paths) {
-      const { requestInit, timeoutSignal } = this.withRequestTimeout(init);
-      let response: Response;
+    const { requestInit, timeoutSignal } = this.withRequestTimeout(init);
+    let response: Response;
 
-      try {
-        response = await this.fetchImpl(this.buildUrl(relativePath), requestInit);
-      } catch (error) {
-        if (timeoutSignal.aborted && !init?.signal?.aborted) {
-          throw new Error(`${actionLabel} timed out after ${this.requestTimeoutMs}ms.`);
-        }
-
-        throw error;
+    try {
+      response = await this.fetchImpl(this.buildUrl(path), requestInit);
+    } catch (error) {
+      if (timeoutSignal.aborted && !init?.signal?.aborted) {
+        throw new Error(`${actionLabel} timed out after ${this.requestTimeoutMs}ms.`);
       }
 
-      if (response.ok) {
-        return Buffer.from(await response.arrayBuffer());
-      }
-
-      if (response.status === 404) {
-        lastFailure = new Error(
-          `${actionLabel} failed at ${relativePath}: ${response.status}`
-        );
-        continue;
-      }
-
-      const message = await readResponseMessage(response);
-      throw new Error(
-        `${actionLabel} failed at ${relativePath}: ${response.status} ${message}`
-      );
+      throw error;
     }
 
-    throw lastFailure ?? new Error(`${actionLabel} failed: no fallback paths left.`);
+    if (response.ok) {
+      return Buffer.from(await response.arrayBuffer());
+    }
+
+    const message = await readResponseMessage(response);
+    throw new Error(`${actionLabel} failed at ${path}: ${response.status} ${message}`);
   }
 
-  private async requestJsonWithFallback(
-    paths: string[],
+  private async requestJson(
+    path: string,
     init: JsonRequestInit | undefined,
     actionLabel: string
   ): Promise<unknown> {
-    let lastFailure: Error | undefined;
-    for (const relativePath of paths) {
-      const headers = {
-        ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-        ...(init?.headers ?? {})
-      };
+    const headers = {
+      ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(init?.headers ?? {})
+    };
 
-      const requestInitBase: RequestInit = {
-        ...(init?.method !== undefined ? { method: init.method } : {}),
-        headers
-      };
-      if (init?.body !== undefined) {
-        requestInitBase.body =
-          init.body instanceof FormData ? init.body : JSON.stringify(init.body);
-      }
-
-      const { requestInit, timeoutSignal } = this.withRequestTimeout({
-        ...requestInitBase,
-        ...(init?.signal !== undefined ? { signal: init.signal } : {})
-      });
-
-      let response: Response;
-      try {
-        response = await this.fetchImpl(this.buildUrl(relativePath), requestInit);
-      } catch (error) {
-        if (timeoutSignal.aborted && !init?.signal?.aborted) {
-          throw new Error(`${actionLabel} timed out after ${this.requestTimeoutMs}ms.`);
-        }
-
-        throw error;
-      }
-
-      if (response.ok) {
-        const contentType = response.headers.get('content-type') ?? '';
-        if (contentType.includes('application/json')) {
-          return response.json();
-        }
-
-        const textBody = await response.text();
-        if (textBody.length === 0) {
-          return {};
-        }
-
-        try {
-          return JSON.parse(textBody) as unknown;
-        } catch {
-          return { message: textBody };
-        }
-      }
-
-      if (response.status === 404) {
-        lastFailure = new Error(
-          `${actionLabel} failed at ${relativePath}: ${response.status}`
-        );
-        continue;
-      }
-
-      const message = await readResponseMessage(response);
-      throw new Error(
-        `${actionLabel} failed at ${relativePath}: ${response.status} ${message}`
-      );
+    const requestInitBase: RequestInit = {
+      ...(init?.method !== undefined ? { method: init.method } : {}),
+      headers
+    };
+    if (init?.body !== undefined) {
+      requestInitBase.body =
+        init.body instanceof FormData ? init.body : JSON.stringify(init.body);
     }
 
-    throw lastFailure ?? new Error(`${actionLabel} failed: no fallback paths left.`);
+    const { requestInit, timeoutSignal } = this.withRequestTimeout({
+      ...requestInitBase,
+      ...(init?.signal !== undefined ? { signal: init.signal } : {})
+    });
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(this.buildUrl(path), requestInit);
+    } catch (error) {
+      if (timeoutSignal.aborted && !init?.signal?.aborted) {
+        throw new Error(`${actionLabel} timed out after ${this.requestTimeoutMs}ms.`);
+      }
+
+      throw error;
+    }
+
+    if (response.ok) {
+      const contentType = response.headers.get('content-type') ?? '';
+      if (contentType.includes('application/json')) {
+        return response.json();
+      }
+
+      const textBody = await response.text();
+      if (textBody.length === 0) {
+        return {};
+      }
+
+      try {
+        return JSON.parse(textBody) as unknown;
+      } catch {
+        return { message: textBody };
+      }
+    }
+
+    const message = await readResponseMessage(response);
+    throw new Error(`${actionLabel} failed at ${path}: ${response.status} ${message}`);
   }
 
   private buildUrl(relativePath: string): string {

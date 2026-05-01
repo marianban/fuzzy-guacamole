@@ -252,5 +252,5 @@ flowchart TD
   T --> C
 ```
 
-The Comfy client has integration tests and endpoint-fallback handling. The runtime status service now uses it for readiness polling behind `GET /api/status` and `POST /api/comfy/start`.
+The Comfy client has integration tests and uses ComfyUI HTTP endpoints for readiness polling and workflow execution. The runtime status service now uses it behind `GET /api/status` and `POST /api/comfy/start`.
 The generation processor now uses this client directly for upload, submit, history polling, interrupt, and output download. The routes also use it for submitted cancellation via interrupt.

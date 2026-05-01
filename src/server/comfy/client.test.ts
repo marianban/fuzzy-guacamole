@@ -33,16 +33,6 @@ function createJsonResponse(config: MockResponseConfig = {}): Response {
   return new Response(body, { status, headers });
 }
 
-function createBinaryResponse(
-  binary: Uint8Array,
-  config: Omit<MockResponseConfig, 'binary'> = {}
-): Response {
-  const status = config.status ?? 200;
-  const headers = new Headers();
-  headers.set('Content-Type', config.contentType ?? 'application/octet-stream');
-  return new Response(binary, { status, headers });
-}
-
 describe('ComfyClient', () => {
   const tempDirs: string[] = [];
 
@@ -130,34 +120,6 @@ describe('ComfyClient', () => {
     );
   });
 
-  it('given_prompt_fallback_when_primary_endpoint_404_then_secondary_endpoint_is_used', async () => {
-    const calls: { url: string; body: unknown }[] = [];
-    const fetchImpl: typeof fetch = async (input, init) => {
-      const url = String(input);
-      const parsedBody = init?.body ? JSON.parse(String(init.body)) : undefined;
-      calls.push({ url, body: parsedBody });
-      if (url.endsWith('/api/prompt')) {
-        return createJsonResponse({ status: 404, body: { message: 'missing' } });
-      }
-      return createJsonResponse({
-        body: { prompt_id: 'prompt-1', number: 7, node_errors: { n1: 'warn' } }
-      });
-    };
-    const client = new ComfyClient({ baseUrl: 'http://localhost:8188/', fetchImpl });
-
-    const result = await client.submitPrompt({ foo: 'bar' });
-
-    expect(result).toEqual({
-      promptId: 'prompt-1',
-      queueNumber: 7,
-      nodeErrors: { n1: 'warn' }
-    });
-    expect(calls).toHaveLength(2);
-    expect(calls[0]?.url).toBe('http://localhost:8188/api/prompt');
-    expect(calls[1]?.url).toBe('http://localhost:8188/prompt');
-    expect(calls[1]?.body).toEqual({ prompt: { foo: 'bar' } });
-  });
-
   it('given_server_error_when_submitting_prompt_then_message_is_included_in_error', async () => {
     const fetchImpl: typeof fetch = async () =>
       createJsonResponse({ status: 500, body: { message: 'bad prompt' } });
@@ -231,44 +193,6 @@ describe('ComfyClient', () => {
     expect(result.comfyImageRef).toBe('just-name.png');
   });
 
-  it('given_interrupt_fallback_when_primary_endpoint_404_then_secondary_endpoint_is_used', async () => {
-    const calledUrls: string[] = [];
-    const fetchImpl: typeof fetch = async (input) => {
-      const url = String(input);
-      calledUrls.push(url);
-      if (url.endsWith('/api/interrupt')) {
-        return createJsonResponse({ status: 404 });
-      }
-      return createJsonResponse({});
-    };
-    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
-
-    await expect(client.interrupt()).resolves.toBeUndefined();
-    expect(calledUrls).toEqual([
-      'http://localhost:8188/api/interrupt',
-      'http://localhost:8188/interrupt'
-    ]);
-  });
-
-  it('given_missing_history_api_when_loading_history_then_history_fallback_is_used', async () => {
-    const fetchImpl: typeof fetch = async (input) => {
-      const url = String(input);
-      if (url.includes('/api/history_v2/')) {
-        return createJsonResponse({ status: 404, body: { message: 'missing' } });
-      }
-      return createJsonResponse({
-        body: {
-          'id with spaces': { outputs: { '3': { images: [{ filename: 'out.png' }] } } }
-        }
-      });
-    };
-    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
-
-    const history = await client.getHistoryForPrompt('id with spaces');
-
-    expect(history['id with spaces']?.outputs).toBeDefined();
-  });
-
   it('given_polled_history_when_outputs_become_available_then_poll_history_returns_entry', async () => {
     let callCount = 0;
     const fetchImpl: typeof fetch = async () => {
@@ -292,6 +216,25 @@ describe('ComfyClient', () => {
     expect(Object.keys(result.entry.outputs ?? {})).toContain('3');
   });
 
+  it('given_prompt_id_when_loading_history_then_oss_history_endpoint_is_used', async () => {
+    const calls: string[] = [];
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = String(input);
+      calls.push(url);
+      return createJsonResponse({
+        body: {
+          'id with spaces': { outputs: { '3': { images: [{ filename: 'out.png' }] } } }
+        }
+      });
+    };
+    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+
+    const history = await client.getHistoryForPrompt('id with spaces');
+
+    expect(history['id with spaces']?.outputs).toBeDefined();
+    expect(calls).toEqual(['http://localhost:8188/history/id%20with%20spaces']);
+  });
+
   it('given_empty_polled_history_when_timeout_reached_then_poll_history_throws', async () => {
     const fetchImpl: typeof fetch = async () =>
       createJsonResponse({ body: { 'p-timeout': { outputs: {} } } });
@@ -308,26 +251,6 @@ describe('ComfyClient', () => {
         timeoutMs: 1
       })
     ).rejects.toThrow('History timeout for prompt p-timeout after 1ms.');
-  });
-
-  it('given_download_primary_404_when_downloading_image_then_binary_fallback_endpoint_is_used', async () => {
-    const imageBytes = new Uint8Array([1, 2, 3, 4]);
-    const fetchImpl: typeof fetch = async (input) => {
-      const url = String(input);
-      if (url.includes('/api/view?')) {
-        return createJsonResponse({ status: 404, body: { message: 'missing' } });
-      }
-      return createBinaryResponse(imageBytes);
-    };
-    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
-
-    const downloaded = await client.downloadImage({
-      filename: 'result.png',
-      subfolder: 'output',
-      type: 'output'
-    });
-
-    expect(downloaded).toEqual(Buffer.from(imageBytes));
   });
 
   it('given_download_server_error_when_downloading_image_then_error_includes_message', async () => {

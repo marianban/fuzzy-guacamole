@@ -75,27 +75,12 @@ function createMockFetch(fixture: CapturedComfyFixture): typeof fetch {
       return jsonResponse(fixture.responses.healthCheck);
     }
 
-    if (
-      method === 'POST' &&
-      (url.pathname === '/api/upload/image' || url.pathname === '/upload/image')
-    ) {
+    if (method === 'POST' && url.pathname === '/api/upload/image') {
       return jsonResponse(fixture.responses.uploadImage);
     }
 
-    if (
-      method === 'POST' &&
-      (url.pathname === '/api/prompt' || url.pathname === '/prompt')
-    ) {
+    if (method === 'POST' && url.pathname === '/api/prompt') {
       return jsonResponse(fixture.responses.submitPrompt);
-    }
-
-    if (method === 'GET' && url.pathname.startsWith('/api/history_v2/')) {
-      const promptId = url.pathname.split('/').at(-1);
-      if (promptId === undefined) {
-        return jsonResponse({}, 404);
-      }
-      const history = fixture.responses.historyByPrompt[promptId];
-      return history !== undefined ? jsonResponse(history) : jsonResponse({});
     }
 
     if (method === 'GET' && url.pathname.startsWith('/history/')) {
@@ -107,10 +92,7 @@ function createMockFetch(fixture: CapturedComfyFixture): typeof fetch {
       return history !== undefined ? jsonResponse(history) : jsonResponse({});
     }
 
-    if (
-      method === 'POST' &&
-      (url.pathname === '/api/interrupt' || url.pathname === '/interrupt')
-    ) {
+    if (method === 'POST' && url.pathname === '/api/interrupt') {
       return jsonResponse({});
     }
 
