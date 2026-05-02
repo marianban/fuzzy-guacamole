@@ -116,45 +116,39 @@ class DefaultGenerationProcessor implements GenerationProcessor {
         status: 'completed'
       };
     } catch (error) {
-      if (error instanceof CanceledGenerationError) {
-        return {
-          status: 'canceled'
-        };
-      }
+      return this.#handleProcessError(generation.id, error);
+    }
+  }
 
-      if (isAbortError(error)) {
-        return {
-          status: 'canceled'
-        };
-      }
-
-      if (error instanceof ExecutionSnapshotError) {
-        return {
-          status: 'failed',
-          error: error.message
-        };
-      }
-
-      if (error instanceof PromptExecutionError) {
-        return {
-          status: 'failed',
-          error: error.message
-        };
-      }
-
-      this.#logger?.error(
-        {
-          err: error,
-          generationId: generation.id
-        },
-        'generation execution failed'
-      );
-
+  #handleProcessError(generationId: string, error: unknown): GenerationProcessResult {
+    if (error instanceof CanceledGenerationError || isAbortError(error)) {
       return {
-        status: 'failed',
-        error: normalizeErrorMessage(error)
+        status: 'canceled'
       };
     }
+
+    if (
+      error instanceof ExecutionSnapshotError ||
+      error instanceof PromptExecutionError
+    ) {
+      return {
+        status: 'failed',
+        error: error.message
+      };
+    }
+
+    this.#logger?.error(
+      {
+        err: error,
+        generationId
+      },
+      'generation execution failed'
+    );
+
+    return {
+      status: 'failed',
+      error: normalizeErrorMessage(error)
+    };
   }
 
   #loadExecutionSnapshot(generation: StoredGeneration): GenerationExecutionPlan {

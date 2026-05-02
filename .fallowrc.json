@@ -2,9 +2,16 @@
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
   "entry": [
     "src/index.{ts,tsx,js,jsx}",
-    "src/main.{ts,tsx,js,jsx}"
+    "src/main.{ts,tsx,js,jsx}",
+    "src/**/*.test.{ts,tsx,js,jsx}"
   ],
-  "ignorePatterns": ["**/*.test.{ts,tsx,js,jsx}"],
+  "ignorePatterns": ["wallaby.cjs", "scripts/lint-mermaid.mjs"],
+  "duplicates": {
+    "ignore": ["**/*.test.{ts,tsx,js,jsx}"]
+  },
+  "health": {
+    "ignore": ["**/*.test.{ts,tsx,js,jsx}", "**/test-support/**"]
+  },
   "rules": {
     "unused-dependencies": "warn",
     "unused-types": "off"
