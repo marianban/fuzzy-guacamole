@@ -88,101 +88,121 @@ const presetModelVisibilitySchema = z.object({
   equals: z.unknown()
 });
 
-export const presetModelFieldSchema = z
-  .object({
-    id: z.string().min(1),
-    fieldType: z.enum(['string', 'integer', 'number', 'enum']),
-    categoryId: z.string().min(1).optional(),
-    order: z.number().int(),
-    label: localizedTextSchema,
-    description: localizedTextSchema.optional(),
-    default: z.unknown().optional(),
-    validation: presetModelValidationSchema,
-    visibility: presetModelVisibilitySchema.optional(),
-    control: presetModelControlSchema
-  })
-  .superRefine((field, context) => {
+const presetModelFieldBaseSchema = z.object({
+  id: z.string().min(1),
+  fieldType: z.enum(['string', 'integer', 'number', 'enum']),
+  categoryId: z.string().min(1).optional(),
+  order: z.number().int(),
+  label: localizedTextSchema,
+  description: localizedTextSchema.optional(),
+  default: z.unknown().optional(),
+  validation: presetModelValidationSchema,
+  visibility: presetModelVisibilitySchema.optional(),
+  control: presetModelControlSchema
+});
+
+type PresetModelFieldBase = z.infer<typeof presetModelFieldBaseSchema>;
+
+const refineString = (field: PresetModelFieldBase, context: z.RefinementCtx): void => {
+  if (field.default !== undefined && typeof field.default !== 'string') {
+    context.addIssue({
+      code: 'custom',
+      message: `Field "${field.id}" default must be a string.`
+    });
+  }
+  if (field.control.type !== 'input') {
+    context.addIssue({
+      code: 'custom',
+      message: `Field "${field.id}" with fieldType "string" must use input control.`
+    });
+  }
+};
+
+const refineInteger = (field: PresetModelFieldBase, context: z.RefinementCtx): void => {
+  if (field.default !== undefined && !Number.isInteger(field.default)) {
+    context.addIssue({
+      code: 'custom',
+      message: `Field "${field.id}" default must be an integer.`
+    });
+  }
+  if (
+    field.control.type !== 'input' &&
+    field.control.type !== 'slider' &&
+    field.control.type !== 'range'
+  ) {
+    context.addIssue({
+      code: 'custom',
+      message: `Field "${field.id}" with fieldType "integer" must use input, slider, or range control.`
+    });
+  }
+};
+
+const refineNumber = (field: PresetModelFieldBase, context: z.RefinementCtx): void => {
+  if (
+    field.default !== undefined &&
+    (typeof field.default !== 'number' || Number.isNaN(field.default))
+  ) {
+    context.addIssue({
+      code: 'custom',
+      message: `Field "${field.id}" default must be a number.`
+    });
+  }
+  if (
+    field.control.type !== 'input' &&
+    field.control.type !== 'slider' &&
+    field.control.type !== 'range'
+  ) {
+    context.addIssue({
+      code: 'custom',
+      message: `Field "${field.id}" with fieldType "number" must use input, slider, or range control.`
+    });
+  }
+};
+
+const refineEnum = (field: PresetModelFieldBase, context: z.RefinementCtx): void => {
+  if (field.control.type !== 'select') {
+    context.addIssue({
+      code: 'custom',
+      message: `Field "${field.id}" with fieldType "enum" must use select control.`
+    });
+  }
+  if (field.default !== undefined && typeof field.default !== 'string') {
+    context.addIssue({
+      code: 'custom',
+      message: `Field "${field.id}" default must be a string enum value.`
+    });
+  }
+  if (
+    field.default !== undefined &&
+    field.control.type === 'select' &&
+    !field.control.options.some((option) => option.value === field.default)
+  ) {
+    context.addIssue({
+      code: 'custom',
+      message: `Field "${field.id}" default must match one of the select option values.`
+    });
+  }
+};
+
+export const presetModelFieldSchema = presetModelFieldBaseSchema.superRefine(
+  (field, context) => {
     if (field.fieldType === 'string') {
-      if (field.default !== undefined && typeof field.default !== 'string') {
-        context.addIssue({
-          code: 'custom',
-          message: `Field "${field.id}" default must be a string.`
-        });
-      }
-      if (field.control.type !== 'input') {
-        context.addIssue({
-          code: 'custom',
-          message: `Field "${field.id}" with fieldType "string" must use input control.`
-        });
-      }
+      refineString(field, context);
     }
 
     if (field.fieldType === 'integer') {
-      if (field.default !== undefined && !Number.isInteger(field.default)) {
-        context.addIssue({
-          code: 'custom',
-          message: `Field "${field.id}" default must be an integer.`
-        });
-      }
-      if (
-        field.control.type !== 'input' &&
-        field.control.type !== 'slider' &&
-        field.control.type !== 'range'
-      ) {
-        context.addIssue({
-          code: 'custom',
-          message: `Field "${field.id}" with fieldType "integer" must use input, slider, or range control.`
-        });
-      }
+      refineInteger(field, context);
     }
 
     if (field.fieldType === 'number') {
-      if (
-        field.default !== undefined &&
-        (typeof field.default !== 'number' || Number.isNaN(field.default))
-      ) {
-        context.addIssue({
-          code: 'custom',
-          message: `Field "${field.id}" default must be a number.`
-        });
-      }
-      if (
-        field.control.type !== 'input' &&
-        field.control.type !== 'slider' &&
-        field.control.type !== 'range'
-      ) {
-        context.addIssue({
-          code: 'custom',
-          message: `Field "${field.id}" with fieldType "number" must use input, slider, or range control.`
-        });
-      }
+      refineNumber(field, context);
     }
 
     if (field.fieldType === 'enum') {
-      if (field.control.type !== 'select') {
-        context.addIssue({
-          code: 'custom',
-          message: `Field "${field.id}" with fieldType "enum" must use select control.`
-        });
-      }
-      if (field.default !== undefined && typeof field.default !== 'string') {
-        context.addIssue({
-          code: 'custom',
-          message: `Field "${field.id}" default must be a string enum value.`
-        });
-      }
-      if (
-        field.default !== undefined &&
-        field.control.type === 'select' &&
-        !field.control.options.some((option) => option.value === field.default)
-      ) {
-        context.addIssue({
-          code: 'custom',
-          message: `Field "${field.id}" default must match one of the select option values.`
-        });
-      }
+      refineEnum(field, context);
     }
-  });
+  }
+);
 
 export const presetModelSchema = z.object({
   categories: z.array(presetModelCategorySchema),

@@ -141,53 +141,97 @@ function validateFieldValue(
   issues: string[]
 ): void {
   if (field.fieldType === 'string') {
-    if (typeof value !== 'string') {
-      issues.push(`Field "${field.id}" must be a string.`);
-      return;
-    }
-    if (
-      field.validation.minLength !== undefined &&
-      value.length < field.validation.minLength
-    ) {
-      issues.push(
-        `Field "${field.id}" must be at least ${field.validation.minLength} characters long.`
-      );
-    }
-    if (
-      field.validation.maxLength !== undefined &&
-      value.length > field.validation.maxLength
-    ) {
-      issues.push(
-        `Field "${field.id}" must be at most ${field.validation.maxLength} characters long.`
-      );
-    }
-    if (
-      field.validation.pattern !== undefined &&
-      !new RegExp(field.validation.pattern).test(value)
-    ) {
-      issues.push(`Field "${field.id}" does not match the required pattern.`);
-    }
+    validateStringField(field, value, issues);
     return;
   }
 
   if (field.fieldType === 'integer') {
-    if (!Number.isInteger(value)) {
-      issues.push(`Field "${field.id}" must be an integer.`);
-      return;
-    }
-    validateNumericBounds(field, value as number, issues);
+    validateIntegerField(field, value, issues);
     return;
   }
 
   if (field.fieldType === 'number') {
-    if (typeof value !== 'number' || Number.isNaN(value)) {
-      issues.push(`Field "${field.id}" must be a number.`);
-      return;
-    }
-    validateNumericBounds(field, value, issues);
+    validateNumberField(field, value, issues);
     return;
   }
 
+  if (field.fieldType === 'enum') {
+    validateEnumField(field, value, issues);
+    return;
+  }
+
+  throw new Error(
+    `Field "${field.id}" has unsupported fieldType "${String(field.fieldType)}".`
+  );
+}
+
+function validateStringField(
+  field: PresetModelField,
+  value: unknown,
+  issues: string[]
+): void {
+  if (typeof value !== 'string') {
+    issues.push(`Field "${field.id}" must be a string.`);
+    return;
+  }
+
+  if (
+    field.validation.minLength !== undefined &&
+    value.length < field.validation.minLength
+  ) {
+    issues.push(
+      `Field "${field.id}" must be at least ${field.validation.minLength} characters long.`
+    );
+  }
+
+  if (
+    field.validation.maxLength !== undefined &&
+    value.length > field.validation.maxLength
+  ) {
+    issues.push(
+      `Field "${field.id}" must be at most ${field.validation.maxLength} characters long.`
+    );
+  }
+
+  if (
+    field.validation.pattern !== undefined &&
+    !new RegExp(field.validation.pattern).test(value)
+  ) {
+    issues.push(`Field "${field.id}" does not match the required pattern.`);
+  }
+}
+
+function validateIntegerField(
+  field: PresetModelField,
+  value: unknown,
+  issues: string[]
+): void {
+  if (!Number.isInteger(value)) {
+    issues.push(`Field "${field.id}" must be an integer.`);
+    return;
+  }
+
+  validateNumericBounds(field, value as number, issues);
+}
+
+function validateNumberField(
+  field: PresetModelField,
+  value: unknown,
+  issues: string[]
+): void {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    issues.push(`Field "${field.id}" must be a number.`);
+    return;
+  }
+
+  validateNumericBounds(field, value, issues);
+}
+
+function validateEnumField(
+  field: PresetModelField,
+  value: unknown,
+  issues: string[]
+): void {
   if (typeof value !== 'string') {
     issues.push(`Field "${field.id}" must be one of the configured enum values.`);
     return;
