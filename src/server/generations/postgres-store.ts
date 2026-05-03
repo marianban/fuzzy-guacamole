@@ -7,6 +7,7 @@ import type { AppDatabase } from '../db/client.js';
 import { generations } from '../db/schema.js';
 import type { GenerationExecutionPlan } from './execution/plan.js';
 import {
+  createDraftStoredGeneration,
   createStoredGeneration,
   isStoredGeneration,
   toPublicGeneration,
@@ -36,16 +37,9 @@ class PostgresGenerationStore implements GenerationStore {
 
   async create(input: CreateGenerationInput): Promise<Generation> {
     const timestamp = new Date().toISOString();
-    const generation = createStoredGeneration({
+    const generation = createDraftStoredGeneration(input, {
       id: randomUUID(),
-      status: 'draft',
-      presetId: input.presetId,
-      templateId: input.templateId,
-      presetParams: { ...input.presetParams },
-      queuedAt: null,
-      error: null,
-      createdAt: timestamp,
-      updatedAt: timestamp
+      timestamp
     });
 
     const rows = await this.#database.db

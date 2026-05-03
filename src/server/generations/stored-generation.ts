@@ -1,10 +1,31 @@
 import type { Generation } from '../../shared/generations.js';
+import type { CreateGenerationInput } from './store.js';
 import type { GenerationExecutionPlan } from './execution/plan.js';
 
 export interface StoredGeneration extends Generation {
   executionSnapshot: GenerationExecutionPlan | null;
   promptRequest: unknown | null;
   promptResponse: unknown | null;
+}
+
+export function createDraftStoredGeneration(
+  input: CreateGenerationInput,
+  identity: {
+    id: string;
+    timestamp: string;
+  }
+): StoredGeneration {
+  return createStoredGeneration({
+    id: identity.id,
+    status: 'draft',
+    presetId: input.presetId,
+    templateId: input.templateId,
+    presetParams: { ...input.presetParams },
+    queuedAt: null,
+    error: null,
+    createdAt: identity.timestamp,
+    updatedAt: identity.timestamp
+  });
 }
 
 export function createStoredGeneration(

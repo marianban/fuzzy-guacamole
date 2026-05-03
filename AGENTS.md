@@ -47,8 +47,10 @@ This repo currently contains the product specification and agent workflow docs f
 ## Testing Best Practices
 
 - Implement tests as a separate step, and validate that new tests fail before moving to feature implementation.
+- Do not add or update tests for repository configuration or tooling-only file changes such as `.fallowrc.json`, `eslint` config, `prettier` config, `package.json` script wiring, `wallaby.cjs`, `tsconfig`, or similar non-application files; keep tests focused on application behavior.
 - Prefer small, deterministic tests; avoid timing-sensitive flakiness.
 - Follow Test-Driven Development principles
+- TDD applies to application code changes. For repository configuration or tooling-only edits, do not create or maintain tests that only assert config file contents.
 - Add/extend tests with every behavior change; bugfixes require a regression test.
 - Do not keep or add tests for removed fields, APIs, or behaviors. When a feature is deleted from the contract, delete stale tests and stale fixture data instead of adding tests like "without removedField succeeds". If you notice such a test during development, remove it.
 - For UI: use `@testing-library/react` with user-visible queries (`getByRole`, `getByLabelText`), and drive interactions with `user-event`.

@@ -5,7 +5,12 @@
     "src/main.{ts,tsx,js,jsx}",
     "src/**/*.test.{ts,tsx,js,jsx}"
   ],
-  "ignorePatterns": ["wallaby.cjs", "scripts/lint-mermaid.mjs"],
+  "ignorePatterns": [
+    "wallaby.cjs",
+    "scripts/lint-mermaid.mjs",
+    "scripts/run-unit-tests.mjs",
+    "scripts/run-int-tests.mjs"
+  ],
   "duplicates": {
     "ignore": ["**/*.test.{ts,tsx,js,jsx}"]
   },

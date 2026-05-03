@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Generation } from '../../shared/generations.js';
 import {
   copyStoredGeneration,
+  createDraftStoredGeneration,
   createStoredGeneration,
   isStoredGeneration,
   toPublicGeneration,
@@ -23,16 +24,9 @@ class InMemoryGenerationStore implements GenerationStore {
 
   async create(input: CreateGenerationInput): Promise<Generation> {
     const timestamp = new Date().toISOString();
-    const generation = createStoredGeneration({
+    const generation = createDraftStoredGeneration(input, {
       id: randomUUID(),
-      status: 'draft',
-      presetId: input.presetId,
-      templateId: input.templateId,
-      presetParams: { ...input.presetParams },
-      queuedAt: null,
-      error: null,
-      createdAt: timestamp,
-      updatedAt: timestamp
+      timestamp
     });
     this.#byId.set(generation.id, copyStoredGeneration(generation));
     return toPublicGeneration(generation);
@@ -238,25 +232,9 @@ class InMemoryGenerationStore implements GenerationStore {
   }
 
   async failSubmittedOnStartup(error: string): Promise<readonly StoredGeneration[]> {
-    const failedGenerations: StoredGeneration[] = [];
-
-    for (const generation of this.#byId.values()) {
-      if (generation.status !== 'submitted') {
-        continue;
-      }
-
-      const failedGeneration: StoredGeneration = {
-        ...generation,
-        status: 'failed',
-        error,
-        updatedAt: new Date().toISOString()
-      };
-      this.#byId.set(failedGeneration.id, copyStoredGeneration(failedGeneration));
-      failedGenerations.push(copyStoredGeneration(failedGeneration));
-    }
-
-    return failedGenerations.sort(
-      (left, right) => Date.parse(left.updatedAt) - Date.parse(right.updatedAt)
+    return this.#failSubmittedWhere(
+      (generation) => generation.status === 'submitted',
+      error
     );
   }
 
@@ -265,13 +243,22 @@ class InMemoryGenerationStore implements GenerationStore {
     error: string
   ): Promise<readonly StoredGeneration[]> {
     const staleBeforeMs = Date.parse(staleBefore);
+    return this.#failSubmittedWhere(
+      (generation) =>
+        generation.status === 'submitted' &&
+        Date.parse(generation.updatedAt) <= staleBeforeMs,
+      error
+    );
+  }
+
+  async #failSubmittedWhere(
+    predicate: (generation: StoredGeneration) => boolean,
+    error: string
+  ): Promise<readonly StoredGeneration[]> {
     const failedGenerations: StoredGeneration[] = [];
 
     for (const generation of this.#byId.values()) {
-      if (
-        generation.status !== 'submitted' ||
-        Date.parse(generation.updatedAt) > staleBeforeMs
-      ) {
+      if (!predicate(generation)) {
         continue;
       }
 
