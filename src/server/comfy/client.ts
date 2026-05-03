@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+import { FetchError, ofetch, type $Fetch, type FetchOptions } from 'ofetch';
 import { z } from 'zod';
 
 const promptResponseSchema = z.object({
@@ -43,6 +44,10 @@ const systemStatsSchema = z.object({
   )
 });
 
+const errorMessageSchema = z.object({
+  message: z.string()
+});
+
 export interface ComfyClientOptions {
   baseUrl: string;
   fetchImpl?: typeof fetch;
@@ -82,9 +87,18 @@ export interface ComfyHealthCheckResult {
   systemStats?: z.infer<typeof systemStatsSchema>;
 }
 
-interface JsonRequestInit extends Omit<RequestInit, 'body'> {
-  body?: unknown;
+interface BaseRequestInit {
+  method?: string;
+  headers?: RequestInit['headers'];
+  signal?: AbortSignal;
+  query?: Record<string, string>;
 }
+
+interface JsonRequestInit extends BaseRequestInit {
+  body?: RequestInit['body'] | Record<string, unknown>;
+}
+
+type BinaryRequestInit = BaseRequestInit;
 
 interface ComfyRequestOptions {
   signal?: AbortSignal;
@@ -95,26 +109,44 @@ const DEFAULT_HISTORY_TIMEOUT_MS = 180_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 
 export class ComfyClient {
-  private readonly baseUrl: string;
-  private readonly fetchImpl: typeof fetch;
+  private readonly http: $Fetch;
   private readonly requestTimeoutMs: number;
   private readonly historyPollMs: number;
   private readonly historyTimeoutMs: number;
 
   constructor(options: ComfyClientOptions) {
-    this.baseUrl = options.baseUrl.replace(/\/+$/, '');
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    const baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     this.historyPollMs = options.historyPollMs ?? DEFAULT_HISTORY_POLL_MS;
     this.historyTimeoutMs = options.historyTimeoutMs ?? DEFAULT_HISTORY_TIMEOUT_MS;
+    this.http = ofetch.create(
+      {
+        baseURL: baseUrl,
+        retry: 0
+      },
+      options.fetchImpl !== undefined ? { fetch: options.fetchImpl } : undefined
+    );
   }
 
   async healthCheck(options: ComfyRequestOptions = {}): Promise<ComfyHealthCheckResult> {
     const { signal, timeoutSignal } = this.createRequestSignal(options.signal);
 
-    let response: Response;
     try {
-      response = await this.fetchImpl(this.buildUrl('/api/system_stats'), { signal });
+      const response = await this.http.raw('/api/system_stats', {
+        signal,
+        ignoreResponseError: true
+      });
+
+      if (!response.ok) {
+        return { ok: false };
+      }
+
+      const parsed = systemStatsSchema.safeParse(response._data);
+      if (!parsed.success) {
+        return { ok: false };
+      }
+
+      return { ok: true, systemStats: parsed.data };
     } catch (error) {
       if (timeoutSignal.aborted && !options.signal?.aborted) {
         return { ok: false };
@@ -122,17 +154,6 @@ export class ComfyClient {
 
       throw error;
     }
-
-    if (!response.ok) {
-      return { ok: false };
-    }
-
-    const parsed = systemStatsSchema.safeParse(await response.json());
-    if (!parsed.success) {
-      return { ok: false };
-    }
-
-    return { ok: true, systemStats: parsed.data };
   }
 
   async submitPrompt(
@@ -252,17 +273,20 @@ export class ComfyClient {
     image: ComfyImageRef,
     options: ComfyRequestOptions = {}
   ): Promise<Buffer> {
-    const search = new URLSearchParams({ filename: image.filename });
-    if (image.subfolder !== undefined && image.subfolder.length > 0) {
-      search.set('subfolder', image.subfolder);
-    }
-    if (image.type !== undefined && image.type.length > 0) {
-      search.set('type', image.type);
-    }
-
     const buffer = await this.requestBinary(
-      `/api/view?${search.toString()}`,
-      options.signal !== undefined ? { signal: options.signal } : undefined,
+      '/api/view',
+      {
+        ...(options.signal !== undefined ? { signal: options.signal } : {}),
+        query: {
+          filename: image.filename,
+          ...(image.subfolder !== undefined && image.subfolder.length > 0
+            ? { subfolder: image.subfolder }
+            : {}),
+          ...(image.type !== undefined && image.type.length > 0
+            ? { type: image.type }
+            : {})
+        }
+      },
       `download image ${image.filename}`
     );
 
@@ -271,28 +295,48 @@ export class ComfyClient {
 
   private async requestBinary(
     path: string,
-    init: RequestInit | undefined,
+    init: BinaryRequestInit | undefined,
     actionLabel: string
   ): Promise<Buffer> {
-    const { requestInit, timeoutSignal } = this.withRequestTimeout(init);
-    let response: Response;
+    const originalSignal = init?.signal;
+    const { signal, timeoutSignal } = this.createRequestSignal(originalSignal);
+    const requestPath = buildRequestPath(path, init?.query);
+    const requestOptions: FetchOptions<'arrayBuffer'> = {
+      ...(init?.method !== undefined ? { method: init.method } : {}),
+      ...(init?.headers !== undefined ? { headers: init.headers } : {}),
+      ...(init?.query !== undefined ? { query: init.query } : {}),
+      signal,
+      responseType: 'arrayBuffer'
+    };
 
     try {
-      response = await this.fetchImpl(this.buildUrl(path), requestInit);
+      const response = await this.http.raw<ArrayBuffer, 'arrayBuffer'>(
+        path,
+        requestOptions
+      );
+
+      if (response.ok) {
+        return Buffer.from(response._data ?? new ArrayBuffer(0));
+      }
     } catch (error) {
-      if (timeoutSignal.aborted && !init?.signal?.aborted) {
+      if (timeoutSignal.aborted && !originalSignal?.aborted) {
         throw new Error(`${actionLabel} timed out after ${this.requestTimeoutMs}ms.`);
+      }
+
+      if (error instanceof FetchError) {
+        throw buildBinaryRequestError(
+          actionLabel,
+          requestPath,
+          error.response?.status,
+          error.response?.headers.get('content-type'),
+          error.data
+        );
       }
 
       throw error;
     }
 
-    if (response.ok) {
-      return Buffer.from(await response.arrayBuffer());
-    }
-
-    const message = await readResponseMessage(response);
-    throw new Error(`${actionLabel} failed at ${path}: ${response.status} ${message}`);
+    throw new Error(`download image ${requestPath} returned no data.`);
   }
 
   private async requestJson(
@@ -300,60 +344,42 @@ export class ComfyClient {
     init: JsonRequestInit | undefined,
     actionLabel: string
   ): Promise<unknown> {
-    const headers = {
-      ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-      ...(init?.headers ?? {})
-    };
-
-    const requestInitBase: RequestInit = {
+    const originalSignal = init?.signal;
+    const { signal, timeoutSignal } = this.createRequestSignal(originalSignal);
+    const requestPath = buildRequestPath(path, init?.query);
+    const requestOptions: FetchOptions = {
       ...(init?.method !== undefined ? { method: init.method } : {}),
-      headers
+      ...(init?.headers !== undefined ? { headers: init.headers } : {}),
+      ...(init?.body !== undefined ? { body: init.body } : {}),
+      ...(init?.query !== undefined ? { query: init.query } : {}),
+      signal
     };
-    if (init?.body !== undefined) {
-      requestInitBase.body =
-        init.body instanceof FormData ? init.body : JSON.stringify(init.body);
-    }
 
-    const { requestInit, timeoutSignal } = this.withRequestTimeout({
-      ...requestInitBase,
-      ...(init?.signal !== undefined ? { signal: init.signal } : {})
-    });
-
-    let response: Response;
     try {
-      response = await this.fetchImpl(this.buildUrl(path), requestInit);
+      const response = await this.http.raw(path, requestOptions);
+
+      if (response.ok) {
+        return response._data ?? {};
+      }
     } catch (error) {
-      if (timeoutSignal.aborted && !init?.signal?.aborted) {
+      if (timeoutSignal.aborted && !originalSignal?.aborted) {
         throw new Error(`${actionLabel} timed out after ${this.requestTimeoutMs}ms.`);
+      }
+
+      if (error instanceof FetchError) {
+        throw buildJsonRequestError(
+          actionLabel,
+          requestPath,
+          error.response?.status,
+          error.response?.headers.get('content-type'),
+          error.data
+        );
       }
 
       throw error;
     }
 
-    if (response.ok) {
-      const contentType = response.headers.get('content-type') ?? '';
-      if (contentType.includes('application/json')) {
-        return response.json();
-      }
-
-      const textBody = await response.text();
-      if (textBody.length === 0) {
-        return {};
-      }
-
-      try {
-        return JSON.parse(textBody) as unknown;
-      } catch {
-        return { message: textBody };
-      }
-    }
-
-    const message = await readResponseMessage(response);
-    throw new Error(`${actionLabel} failed at ${path}: ${response.status} ${message}`);
-  }
-
-  private buildUrl(relativePath: string): string {
-    return `${this.baseUrl}${relativePath.startsWith('/') ? '' : '/'}${relativePath}`;
+    return {};
   }
 
   private createRequestSignal(signal: AbortSignal | undefined): {
@@ -364,22 +390,6 @@ export class ComfyClient {
 
     return {
       signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
-      timeoutSignal
-    };
-  }
-
-  private withRequestTimeout(init: RequestInit | undefined): {
-    requestInit: RequestInit;
-    timeoutSignal: AbortSignal;
-  } {
-    const requestSignal = init?.signal ?? undefined;
-    const { signal, timeoutSignal } = this.createRequestSignal(requestSignal);
-
-    return {
-      requestInit: {
-        ...(init ?? {}),
-        signal
-      },
       timeoutSignal
     };
   }
@@ -526,20 +536,115 @@ function extractImageFromNodeOutput(
   return undefined;
 }
 
-async function readResponseMessage(response: Response): Promise<string> {
-  const body = await response.text();
-  if (body.length === 0) {
+function extractJsonResponseMessage(body: unknown): string {
+  const parsed = errorMessageSchema.safeParse(body);
+  if (parsed.success) {
+    return parsed.data.message;
+  }
+
+  return JSON.stringify(body);
+}
+
+function extractJsonRequestErrorMessage(
+  body: unknown,
+  contentType: string | null | undefined
+): string {
+  if (body === undefined || body === null) {
     return '';
   }
 
-  try {
-    const parsed = JSON.parse(body) as unknown;
-    if (typeof parsed === 'object' && parsed !== null && 'message' in parsed) {
-      const message = (parsed as { message?: unknown }).message;
-      return typeof message === 'string' ? message : body;
+  if (typeof body === 'string') {
+    if (body.length === 0) {
+      return '';
     }
-    return body;
-  } catch {
+
+    if (isJsonResponseContentType(contentType)) {
+      try {
+        return extractJsonResponseMessage(JSON.parse(body) as unknown);
+      } catch {
+        return body;
+      }
+    }
+
     return body;
   }
+
+  if (
+    isJsonResponseContentType(contentType) ||
+    contentType === undefined ||
+    contentType === null
+  ) {
+    return extractJsonResponseMessage(body);
+  }
+
+  return JSON.stringify(body);
+}
+
+function extractBinaryRequestErrorMessage(
+  body: unknown,
+  contentType: string | null | undefined
+): string {
+  if (body === undefined || body === null) {
+    return '';
+  }
+
+  if (body instanceof ArrayBuffer) {
+    if (!isTextResponseContentType(contentType)) {
+      return '';
+    }
+
+    return extractJsonRequestErrorMessage(new TextDecoder().decode(body), contentType);
+  }
+
+  return extractJsonRequestErrorMessage(body, contentType);
+}
+
+function isJsonResponseContentType(contentType: string | null | undefined): boolean {
+  return contentType?.toLowerCase().includes('json') ?? false;
+}
+
+function isTextResponseContentType(contentType: string | null | undefined): boolean {
+  if (contentType === undefined || contentType === null) {
+    return false;
+  }
+
+  const normalizedContentType = contentType.toLowerCase();
+  return (
+    normalizedContentType.startsWith('text/') || normalizedContentType.includes('json')
+  );
+}
+
+function buildRequestPath(
+  path: string,
+  query: Record<string, string> | undefined
+): string {
+  if (query === undefined || Object.keys(query).length === 0) {
+    return path;
+  }
+
+  return `${path}?${new URLSearchParams(
+    Object.entries(query).map(([key, value]) => [key, String(value)])
+  ).toString()}`;
+}
+
+function buildJsonRequestError(
+  actionLabel: string,
+  requestPath: string,
+  status: number | undefined,
+  contentType: string | null | undefined,
+  body: unknown
+): Error {
+  const message = extractJsonRequestErrorMessage(body, contentType);
+  return new Error(`${actionLabel} failed at ${requestPath}: ${status ?? 0} ${message}`);
+}
+
+function buildBinaryRequestError(
+  actionLabel: string,
+  requestPath: string,
+  status: number | undefined,
+  contentType: string | null | undefined,
+  body: unknown
+): Error {
+  const message = extractBinaryRequestErrorMessage(body, contentType);
+  return new Error(`${actionLabel} failed at ${requestPath}: ${status ?? 0} ${message}`);
 }

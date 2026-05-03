@@ -130,6 +130,36 @@ describe('ComfyClient', () => {
     );
   });
 
+  it('given_plain_text_server_error_when_submitting_prompt_then_text_body_is_included_in_error', async () => {
+    const fetchImpl: typeof fetch = async () =>
+      new Response('bad prompt', {
+        status: 500,
+        headers: {
+          'Content-Type': 'text/plain'
+        }
+      });
+    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+
+    await expect(client.submitPrompt({})).rejects.toThrow(
+      'submit prompt failed at /api/prompt: 500 bad prompt'
+    );
+  });
+
+  it('given_json_like_plain_text_server_error_when_submitting_prompt_then_text_body_is_not_reparsed', async () => {
+    const fetchImpl: typeof fetch = async () =>
+      new Response('{"message":"bad prompt"}', {
+        status: 500,
+        headers: {
+          'Content-Type': 'text/plain'
+        }
+      });
+    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+
+    await expect(client.submitPrompt({})).rejects.toThrow(
+      'submit prompt failed at /api/prompt: 500 {"message":"bad prompt"}'
+    );
+  });
+
   it('given_abort_signal_when_submitting_prompt_then_fetch_receives_the_same_signal', async () => {
     const controller = new AbortController();
     const signal = controller.signal;
@@ -253,9 +283,54 @@ describe('ComfyClient', () => {
     ).rejects.toThrow('History timeout for prompt p-timeout after 1ms.');
   });
 
+  it('given_image_reference_when_downloading_image_then_binary_bytes_are_returned_from_expected_query', async () => {
+    const calls: string[] = [];
+    const expectedBytes = Uint8Array.from([1, 2, 3, 4]);
+    const fetchImpl: typeof fetch = async (input) => {
+      calls.push(String(input));
+      return new Response(expectedBytes, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/png'
+        }
+      });
+    };
+    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+
+    const result = await client.downloadImage({
+      filename: 'result image.png',
+      subfolder: 'output/final',
+      type: 'output'
+    });
+
+    expect(result).toEqual(Buffer.from(expectedBytes));
+    expect(calls).toEqual([
+      'http://localhost:8188/api/view?filename=result+image.png&subfolder=output%2Ffinal&type=output'
+    ]);
+  });
+
   it('given_download_server_error_when_downloading_image_then_error_includes_message', async () => {
     const fetchImpl: typeof fetch = async () =>
       createJsonResponse({ status: 500, body: { message: 'cannot read file' } });
+    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+
+    await expect(
+      client.downloadImage({
+        filename: 'result.png'
+      })
+    ).rejects.toThrow(
+      'download image result.png failed at /api/view?filename=result.png: 500 cannot read file'
+    );
+  });
+
+  it('given_plain_text_download_server_error_when_downloading_image_then_text_body_is_included_in_error', async () => {
+    const fetchImpl: typeof fetch = async () =>
+      new Response('cannot read file', {
+        status: 500,
+        headers: {
+          'Content-Type': 'text/plain'
+        }
+      });
     const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
 
     await expect(
