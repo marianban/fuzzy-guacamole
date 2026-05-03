@@ -82,15 +82,7 @@ try {
     await database.close();
   });
 
-  const stopSignals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
-  for (const signal of stopSignals) {
-    process.on(signal, () => {
-      logger.info({ signal }, 'shutdown signal received');
-      if (app !== undefined) {
-        void app.close();
-      }
-    });
-  }
+  registerStopSignalHandlers(app);
 
   await generationWorker.start();
   await app.listen({ host, port });
@@ -98,6 +90,17 @@ try {
 } catch (error) {
   logger.fatal({ err: error }, 'API startup failed');
   process.exit(1);
+}
+
+function registerStopSignalHandlers(server: FastifyInstance): void {
+  const stopSignals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
+
+  for (const signal of stopSignals) {
+    process.on(signal, () => {
+      logger.info({ signal }, 'shutdown signal received');
+      void server.close();
+    });
+  }
 }
 
 async function logFatalAndExit(message: string, reason: unknown): Promise<never | void> {
