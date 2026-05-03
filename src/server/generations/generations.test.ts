@@ -1261,6 +1261,53 @@ describe('generation routes', () => {
     }
   });
 
+  it('given_terminal_generation_when_canceled_then_status_conflict_is_returned', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+    const store = createGenerationStore();
+
+    for (const status of ['completed', 'failed', 'canceled'] as const) {
+      const generation = await store.create({
+        presetId: 'img2img-basic/basic',
+        templateId: 'img2img-basic',
+        presetParams: {
+          prompt: `${status} cancel`
+        }
+      });
+      await store.save({
+        ...generation,
+        status,
+        updatedAt: '2026-04-07T10:00:00.000Z'
+      });
+    }
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalog(),
+      generationStore: store
+    });
+
+    try {
+      const generations = await store.list();
+
+      for (const generation of generations) {
+        const cancelResponse = await app.inject({
+          method: 'POST',
+          url: `/api/generations/${generation.id}/cancel`
+        });
+
+        expect(cancelResponse.statusCode).toBe(409);
+        expect(cancelResponse.json()).toMatchObject({
+          message: `Generation "${generation.id}" cannot be canceled in status "${generation.status}".`
+        });
+      }
+    } finally {
+      await app.close();
+    }
+  });
+
   it('given_generation_when_input_uploaded_then_file_is_saved_and_reference_is_persisted', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
     tempDirs.push(root);
@@ -1770,6 +1817,53 @@ describe('generation routes', () => {
       expect(deleteResponse.statusCode).toBe(204);
       await expect(stat(inputDir)).rejects.toThrow();
       await expect(stat(outputDir)).rejects.toThrow();
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('given_submitted_generation_when_deleted_then_conflict_is_returned', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+    const store = createGenerationStore();
+
+    const generation = await store.create({
+      presetId: 'img2img-basic/basic',
+      templateId: 'img2img-basic',
+      presetParams: {
+        prompt: 'cannot delete me yet'
+      }
+    });
+    await store.save({
+      ...generation,
+      status: 'submitted',
+      updatedAt: '2026-04-07T10:00:00.000Z'
+    });
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalog(),
+      generationStore: store
+    });
+
+    try {
+      const deleteResponse = await app.inject({
+        method: 'DELETE',
+        url: `/api/generations/${generation.id}`
+      });
+
+      expect(deleteResponse.statusCode).toBe(409);
+      expect(deleteResponse.json()).toMatchObject({
+        message: `Generation "${generation.id}" cannot be deleted while submitted.`
+      });
+
+      const stored = await store.getById(generation.id);
+      expect(stored).toMatchObject({
+        id: generation.id,
+        status: 'submitted'
+      });
     } finally {
       await app.close();
     }

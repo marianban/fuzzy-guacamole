@@ -2,10 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
+import type { GenerationStatus } from '../../../../shared/generations.js';
+
 import {
   cleanupGenerationArtifacts,
-  getGenerationByIdOrSendNotFound,
+  getGenerationById,
   sendGenerationCurrentStateConflict,
+  sendGenerationNotFound,
   sendGenerationStatusConflict
 } from './route-helpers.js';
 import {
@@ -13,6 +16,22 @@ import {
   generationParamsSchema
 } from './route-schemas.js';
 import type { RegisterGenerationRoutesOptions } from './route-types.js';
+
+const deleteGenerationWarningMessage = 'generation delete rejected';
+const deleteGenerationWarningCode = 'generation_delete_not_allowed';
+const deleteGenerationRouteSchema = {
+  tags: ['generations'],
+  summary: 'Delete generation',
+  params: generationParamsSchema,
+  response: {
+    204: z.null(),
+    ...generationConflictResponseSchemas
+  }
+};
+
+function isDeletableGenerationStatus(status: GenerationStatus): boolean {
+  return status !== 'submitted';
+}
 
 export function registerDeleteGenerationRoute(
   app: FastifyInstance,
@@ -23,35 +42,29 @@ export function registerDeleteGenerationRoute(
   typed.delete(
     '/api/generations/:generationId',
     {
-      schema: {
-        tags: ['generations'],
-        summary: 'Delete generation',
-        params: generationParamsSchema,
-        response: {
-          204: z.null(),
-          ...generationConflictResponseSchemas
-        }
-      }
+      schema: deleteGenerationRouteSchema
     },
     async (request, reply) => {
-      const generation = await getGenerationByIdOrSendNotFound(
+      const generation = await getGenerationById(
         options.store,
-        request,
-        reply,
-        'generation delete rejected',
         request.params.generationId
       );
       if (generation === undefined) {
-        return;
+        return sendGenerationNotFound(
+          request,
+          reply,
+          deleteGenerationWarningMessage,
+          request.params.generationId
+        );
       }
 
-      if (generation.status === 'submitted') {
+      if (!isDeletableGenerationStatus(generation.status)) {
         return sendGenerationStatusConflict({
           request,
           reply,
-          warningMessage: 'generation delete rejected',
+          warningMessage: deleteGenerationWarningMessage,
           generation,
-          warningCode: 'generation_delete_not_allowed',
+          warningCode: deleteGenerationWarningCode,
           responseMessage: `Generation "${generation.id}" cannot be deleted while submitted.`
         });
       }
@@ -61,28 +74,36 @@ export function registerDeleteGenerationRoute(
         return sendGenerationCurrentStateConflict({
           request,
           reply,
-          warningMessage: 'generation delete rejected',
+          warningMessage: deleteGenerationWarningMessage,
           generation,
-          warningCode: 'generation_delete_not_allowed',
+          warningCode: deleteGenerationWarningCode,
           responseMessage: `Generation "${generation.id}" cannot be deleted while submitted.`
         });
       }
 
-      if (options.config !== undefined) {
-        await cleanupGenerationArtifacts(options.config, generation.id);
-      }
-      options.eventBus.publish({
-        type: 'deleted',
-        generationId: generation.id
-      });
-      request.log.info(
-        {
-          generationId: generation.id
-        },
-        'generation deleted'
-      );
+      await finalizeDeletedGeneration(options, request, generation.id);
 
       return reply.code(204).send(null);
     }
+  );
+}
+
+async function finalizeDeletedGeneration(
+  options: RegisterGenerationRoutesOptions,
+  request: { log: { info: FastifyInstance['log']['info'] } },
+  generationId: string
+): Promise<void> {
+  if (options.config !== undefined) {
+    await cleanupGenerationArtifacts(options.config, generationId);
+  }
+  options.eventBus.publish({
+    type: 'deleted',
+    generationId
+  });
+  request.log.info(
+    {
+      generationId
+    },
+    'generation deleted'
   );
 }

@@ -42,6 +42,7 @@ This repo currently contains the product specification and agent workflow docs f
 - when constructing workers, clients, or other services, provide every required parameter explicitly; do not rely on hidden defaults for clocks, timeouts, or operational dependencies
 - avoid conditional initialization of operational values inside application code; compute or inject required values at the composition or call site so contracts stay explicit and behavior does not silently depend on fallback branches
 - keep test-only builders, fixtures, fakes, static service constructors, and composition helpers out of application source code; place them in `test-support` or test files instead
+- when writing route handlers or other state-driven functions, handle invalid/error cases first with explicit guard conditions; after those guards, branch only on valid states and do not leave error responses as the default fallthrough path
 
 ## Testing Best Practices
 
@@ -87,7 +88,6 @@ This repo currently contains the product specification and agent workflow docs f
 - No relative imports beyond parent directory
 - Extract magic numbers/values to named constants. If same constant is used in multiple places, extract to a shared constants.ts module.
 
-
 ## MCPs to use for Implementation
 
 When working with libraries always use context7 mcp server to get relevant docs.
@@ -116,9 +116,11 @@ Use skills from `.agents/skills/` when implementing features.
 The following tools are installed and should be preferred over older or slower alternatives.
 
 ### Source code search
+
 Use `rg` (ripgrep) for recursive text search in source code.
 
 Examples:
+
 ```sh
 rg "UserService"
 rg "TODO|FIXME" src
@@ -126,6 +128,7 @@ rg --files | rg "\.ts$"
 ```
 
 Prefer `rg` over:
+
 - grep -R
 - recursive shell loops
 - PowerShell Select-String for large code searches
@@ -133,9 +136,11 @@ Prefer `rg` over:
 ---
 
 ### File and directory discovery
+
 Use `fd` for locating files and directories.
 
 Examples:
+
 ```sh
 fd package.json
 fd "\.csproj$"
@@ -143,6 +148,7 @@ fd UserController
 ```
 
 Prefer `fd` over:
+
 - find
 - manual recursive directory traversal
 - PowerShell Get-ChildItem -Recurse for large searches
@@ -150,9 +156,11 @@ Prefer `fd` over:
 ---
 
 ### Structural code search
+
 Use `sg` (ast-grep) when searching by syntax or code structure rather than plain text.
 
 Examples:
+
 ```sh
 sg 'console.log($X)'
 sg 'await $X'
@@ -164,15 +172,18 @@ Prefer `sg` over `rg` when matching code patterns or performing syntax-aware ref
 ---
 
 ### File viewing
+
 Use `bat` for viewing source files when reading code.
 
 Examples:
+
 ```sh
 bat src/index.ts
 bat package.json
 ```
 
 Prefer `bat` over:
+
 - cat
 - type
 - raw Get-Content
@@ -180,9 +191,11 @@ Prefer `bat` over:
 ---
 
 ### JSON parsing
+
 Use `jq` for parsing or querying JSON.
 
 Examples:
+
 ```sh
 jq '.scripts' package.json
 jq -r '.name' package.json
@@ -193,6 +206,7 @@ Do not parse JSON with regex unless there is no alternative.
 ---
 
 ## Tool preference order
+
 Use these defaults:
 
 - Text search → `rg`

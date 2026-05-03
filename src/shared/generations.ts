@@ -48,6 +48,7 @@ export const generationEventSchema = z.discriminatedUnion('type', [
 ]);
 
 export type Generation = z.infer<typeof generationSchema>;
+export type GenerationStatus = z.infer<typeof generationStatusSchema>;
 export type CreateGenerationRequest = z.infer<typeof createGenerationRequestSchema>;
 export type UpdateGenerationRequest = z.infer<typeof updateGenerationRequestSchema>;
 export type GenerationEvent = z.infer<typeof generationEventSchema>;

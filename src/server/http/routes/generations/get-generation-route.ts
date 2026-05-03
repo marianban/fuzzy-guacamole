@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 
 import { generationSchema } from '../../../../shared/generations.js';
-import { getGenerationByIdOrSendNotFound } from './route-helpers.js';
+import { getGenerationById, sendGenerationNotFound } from './route-helpers.js';
 import { errorResponseSchema, generationParamsSchema } from './route-schemas.js';
 import type { RegisterGenerationRoutesOptions } from './route-types.js';
 
@@ -26,15 +26,17 @@ export function registerGetGenerationRoute(
       }
     },
     async (request, reply) => {
-      const generation = await getGenerationByIdOrSendNotFound(
+      const generation = await getGenerationById(
         options.store,
-        request,
-        reply,
-        'generation lookup failed',
         request.params.generationId
       );
       if (generation === undefined) {
-        return;
+        return sendGenerationNotFound(
+          request,
+          reply,
+          'generation lookup failed',
+          request.params.generationId
+        );
       }
 
       return generationSchema.parse(generation);

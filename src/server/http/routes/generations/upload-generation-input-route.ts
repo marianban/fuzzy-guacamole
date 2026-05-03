@@ -7,9 +7,11 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 
+import type { GenerationStatus } from '../../../../shared/generations.js';
+
 import { resolveGenerationArtifactPath } from '../../../generations/artifact-paths.js';
 import {
-  getGenerationByIdOrSendNotFound,
+  getGenerationById,
   logGenerationWarning,
   publishGenerationUpsert,
   sendGenerationNotFound,
@@ -22,6 +24,34 @@ import {
 } from './route-schemas.js';
 import type { RegisterGenerationRoutesOptions } from './route-types.js';
 
+const uploadGenerationWarningMessage = 'generation input rejected';
+const uploadGenerationWarningCode = 'generation_input_not_allowed';
+const uploadGenerationInputRouteSchema = {
+  tags: ['generations'],
+  summary: 'Upload generation input image',
+  params: generationParamsSchema,
+  response: {
+    204: z.void(),
+    400: errorResponseSchema,
+    ...generationConflictResponseSchemas,
+    503: errorResponseSchema
+  }
+};
+
+function canUploadGenerationInput(status: GenerationStatus): boolean {
+  return (
+    status === 'draft' ||
+    status === 'completed' ||
+    status === 'failed' ||
+    status === 'canceled'
+  );
+}
+
+interface UploadedGenerationInputFile {
+  filename?: string;
+  file: NodeJS.ReadableStream;
+}
+
 export function registerUploadGenerationInputRoute(
   app: FastifyInstance,
   options: RegisterGenerationRoutesOptions
@@ -31,43 +61,35 @@ export function registerUploadGenerationInputRoute(
   typed.post(
     '/api/generations/:generationId/input',
     {
-      schema: {
-        tags: ['generations'],
-        summary: 'Upload generation input image',
-        params: generationParamsSchema,
-        response: {
-          204: z.void(),
-          400: errorResponseSchema,
-          ...generationConflictResponseSchemas,
-          503: errorResponseSchema
-        }
-      }
+      schema: uploadGenerationInputRouteSchema
     },
     async (request, reply) => {
-      const generation = await getGenerationByIdOrSendNotFound(
+      const generation = await getGenerationById(
         options.store,
-        request,
-        reply,
-        'generation input rejected',
         request.params.generationId
       );
       if (generation === undefined) {
-        return;
+        return sendGenerationNotFound(
+          request,
+          reply,
+          uploadGenerationWarningMessage,
+          request.params.generationId
+        );
       }
 
-      if (generation.status === 'queued' || generation.status === 'submitted') {
+      if (!canUploadGenerationInput(generation.status)) {
         return sendGenerationStatusConflict({
           request,
           reply,
-          warningMessage: 'generation input rejected',
+          warningMessage: uploadGenerationWarningMessage,
           generation,
-          warningCode: 'generation_input_not_allowed',
+          warningCode: uploadGenerationWarningCode,
           responseMessage: `Generation "${generation.id}" cannot accept input in status "${generation.status}".`
         });
       }
 
       if (options.config === undefined) {
-        logGenerationWarning(request, 'generation input rejected', {
+        logGenerationWarning(request, uploadGenerationWarningMessage, {
           generationId: generation.id,
           warningCode: 'config_missing'
         });
@@ -78,7 +100,7 @@ export function registerUploadGenerationInputRoute(
 
       const filePart = await request.file();
       if (filePart === undefined) {
-        logGenerationWarning(request, 'generation input rejected', {
+        logGenerationWarning(request, uploadGenerationWarningMessage, {
           generationId: generation.id,
           warningCode: 'input_file_missing'
         });
@@ -87,26 +109,18 @@ export function registerUploadGenerationInputRoute(
         });
       }
 
-      const safeFileName =
-        filePart.filename !== undefined && filePart.filename.length > 0
-          ? path.basename(filePart.filename)
-          : 'input.bin';
-      const targetDir = resolveGenerationArtifactPath(
-        options.config.paths.inputs,
-        generation.id,
-        'original'
-      );
-      await mkdir(targetDir, { recursive: true });
-      const targetPath = path.resolve(targetDir, safeFileName);
-
-      await pipeline(filePart.file, createWriteStream(targetPath));
+      const targetPath = await storeUploadedGenerationInput({
+        filePart,
+        generationId: generation.id,
+        inputsRoot: options.config.paths.inputs
+      });
 
       const updated = await options.store.setInputImagePath(generation.id, targetPath);
       if (updated === undefined) {
         return sendGenerationNotFound(
           request,
           reply,
-          'generation input rejected',
+          uploadGenerationWarningMessage,
           generation.id
         );
       }
@@ -122,4 +136,26 @@ export function registerUploadGenerationInputRoute(
       return reply.code(204).send();
     }
   );
+}
+
+async function storeUploadedGenerationInput(input: {
+  filePart: UploadedGenerationInputFile;
+  generationId: string;
+  inputsRoot: string;
+}): Promise<string> {
+  const safeFileName =
+    input.filePart.filename !== undefined && input.filePart.filename.length > 0
+      ? path.basename(input.filePart.filename)
+      : 'input.bin';
+  const targetDir = resolveGenerationArtifactPath(
+    input.inputsRoot,
+    input.generationId,
+    'original'
+  );
+  await mkdir(targetDir, { recursive: true });
+
+  const targetPath = path.resolve(targetDir, safeFileName);
+  await pipeline(input.filePart.file, createWriteStream(targetPath));
+
+  return targetPath;
 }

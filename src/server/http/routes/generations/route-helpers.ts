@@ -17,19 +17,11 @@ export function logGenerationWarning(
   request.log.warn(context, message);
 }
 
-export async function getGenerationByIdOrSendNotFound(
+export function getGenerationById(
   store: GenerationStore,
-  request: FastifyRequest,
-  reply: FastifyReply,
-  warningMessage: string,
   generationId: string
 ): Promise<Generation | undefined> {
-  const generation = await store.getById(generationId);
-  if (generation === undefined) {
-    sendGenerationNotFound(request, reply, warningMessage, generationId);
-  }
-
-  return generation;
+  return store.getById(generationId);
 }
 
 export function sendGenerationNotFound(

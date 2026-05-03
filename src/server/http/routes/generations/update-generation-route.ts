@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 
 import {
+  type Generation,
   generationSchema,
   updateGenerationRequestSchema
 } from '../../../../shared/generations.js';
@@ -13,7 +14,7 @@ import {
   validateCreatePresetParams
 } from '../../../presets/preset-params-validator.js';
 import {
-  getGenerationByIdOrSendNotFound,
+  getGenerationById,
   logGenerationWarning,
   publishGenerationUpsert,
   sendGenerationCurrentStateConflict,
@@ -26,6 +27,16 @@ import {
 } from './route-schemas.js';
 import type { RegisterGenerationRoutesOptions } from './route-types.js';
 
+const updateGenerationWarningMessage = 'generation update rejected';
+const updateGenerationWarningCode = 'generation_update_not_allowed';
+const updateGenerationRouteSchema = {
+  tags: ['generations'],
+  summary: 'Update editable generation',
+  params: generationParamsSchema,
+  body: updateGenerationRequestSchema,
+  response: generationValidationResponseSchemas
+};
+
 export function registerUpdateGenerationRoute(
   app: FastifyInstance,
   options: RegisterGenerationRoutesOptions
@@ -35,40 +46,36 @@ export function registerUpdateGenerationRoute(
   typed.patch(
     '/api/generations/:generationId',
     {
-      schema: {
-        tags: ['generations'],
-        summary: 'Update editable generation',
-        params: generationParamsSchema,
-        body: updateGenerationRequestSchema,
-        response: generationValidationResponseSchemas
-      }
+      schema: updateGenerationRouteSchema
     },
     async (request, reply) => {
-      const generation = await getGenerationByIdOrSendNotFound(
+      const generation = await getGenerationById(
         options.store,
-        request,
-        reply,
-        'generation update rejected',
         request.params.generationId
       );
       if (generation === undefined) {
-        return;
+        return sendGenerationNotFound(
+          request,
+          reply,
+          updateGenerationWarningMessage,
+          request.params.generationId
+        );
       }
 
       if (!isEditableGenerationStatus(generation.status)) {
         return sendGenerationStatusConflict({
           request,
           reply,
-          warningMessage: 'generation update rejected',
+          warningMessage: updateGenerationWarningMessage,
           generation,
-          warningCode: 'generation_update_not_allowed',
+          warningCode: updateGenerationWarningCode,
           responseMessage: `Generation "${generation.id}" cannot be updated in status "${generation.status}".`
         });
       }
 
       const preset = options.presetCatalog.getById(request.body.presetId);
       if (preset === undefined) {
-        logGenerationWarning(request, 'generation update rejected', {
+        logGenerationWarning(request, updateGenerationWarningMessage, {
           generationId: generation.id,
           presetId: request.body.presetId,
           warningCode: 'preset_not_found'
@@ -78,26 +85,21 @@ export function registerUpdateGenerationRoute(
           .send({ message: `Preset "${request.body.presetId}" was not found.` });
       }
 
-      const preservedRuntimeParams =
-        generation.presetId === request.body.presetId
-          ? pickNonModelPresetParams(generation.presetParams, preset)
-          : {};
-
-      let resolvedParams: Record<string, unknown>;
+      let updateInput: {
+        presetId: string;
+        templateId: string;
+        presetParams: Record<string, unknown>;
+      };
       try {
-        resolvedParams = resolvePresetParams({
+        updateInput = buildEditableGenerationUpdate({
+          generation,
           preset,
-          systemParams: preservedRuntimeParams,
-          userParams: request.body.presetParams
-        });
-        validateCreatePresetParams({
-          preset,
-          rawParams: request.body.presetParams,
-          resolvedParams
+          presetId: request.body.presetId,
+          presetParams: request.body.presetParams
         });
       } catch (error) {
         if (error instanceof PresetParamsValidationError) {
-          logGenerationWarning(request, 'generation update rejected', {
+          logGenerationWarning(request, updateGenerationWarningMessage, {
             generationId: generation.id,
             presetId: request.body.presetId,
             warningCode: 'generation_validation_failed',
@@ -108,18 +110,17 @@ export function registerUpdateGenerationRoute(
         throw error;
       }
 
-      const updated = await options.store.updateEditableGeneration(generation.id, {
-        presetId: request.body.presetId,
-        templateId: preset.templateId,
-        presetParams: resolvedParams
-      });
+      const updated = await options.store.updateEditableGeneration(
+        generation.id,
+        updateInput
+      );
       if (updated === undefined) {
         const current = await options.store.getById(generation.id);
         if (current === undefined) {
           return sendGenerationNotFound(
             request,
             reply,
-            'generation update rejected',
+            updateGenerationWarningMessage,
             generation.id
           );
         }
@@ -128,9 +129,9 @@ export function registerUpdateGenerationRoute(
           return sendGenerationStatusConflict({
             request,
             reply,
-            warningMessage: 'generation update rejected',
+            warningMessage: updateGenerationWarningMessage,
             generation: current,
-            warningCode: 'generation_update_not_allowed',
+            warningCode: updateGenerationWarningCode,
             responseMessage: `Generation "${current.id}" cannot be updated in status "${current.status}".`
           });
         }
@@ -138,24 +139,66 @@ export function registerUpdateGenerationRoute(
         return sendGenerationCurrentStateConflict({
           request,
           reply,
-          warningMessage: 'generation update rejected',
+          warningMessage: updateGenerationWarningMessage,
           generation,
-          warningCode: 'generation_update_not_allowed',
+          warningCode: updateGenerationWarningCode,
           responseMessage: `Generation "${generation.id}" cannot be updated in its current state.`
         });
       }
 
-      publishGenerationUpsert(options.eventBus, updated);
-      request.log.info(
-        {
-          generationId: updated.id,
-          presetId: updated.presetId,
-          templateId: updated.templateId
-        },
-        'generation updated'
-      );
+      publishUpdatedGeneration(options, request, updated);
 
       return generationSchema.parse(updated);
     }
+  );
+}
+
+function buildEditableGenerationUpdate(input: {
+  generation: {
+    presetId: string;
+    presetParams: Record<string, unknown>;
+  };
+  preset: {
+    templateId: string;
+  };
+  presetId: string;
+  presetParams: Record<string, unknown>;
+}) {
+  const preservedRuntimeParams =
+    input.generation.presetId === input.presetId
+      ? pickNonModelPresetParams(input.generation.presetParams, input.preset)
+      : {};
+  const resolvedParams = resolvePresetParams({
+    preset: input.preset,
+    systemParams: preservedRuntimeParams,
+    userParams: input.presetParams
+  });
+
+  validateCreatePresetParams({
+    preset: input.preset,
+    rawParams: input.presetParams,
+    resolvedParams
+  });
+
+  return {
+    presetId: input.presetId,
+    templateId: input.preset.templateId,
+    presetParams: resolvedParams
+  };
+}
+
+function publishUpdatedGeneration(
+  options: RegisterGenerationRoutesOptions,
+  request: { log: { info: FastifyInstance['log']['info'] } },
+  generation: Generation
+): void {
+  publishGenerationUpsert(options.eventBus, generation);
+  request.log.info(
+    {
+      generationId: generation.id,
+      presetId: generation.presetId,
+      templateId: generation.templateId
+    },
+    'generation updated'
   );
 }

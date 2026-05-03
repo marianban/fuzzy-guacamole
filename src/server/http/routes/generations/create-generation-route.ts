@@ -14,6 +14,17 @@ import { logGenerationWarning, publishGenerationUpsert } from './route-helpers.j
 import { errorResponseSchema } from './route-schemas.js';
 import type { RegisterGenerationRoutesOptions } from './route-types.js';
 
+const createGenerationRouteSchema = {
+  tags: ['generations'],
+  summary: 'Create generation',
+  body: createGenerationRequestSchema,
+  response: {
+    400: errorResponseSchema,
+    201: generationSchema,
+    404: errorResponseSchema
+  }
+};
+
 export function registerCreateGenerationRoute(
   app: FastifyInstance,
   options: RegisterGenerationRoutesOptions
@@ -23,16 +34,7 @@ export function registerCreateGenerationRoute(
   typed.post(
     '/api/generations',
     {
-      schema: {
-        tags: ['generations'],
-        summary: 'Create generation',
-        body: createGenerationRequestSchema,
-        response: {
-          400: errorResponseSchema,
-          201: generationSchema,
-          404: errorResponseSchema
-        }
-      }
+      schema: createGenerationRouteSchema
     },
     async (request, reply) => {
       const preset = options.presetCatalog.getById(request.body.presetId);
@@ -49,17 +51,23 @@ export function registerCreateGenerationRoute(
           .send({ message: `Preset "${request.body.presetId}" was not found.` });
       }
 
-      let resolvedParams: Record<string, unknown>;
       try {
-        resolvedParams = resolvePresetParams({
+        const generation = await createGenerationFromRequest(options, {
+          presetId: request.body.presetId,
           preset,
-          userParams: request.body.presetParams
+          presetParams: request.body.presetParams
         });
-        validateCreatePresetParams({
-          preset,
-          rawParams: request.body.presetParams,
-          resolvedParams
-        });
+
+        request.log.info(
+          {
+            generationId: generation.id,
+            presetId: generation.presetId,
+            templateId: generation.templateId
+          },
+          'generation created'
+        );
+
+        return reply.code(201).send(generationSchema.parse(generation));
       } catch (error) {
         if (error instanceof PresetParamsValidationError) {
           logGenerationWarning(request, 'generation creation rejected', {
@@ -71,24 +79,43 @@ export function registerCreateGenerationRoute(
         }
         throw error;
       }
-
-      const generation = await options.store.create({
-        presetId: request.body.presetId,
-        templateId: preset.templateId,
-        // Persist resolved defaults so later reads and queue execution use the same snapshot.
-        presetParams: resolvedParams
-      });
-      publishGenerationUpsert(options.eventBus, generation);
-      request.log.info(
-        {
-          generationId: generation.id,
-          presetId: generation.presetId,
-          templateId: generation.templateId
-        },
-        'generation created'
-      );
-
-      return reply.code(201).send(generationSchema.parse(generation));
     }
   );
+}
+
+async function createGenerationFromRequest(
+  options: RegisterGenerationRoutesOptions,
+  input: {
+    presetId: string;
+    preset: { templateId: string };
+    presetParams: Record<string, unknown>;
+  }
+) {
+  const resolvedParams = resolveCreateGenerationParams(input.preset, input.presetParams);
+  const generation = await options.store.create({
+    presetId: input.presetId,
+    templateId: input.preset.templateId,
+    // Persist resolved defaults so later reads and queue execution use the same snapshot.
+    presetParams: resolvedParams
+  });
+  publishGenerationUpsert(options.eventBus, generation);
+
+  return generation;
+}
+
+function resolveCreateGenerationParams(
+  preset: { templateId: string },
+  rawParams: Record<string, unknown>
+): Record<string, unknown> {
+  const resolvedParams = resolvePresetParams({
+    preset,
+    userParams: rawParams
+  });
+  validateCreatePresetParams({
+    preset,
+    rawParams,
+    resolvedParams
+  });
+
+  return resolvedParams;
 }
