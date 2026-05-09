@@ -96,6 +96,7 @@ async function finalizeDeletedGeneration(
   if (options.config !== undefined) {
     await cleanupGenerationArtifacts(options.config, generationId);
   }
+  options.telemetry.clearRun(generationId);
   options.eventBus.publish({
     type: 'deleted',
     generationId

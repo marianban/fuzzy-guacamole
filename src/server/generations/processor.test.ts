@@ -6,11 +6,18 @@ import { tmpdir } from 'node:os';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  generationTelemetrySources,
+  generationTelemetrySteps
+} from '../../shared/generation-telemetry.js';
 import type { Generation } from '../../shared/generations.js';
+import type { ComfyHistoryProgressUpdate } from '../comfy/client.js';
 import type { AppConfig } from '../config/app-config.js';
 import type { AppRuntimeStatusService } from '../status/runtime-status.js';
+import { createGenerationEventBus } from './events.js';
 import type { GenerationExecutionPlan } from './execution/plan.js';
 import { createStoredGeneration, type StoredGeneration } from './stored-generation.js';
+import { createGenerationTelemetry } from './telemetry.js';
 import { createGenerationProcessor } from './processor.js';
 
 describe('createGenerationProcessor', () => {
@@ -49,6 +56,7 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
+      telemetry: createTestTelemetry(),
       comfyClient: {
         uploadInputImage: vi.fn(async () => ({
           comfyImageRef: 'input/uploaded.png',
@@ -104,6 +112,204 @@ describe('createGenerationProcessor', () => {
     expect(downloadImage).toHaveBeenCalledTimes(1);
   });
 
+  it('given_generation_processed_when_execution_advances_then_processor_publishes_ordered_telemetry_milestones', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
+    tempDirs.push(root);
+
+    const store = createTestStore(
+      createTestGeneration({
+        presetId: 'txt2img-basic/basic',
+        templateId: 'txt2img-basic',
+        presetParams: {
+          prompt: 'telemetry milestones',
+          steps: 5,
+          seedMode: 'fixed',
+          seed: 123
+        }
+      })
+    );
+    const eventBus = createGenerationEventBus();
+    const telemetry = createGenerationTelemetry({
+      eventBus,
+      now: () => new Date('2026-04-07T10:15:16.000Z')
+    });
+    telemetry.startRun(store.current.id);
+
+    const telemetryEvents: {
+      runId: string;
+      sequence: number;
+      kind: string;
+      source: string;
+      status?: string;
+      step?: string;
+    }[] = [];
+    const unsubscribe = eventBus.subscribe((event) => {
+      if (event.type !== 'telemetry' || event.generationId !== store.current.id) {
+        return;
+      }
+      if (event.telemetry.kind === 'log') {
+        return;
+      }
+
+      telemetryEvents.push({
+        runId: event.runId,
+        sequence: event.sequence,
+        kind: event.telemetry.kind,
+        source: event.telemetry.source,
+        ...(event.telemetry.kind === 'progress'
+          ? { step: event.telemetry.step }
+          : event.telemetry.kind === 'milestone'
+            ? {
+                ...(event.telemetry.status !== undefined
+                  ? { status: event.telemetry.status }
+                  : {}),
+                ...(event.telemetry.step !== undefined
+                  ? { step: event.telemetry.step }
+                  : {})
+              }
+            : {})
+      });
+    });
+
+    const processor = createGenerationProcessor({
+      store,
+      telemetry,
+      comfyClient: {
+        uploadInputImage: vi.fn(async () => {
+          throw new Error('should not upload');
+        }),
+        submitPrompt: vi.fn(async () => ({ promptId: 'prompt-1' })),
+        pollHistory: vi.fn(async () => createCompletedPromptHistory()),
+        downloadImage: vi.fn(async () => Buffer.from([9, 8, 7]))
+      },
+      config: createTestConfig(root),
+      now: () => new Date('2026-04-07T10:15:16.000Z')
+    });
+
+    try {
+      const result = await processor.process(store.current);
+
+      expect(result).toEqual({ status: 'completed' });
+      expect(telemetryEvents).toEqual([
+        {
+          runId: expect.any(String),
+          sequence: 1,
+          kind: 'milestone',
+          source: generationTelemetrySources.processor,
+          step: generationTelemetrySteps.promptRequestRecorded
+        },
+        {
+          runId: expect.any(String),
+          sequence: 2,
+          kind: 'milestone',
+          source: generationTelemetrySources.processor,
+          step: generationTelemetrySteps.promptSubmitted
+        },
+        {
+          runId: expect.any(String),
+          sequence: 3,
+          kind: 'milestone',
+          source: generationTelemetrySources.processor,
+          step: generationTelemetrySteps.outputStored
+        }
+      ]);
+      expect(new Set(telemetryEvents.map((event) => event.runId)).size).toBe(1);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it('given_history_poll_reports_progress_when_generation_is_processed_then_processor_publishes_progress_telemetry', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
+    tempDirs.push(root);
+
+    const store = createTestStore(
+      createTestGeneration({
+        presetId: 'txt2img-basic/basic',
+        templateId: 'txt2img-basic',
+        presetParams: {
+          prompt: 'telemetry progress',
+          steps: 5,
+          seedMode: 'fixed',
+          seed: 123
+        }
+      })
+    );
+    const eventBus = createGenerationEventBus();
+    const telemetry = createGenerationTelemetry({
+      eventBus,
+      now: () => new Date('2026-04-07T10:15:16.000Z')
+    });
+    telemetry.startRun(store.current.id);
+    const progressEvents: {
+      sequence: number;
+      source: string;
+      step: string;
+      elapsedMs?: number;
+    }[] = [];
+    const unsubscribe = eventBus.subscribe((event) => {
+      if (event.type !== 'telemetry' || event.generationId !== store.current.id) {
+        return;
+      }
+      if (event.telemetry.kind !== 'progress') {
+        return;
+      }
+
+      progressEvents.push({
+        sequence: event.sequence,
+        source: event.telemetry.source,
+        step: event.telemetry.step,
+        elapsedMs: event.telemetry.elapsedMs
+      });
+    });
+
+    const processor = createGenerationProcessor({
+      store,
+      telemetry,
+      comfyClient: {
+        uploadInputImage: vi.fn(async () => {
+          throw new Error('should not upload');
+        }),
+        submitPrompt: vi.fn(async () => ({ promptId: 'prompt-1' })),
+        pollHistory: vi.fn(
+          async (
+            _promptId,
+            options?: {
+              onProgress?: (update: ComfyHistoryProgressUpdate) => void;
+            }
+          ) => {
+            options?.onProgress?.({
+              source: generationTelemetrySources.comfy,
+              step: generationTelemetrySteps.waitingForHistory,
+              promptId: 'prompt-1',
+              elapsedMs: 25
+            });
+            return createCompletedPromptHistory();
+          }
+        ),
+        downloadImage: vi.fn(async () => Buffer.from([9, 8, 7]))
+      },
+      config: createTestConfig(root),
+      now: () => new Date('2026-04-07T10:15:16.000Z')
+    });
+
+    try {
+      const result = await processor.process(store.current);
+
+      expect(result).toEqual({ status: 'completed' });
+      expect(progressEvents).toEqual([
+        {
+          sequence: expect.any(Number),
+          source: generationTelemetrySources.comfy,
+          step: generationTelemetrySteps.waitingForHistory,
+          elapsedMs: 25
+        }
+      ]);
+    } finally {
+      unsubscribe();
+    }
+  });
+
   it('given_queued_random_seed_when_processed_then_submit_prompt_uses_the_stored_seed', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
     tempDirs.push(root);
@@ -124,6 +330,7 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
+      telemetry: createTestTelemetry(),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -203,6 +410,7 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
+      telemetry: createTestTelemetry(),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -265,6 +473,7 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
+      telemetry: createTestTelemetry(),
       comfyClient: {
         uploadInputImage,
         submitPrompt: vi.fn(async () => ({ promptId: 'prompt-1' })),
@@ -303,6 +512,7 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
+      telemetry: createTestTelemetry(),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -343,6 +553,7 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
+      telemetry: createTestTelemetry(),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -389,6 +600,7 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
+      telemetry: createTestTelemetry(),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -438,6 +650,7 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
+      telemetry: createTestTelemetry(),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -482,6 +695,7 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
+      telemetry: createTestTelemetry(),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -531,6 +745,7 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
+      telemetry: createTestTelemetry(),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -578,6 +793,7 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
+      telemetry: createTestTelemetry(),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -624,6 +840,7 @@ describe('createGenerationProcessor', () => {
 
     const processor = createGenerationProcessor({
       store,
+      telemetry: createTestTelemetry(),
       comfyClient: {
         uploadInputImage: vi.fn(async () => {
           throw new Error('should not upload');
@@ -867,4 +1084,11 @@ function createRuntimeStatusStub(
   return {
     ensureOnline: overrides.ensureOnline ?? (async () => undefined)
   };
+}
+
+function createTestTelemetry(now: () => Date = () => new Date()) {
+  return createGenerationTelemetry({
+    eventBus: createGenerationEventBus(),
+    now
+  });
 }

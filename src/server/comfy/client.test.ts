@@ -7,6 +7,10 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  generationTelemetrySources,
+  generationTelemetrySteps
+} from '../../shared/generation-telemetry.js';
+import {
   ComfyClient,
   buildComfyImageRef,
   extractDeterministicOutputImage,
@@ -225,6 +229,7 @@ describe('ComfyClient', () => {
 
   it('given_polled_history_when_outputs_become_available_then_poll_history_returns_entry', async () => {
     let callCount = 0;
+    const progressUpdates: { elapsedMs?: number; source: string; step: string }[] = [];
     const fetchImpl: typeof fetch = async () => {
       callCount += 1;
       if (callCount < 2) {
@@ -241,9 +246,26 @@ describe('ComfyClient', () => {
       historyTimeoutMs: 50
     });
 
-    const result = await client.pollHistory('p-1', { pollMs: 0, timeoutMs: 50 });
+    const result = await client.pollHistory('p-1', {
+      pollMs: 0,
+      timeoutMs: 50,
+      onProgress(update) {
+        progressUpdates.push({
+          source: update.source,
+          step: update.step,
+          elapsedMs: update.elapsedMs
+        });
+      }
+    });
 
     expect(Object.keys(result.entry.outputs ?? {})).toContain('3');
+    expect(progressUpdates).toEqual([
+      {
+        source: generationTelemetrySources.comfy,
+        step: generationTelemetrySteps.waitingForHistory,
+        elapsedMs: expect.any(Number)
+      }
+    ]);
   });
 
   it('given_prompt_id_when_loading_history_then_oss_history_endpoint_is_used', async () => {

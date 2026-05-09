@@ -12,6 +12,7 @@ import {
 import type { AppConfig } from '../config/app-config.js';
 import { type GenerationEventBus } from '../generations/events.js';
 import { type GenerationStore } from '../generations/store.js';
+import { type GenerationTelemetry } from '../generations/telemetry.js';
 import { type PresetCatalog } from '../presets/preset-catalog.js';
 import {
   createServerLogger,
@@ -29,6 +30,7 @@ export interface BuildServerOptions {
   presetCatalog: PresetCatalog;
   generationStore: GenerationStore;
   generationEventBus: GenerationEventBus;
+  generationTelemetry: GenerationTelemetry;
   runtimeStatus: Pick<AppRuntimeStatusService, 'getStatus' | 'start'>;
   config?: AppConfig;
   logger?: ServerLoggerOptions;
@@ -84,7 +86,8 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
       config: options.config,
       presetCatalog: options.presetCatalog,
       store: options.generationStore,
-      eventBus: options.generationEventBus
+      eventBus: options.generationEventBus,
+      telemetry: options.generationTelemetry
     });
     registerEventRoutes(app, options.generationEventBus);
   });

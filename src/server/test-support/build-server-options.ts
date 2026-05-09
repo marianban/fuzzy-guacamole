@@ -8,6 +8,10 @@ import {
 } from '../generations/events.js';
 import { createGenerationStore } from '../generations/default-store.js';
 import type { GenerationStore } from '../generations/store.js';
+import {
+  createGenerationTelemetry,
+  type GenerationTelemetry
+} from '../generations/telemetry.js';
 import type { BuildServerOptions } from '../http/server-app.js';
 import type { ServerLoggerOptions } from '../logging/server-logging.js';
 import {
@@ -21,6 +25,7 @@ export interface TestBuildServerOptions {
   presetCatalog?: PresetCatalog;
   generationStore?: GenerationStore;
   generationEventBus?: GenerationEventBus;
+  generationTelemetry?: GenerationTelemetry;
   runtimeStatus?: Pick<AppRuntimeStatusService, 'getStatus' | 'start' | 'ensureOnline'>;
   logger?: ServerLoggerOptions;
   loggerInstance?: FastifyBaseLogger;
@@ -29,10 +34,18 @@ export interface TestBuildServerOptions {
 export function createBuildServerOptions(
   options: TestBuildServerOptions = {}
 ): BuildServerOptions {
+  const generationEventBus = options.generationEventBus ?? createGenerationEventBus();
+
   return {
     presetCatalog: options.presetCatalog ?? createEmptyPresetCatalog(),
     generationStore: options.generationStore ?? createGenerationStore(),
-    generationEventBus: options.generationEventBus ?? createGenerationEventBus(),
+    generationEventBus,
+    generationTelemetry:
+      options.generationTelemetry ??
+      createGenerationTelemetry({
+        eventBus: generationEventBus,
+        now: () => new Date()
+      }),
     runtimeStatus:
       options.runtimeStatus ??
       createStaticAppRuntimeStatusService({

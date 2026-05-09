@@ -5,6 +5,11 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { FetchError, ofetch, type $Fetch, type FetchOptions } from 'ofetch';
 import { z } from 'zod';
 
+import {
+  generationTelemetrySources,
+  generationTelemetrySteps
+} from '../../shared/generation-telemetry.js';
+
 const promptResponseSchema = z.object({
   prompt_id: z.string(),
   number: z.number().optional(),
@@ -80,6 +85,13 @@ export interface ComfyPromptSubmission {
 export interface ComfyHistoryPollResult {
   history: Record<string, { outputs?: Record<string, unknown> | undefined }>;
   entry: { outputs?: Record<string, unknown> | undefined };
+}
+
+export interface ComfyHistoryProgressUpdate {
+  source: typeof generationTelemetrySources.comfy;
+  step: typeof generationTelemetrySteps.waitingForHistory;
+  promptId: string;
+  elapsedMs: number;
 }
 
 export interface ComfyHealthCheckResult {
@@ -241,10 +253,16 @@ export class ComfyClient {
 
   async pollHistory(
     promptId: string,
-    overrides: { pollMs?: number; timeoutMs?: number; signal?: AbortSignal } = {}
+    overrides: {
+      pollMs?: number;
+      timeoutMs?: number;
+      signal?: AbortSignal;
+      onProgress?: (update: ComfyHistoryProgressUpdate) => void;
+    } = {}
   ): Promise<ComfyHistoryPollResult> {
     const pollMs = overrides.pollMs ?? this.historyPollMs;
     const timeoutMs = overrides.timeoutMs ?? this.historyTimeoutMs;
+    const startedAt = Date.now();
     const deadline = Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {
@@ -258,6 +276,13 @@ export class ComfyClient {
       if (entry?.outputs !== undefined && Object.keys(entry.outputs).length > 0) {
         return { history, entry };
       }
+
+      overrides.onProgress?.({
+        source: generationTelemetrySources.comfy,
+        step: generationTelemetrySteps.waitingForHistory,
+        promptId,
+        elapsedMs: Date.now() - startedAt
+      });
 
       await sleep(
         pollMs,

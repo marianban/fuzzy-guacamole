@@ -7,6 +7,7 @@ import { createDatabase } from './db/client.js';
 import { createGenerationEventBus } from './generations/events.js';
 import { createPostgresGenerationStore } from './generations/postgres-store.js';
 import { createGenerationProcessor } from './generations/processor.js';
+import { createGenerationTelemetry } from './generations/telemetry.js';
 import { createGenerationWorker } from './generations/worker.js';
 import { createServerLogger } from './logging/server-logging.js';
 import { loadPresetCatalog } from './presets/preset-catalog.js';
@@ -42,6 +43,10 @@ try {
   const database = createDatabase();
   const generationStore = createPostgresGenerationStore(database);
   const generationEventBus = createGenerationEventBus();
+  const generationTelemetry = createGenerationTelemetry({
+    eventBus: generationEventBus,
+    now: () => new Date()
+  });
   const comfyClient = new ComfyClient({
     baseUrl: config.comfyBaseUrl,
     historyPollMs: config.timeouts.historyPollMs
@@ -55,9 +60,11 @@ try {
   });
   const generationWorker = createGenerationWorker({
     eventBus: generationEventBus,
+    telemetry: generationTelemetry,
     store: generationStore,
     processor: createGenerationProcessor({
       store: generationStore,
+      telemetry: generationTelemetry,
       comfyClient,
       config,
       runtimeStatus,
@@ -73,6 +80,7 @@ try {
     presetCatalog,
     generationStore,
     generationEventBus,
+    generationTelemetry,
     runtimeStatus,
     loggerInstance: logger
   });

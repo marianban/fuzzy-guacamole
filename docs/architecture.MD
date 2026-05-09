@@ -18,6 +18,7 @@ flowchart LR
   Database["Drizzle + pg Database<br/>src/server/db/client.ts"]
   GenerationStore["Generation Store<br/>src/server/generations/store.ts"]
   GenerationEvents["Generation Event Bus<br/>src/server/generations/events.ts"]
+  GenerationTelemetry["In-Memory Generation Telemetry<br/>src/server/generations/telemetry.ts"]
   Worker["Generation Worker<br/>src/server/generations/worker.ts"]
   Processor["Generation Processor<br/>src/server/generations/processor.ts"]
   Builder["Workflow Materializer<br/>src/server/generations/execution/builder.ts"]
@@ -34,12 +35,17 @@ flowchart LR
   Startup --> Presets
   Startup --> Database
   Startup --> GenerationEvents
+  Startup --> GenerationTelemetry
   Startup --> Worker
   Config -->|"paths.presets"| Presets
   Database --> GenerationStore
   API --> GenerationStore
   API --> GenerationEvents
+  API --> GenerationTelemetry
   API --> Builder
+  GenerationTelemetry --> GenerationEvents
+  GenerationTelemetry --> Worker
+  GenerationTelemetry --> Processor
   GenerationEvents --> Worker
   Worker --> GenerationStore
   Worker --> Processor
@@ -85,7 +91,7 @@ flowchart TD
   GenerationCancel --> CancelTransition["queued -> canceled<br/>submitted -> interrupt -> canceled|failed"]
   GenerationUpload --> InputPersist["multipart image persisted to<br/>/data/inputs/{generationId}/original/"]
   GenerationDelete --> DeletePersist["draft/queued/completed/failed/canceled rows deleted<br/>and input/output folders removed"]
-  GenerationEvents --> LiveUpdates["live-only upsert/deleted events"]
+  GenerationEvents --> LiveUpdates["live-only upsert/deleted/telemetry events"]
 ```
 
 Implemented routes:
@@ -102,17 +108,20 @@ Implemented routes:
 - `POST /api/generations/{generationId}/queue` -> validates resolved preset/runtime params plus workflow template tokens, persists the full internal `executionSnapshot`, then transitions generation to `queued` and sets `queuedAt`; the background worker then claims queued rows oldest-first and moves them to a terminal state
 - `POST /api/generations/{generationId}/cancel` -> transitions `queued` generation to `canceled`, or interrupts submitted work through Comfy and resolves to `canceled` or `failed`
 - `DELETE /api/generations/{generationId}` -> deletes draft/queued/completed/failed/canceled generations and removes persisted input/output folders; submitted rows still return `409`
-- `GET /api/events/generations` -> SSE stream for live generation upsert/deleted notifications
+- `GET /api/events/generations` -> SSE stream for live generation upsert/deleted/telemetry notifications
 - `GET /openapi/json` and `GET /openapi` -> OpenAPI spec + Swagger UI generated from Fastify route schemas
 
 Current worker behavior:
 - `src/server/index.ts` creates one shared generation event bus, one generation store, and one background worker for the process.
+- `src/server/index.ts` also creates one shared in-memory generation telemetry module; queue routes, cancel routes, the worker, and the processor all use that same instance so each execution emits one ordered transient run stream.
 - The worker subscribes to queued `upsert` events, also polls on a fallback interval, and drains queued generations one at a time.
 - Postgres claims use one atomic SQL statement ordered by `queuedAt`, then `createdAt`, then `id`.
 - On startup, any generation left in `submitted` is marked `failed` with the error `Generation processing was interrupted during server shutdown.` and an `upsert` event is published for each recovered row.
 - On every drain pass, before claiming queued work, the worker also marks any `submitted` generation whose `updatedAt` is older than `now() - submittedTimeoutMs` as `failed` with the error `Generation processing timed out while waiting in submitted state.`, then publishes `upsert` events for those recovered rows.
 - Create and editable update routes persist resolved preset/model defaults in `presetParams`; queue time resolves the current snapshot with runtime values into one `executionSnapshot`, normalizes random seeds once, and stores that snapshot on the generation row.
+- Queue, cancel, worker, and processor milestones emit transient telemetry events over the shared event bus. Telemetry is intentionally not persisted in Postgres; reloads lose prior telemetry while file-based server logs remain available on disk.
 - The processor consumes the persisted `executionSnapshot` as the authoritative worker input, uploads img2img input through Comfy when needed, persists prompt request/response metadata, polls history until an output is available, downloads one deterministic output image, and saves it under `/data/outputs/{generationId}/` with a timestamp-prefixed filename.
+- Processor telemetry includes queue/submit/output milestones, transient retry warnings, and progress updates while waiting for Comfy history.
 - Submitted cancellation is route-driven: the API interrupts Comfy, marks the generation `canceled` on success or `failed` on cancel failure, and the worker/processor stop if the row is no longer `submitted`.
 - Internal prompt submission metadata stays server-local in the generation store; the public generation API and SSE payloads still expose only the minimal shared generation DTO.
 

@@ -6,10 +6,12 @@ import { tmpdir } from 'node:os';
 
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
+import type { GenerationEvent } from '../../shared/generations.js';
 import { buildServer } from '../http/server-app.js';
 import { createGenerationEventBus } from '../generations/events.js';
 import { createPostgresGenerationStore } from '../generations/postgres-store.js';
 import { createGenerationProcessor } from '../generations/processor.js';
+import { createGenerationTelemetry } from '../generations/telemetry.js';
 import { createGenerationWorker } from '../generations/worker.js';
 import { createBuildServerOptions } from '../test-support/build-server-options.js';
 import { buildMultipartPayload } from '../test-support/multipart-fixtures.js';
@@ -393,14 +395,20 @@ describe('postgres-backed generations', () => {
       const database = testDatabase.createAppDatabase();
       const generationStore = createPostgresGenerationStore(database);
       const eventBus = createGenerationEventBus();
+      const telemetry = createGenerationTelemetry({
+        eventBus,
+        now: () => new Date()
+      });
       const app = buildTestServer({
         config,
         presetCatalog,
         generationStore,
-        generationEventBus: eventBus
+        generationEventBus: eventBus,
+        generationTelemetry: telemetry
       });
       const worker = createGenerationWorker({
         eventBus,
+        telemetry,
         store: generationStore,
         pollIntervalMs: 60_000,
         submittedTimeoutMs: config.timeouts.submittedTimeoutMs,
@@ -445,6 +453,107 @@ describe('postgres-backed generations', () => {
     }
   });
 
+  test('given_db_backed_server_when_generation_executes_then_event_bus_orders_upserts_and_telemetry_for_one_run', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-db-sse-worker-'));
+    tempDirs.push(root);
+    const config = await loadTestConfig(root);
+    const presetCatalog = createTestCatalog();
+    const testDatabase = await createTestDatabaseContext();
+    await testDatabase.migrate();
+
+    try {
+      const database = testDatabase.createAppDatabase();
+      const generationStore = createPostgresGenerationStore(database);
+      const eventBus = createGenerationEventBus();
+      const telemetry = createGenerationTelemetry({
+        eventBus,
+        now: () => new Date('2026-04-07T10:20:21.000Z')
+      });
+      const app = buildTestServer({
+        config,
+        presetCatalog,
+        generationStore,
+        generationEventBus: eventBus,
+        generationTelemetry: telemetry
+      });
+      const events: GenerationEvent[] = [];
+      const unsubscribe = eventBus.subscribe((event) => {
+        events.push(event);
+      });
+      const worker = createGenerationWorker({
+        eventBus,
+        telemetry,
+        store: generationStore,
+        pollIntervalMs: 10,
+        submittedTimeoutMs: config.timeouts.submittedTimeoutMs,
+        now: () => new Date('2026-04-07T10:20:21.000Z'),
+        processor: {
+          async process() {
+            return { status: 'completed' };
+          }
+        }
+      });
+
+      try {
+        await worker.start();
+        const createdResponse = await app.inject({
+          method: 'POST',
+          url: '/api/generations',
+          payload: {
+            presetId: 'img2img-basic/basic',
+            presetParams: {
+              prompt: 'sse ordering'
+            }
+          }
+        });
+        expect(createdResponse.statusCode).toBe(201);
+        const created = createdResponse.json() as { id: string };
+
+        events.length = 0;
+
+        const queueResponse = await app.inject({
+          method: 'POST',
+          url: `/api/generations/${created.id}/queue`
+        });
+        expect(queueResponse.statusCode).toBe(200);
+
+        await expectGenerationStatus(generationStore, created.id, 'completed');
+
+        const generationEvents = events.filter(
+          (event) => event.generationId === created.id
+        );
+
+        expect(generationEvents.map((event) => summarizeGenerationEvent(event))).toEqual([
+          'upsert:queued',
+          'telemetry:queued',
+          'upsert:submitted',
+          'telemetry:submitted',
+          'upsert:completed',
+          'telemetry:completed'
+        ]);
+
+        const runIds = generationEvents
+          .filter(
+            (
+              event
+            ): event is Extract<
+              (typeof generationEvents)[number],
+              { type: 'telemetry' }
+            > => event.type === 'telemetry'
+          )
+          .map((event) => event.runId);
+        expect(new Set(runIds).size).toBe(1);
+      } finally {
+        unsubscribe();
+        await worker.stop();
+        await app.close();
+        await database.close();
+      }
+    } finally {
+      await testDatabase.dispose();
+    }
+  });
+
   test('given_real_processor_with_postgres_store_when_queueing_generation_then_prompt_metadata_and_output_are_persisted', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'fg-db-real-worker-'));
     tempDirs.push(root);
@@ -457,14 +566,20 @@ describe('postgres-backed generations', () => {
       const database = testDatabase.createAppDatabase();
       const generationStore = createPostgresGenerationStore(database);
       const eventBus = createGenerationEventBus();
+      const telemetry = createGenerationTelemetry({
+        eventBus,
+        now: () => new Date('2026-04-07T10:20:21.000Z')
+      });
       const app = buildTestServer({
         config,
         presetCatalog,
         generationStore,
-        generationEventBus: eventBus
+        generationEventBus: eventBus,
+        generationTelemetry: telemetry
       });
       const processor = createGenerationProcessor({
         store: generationStore,
+        telemetry,
         comfyClient: {
           uploadInputImage: vi.fn(async () => {
             throw new Error('should not upload txt2img input');
@@ -507,6 +622,7 @@ describe('postgres-backed generations', () => {
       });
       const worker = createGenerationWorker({
         eventBus,
+        telemetry,
         store: generationStore,
         pollIntervalMs: 60_000,
         submittedTimeoutMs: config.timeouts.submittedTimeoutMs,
@@ -743,4 +859,20 @@ async function expectGenerationStatus(
   throw new Error(
     `Timed out waiting for generation "${generationId}" to reach status "${status}".`
   );
+}
+
+function summarizeGenerationEvent(event: GenerationEvent): string {
+  if (event.type === 'upsert') {
+    return `upsert:${event.generation.status}`;
+  }
+
+  if (event.type === 'telemetry') {
+    if (event.telemetry.kind === 'progress') {
+      return `telemetry:${event.telemetry.step}`;
+    }
+
+    return `telemetry:${event.telemetry.status ?? event.telemetry.step ?? event.telemetry.kind}`;
+  }
+
+  return `deleted:${event.generationId}`;
 }

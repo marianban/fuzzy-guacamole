@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 
+import { generationTelemetrySources } from '../../../../shared/generation-telemetry.js';
 import {
   type Generation,
   type GenerationStatus,
@@ -146,7 +147,15 @@ function publishQueuedGeneration(
   request: { log: { info: FastifyInstance['log']['info'] } },
   generation: Generation
 ): void {
+  options.telemetry.startRun(generation.id);
   publishGenerationUpsert(options.eventBus, generation);
+  options.telemetry.publishMilestone({
+    generationId: generation.id,
+    source: generationTelemetrySources.api,
+    status: 'queued',
+    message: 'Generation queued for execution.',
+    occurredAt: generation.queuedAt ?? undefined
+  });
   request.log.info(
     {
       generationId: generation.id,

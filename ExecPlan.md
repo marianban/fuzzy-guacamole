@@ -37,6 +37,8 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - [x] (2026-04-07) Refactored `src/server` into clearer internal modules: moved HTTP assembly into `src/server/http`, config into `src/server/config`, logging into `src/server/logging`, remaining DB helpers into `src/server/db`, and shared test helpers/convention tests into `src/server/test-support`.
 - [x] (2026-04-07) Implemented the first queue-processing slice: server bootstrap now owns a shared generation event bus plus background worker, queued generations are claimed oldest-first and transitioned through `submitted` to a terminal state automatically, stale `submitted` rows fail during startup recovery, and DB-backed tests prove queueing triggers server-side work without a second manual step.
 - [x] (2026-04-07) Completed the worker execution/lifecycle slice: generations now materialize real workflows from preset bundles, persist prompt request/response metadata server-side, execute through the Comfy client, save deterministic outputs under `/data/outputs/{generationId}/`, support submitted cancel via interrupt, and delete cleans up both DB state and generation artifacts.
+- [x] (2026-05-09) Expanded generation events into a UI-usable telemetry stream: shared generation events now include additive telemetry payloads, one shared in-memory telemetry module threads run identity/ordering across queue-worker-processor execution, SSE emits telemetry alongside upserts/deletes, and DB-backed ordering coverage now verifies the full execution sequence.
+- [x] (2026-05-09) Refined the telemetry contract so each event carries explicit `source`, plus `status` or `step` depending on the event kind, replacing the overloaded `phase` field and making UI timelines easier to interpret.
 - [ ] (YYYY-MM-DD) Implement config + preset loading + REST endpoints (`GET /api/status`, `GET /api/presets`, `GET /api/presets/{presetId}`).
 - [ ] (YYYY-MM-DD) Implement Postgres data model, generation endpoints, and filesystem conventions for inputs/outputs.
 - [ ] (YYYY-MM-DD) Implement worker loop + ComfyUI client adapter + cancel semantics + persistence of results.
@@ -66,6 +68,10 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
   Evidence: The worker execution slice now persists both values through the store while the shared API contract remains unchanged, and targeted unit plus DB-backed integration tests passed on 2026-04-07.
 - Observation: Submitted cancel and delete cleanup both needed store-level guarded transitions rather than route-level `save()`/`delete()` calls to avoid lifecycle races and keep artifact cleanup deterministic.
   Evidence: The route layer now uses focused store helpers (`markQueued`, `markCanceled`, `deleteDeletable`, `setInputImagePath`) and the new regression tests for submitted cancel and artifact cleanup passed on 2026-04-07.
+- Observation: The useful execution-detail seam was the existing generation event bus, not the generation row. Adding an in-memory telemetry module let queue routes, the worker, and the processor share one transient run context without changing the persisted generation schema or public generation DTO.
+  Evidence: Shared contract tests, worker/processor route tests, the SSE framing test, and the DB-backed ordering test all passed on 2026-05-09 while Postgres schema and public generation payloads stayed unchanged.
+- Observation: A single telemetry field named `phase` became ambiguous because it mixed generation lifecycle state, processor milestones, and Comfy wait-progress updates.
+  Evidence: The targeted telemetry contract suite passed on 2026-05-09 only after splitting the payload into explicit `source`, `status`, and `step` fields and updating every producer/test consumer accordingly.
 
 ## Decision Log
 
@@ -123,6 +129,12 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - Decision: Treat the queued generation row as the authoritative execution contract by persisting one queue-time `executionSnapshot` JSON blob and having the processor consume that snapshot directly.
   Rationale: This removes worker-time preset rebuilding, makes random seed normalization happen exactly once, keeps restart behavior deterministic, and preserves the exact queued workflow for debugging.
   Date/Author: 2026-04-18 / User + GitHub Copilot (GPT-5.4)
+- Decision: Keep execution telemetry transient and stream it through the shared generation event bus using one in-memory telemetry module, instead of persisting logs or summaries on the generation row.
+  Rationale: The UI needs live execution detail while a run is active, but the user explicitly did not want execution logs or summaries stored in Postgres or added to the public generation contract; file-based server logs remain the durable source when needed.
+  Date/Author: 2026-05-09 / User + GitHub Copilot (GPT-5.4)
+- Decision: Replace the overloaded telemetry `phase` field with explicit `source`, `status`, and `step` fields, keeping `status` aligned with the canonical generation lifecycle and `step` reserved for execution milestones/progress.
+  Rationale: This separates domain state from execution detail, gives the UI a clearer event timeline, and removes the need for consumers to infer meaning from one mixed-purpose string.
+  Date/Author: 2026-05-09 / User + GitHub Copilot (GPT-5.4)
 - Decision (superseded): Use Postgres with a minimal SQL migration runner checked into the repo.
   Rationale: Avoided heavy ORM lock-in while keeping schema changes explicit and reproducible for novices.
   Date/Author: 2026-01-24 / Codex (GPT-5.2)
@@ -134,6 +146,10 @@ After this work, a user on the LAN can open a simple web UI, pick a preset (img2
 - (2026-04-07) Queueing now triggers automatic server-side processing: the app starts one worker, Postgres claims the oldest queued row atomically, transitions flow through `submitted` to a terminal state, and SSE consumers continue to receive the same generation upsert events. Current limitation: bootstrap still uses a placeholder processor, so queued generations terminate with an explicit not-yet-implemented execution error until workflow materialization and Comfy execution land.
 - (2026-04-07) Queueing now drives the real execution path: the server materializes workflows from preset bundles, uploads img2img inputs when required, persists prompt request/response metadata, downloads one deterministic output image into the generation output folder, and keeps submitted cancel plus delete cleanup consistent with the persisted lifecycle state.
 - (2026-04-18) Queueing now persists a full internal `executionSnapshot` on the generation row, and the processor executes from that stored snapshot instead of rebuilding from current preset definitions. This tightened determinism, preserved the exact queued workflow for debugging, and kept prompt request/response metadata as separate execution artifacts.
+- (2026-05-09) The generation events stream now carries ordered live telemetry in addition to generation upserts/deletes. Queueing starts a transient run, the worker and processor append milestones/progress/log events under the same run identity, SSE framing remains unchanged, and telemetry intentionally disappears on reload because it is held only in memory.
+- (2026-05-09) The telemetry payload is now semantically split: `source` identifies the emitter, `status` is used for lifecycle-state updates, and `step` is used for execution milestones and progress updates. This clarified the SSE contract without changing persistence or the generation row schema.
+
+Revision Note (2026-05-09): Updated this ExecPlan to reflect the telemetry contract refactor from overloaded `phase` strings to explicit `source`/`status`/`step` fields so future contributors do not reintroduce the ambiguity.
 
 Revision Note (2026-04-07): Updated this ExecPlan to record the internal `src/server` module refactor and the reasoning behind the new folder boundaries so future contributors understand the current layout.
 

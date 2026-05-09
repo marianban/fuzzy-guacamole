@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 
+import { generationTelemetrySources } from '../../../../shared/generation-telemetry.js';
 import {
   type Generation,
   type GenerationStatus,
@@ -177,6 +178,12 @@ function publishCanceledGeneration(
   generation: Generation
 ) {
   publishGenerationUpsert(options.eventBus, generation);
+  publishTerminalMilestoneAndClear(options, {
+    generationId: generation.id,
+    source: generationTelemetrySources.api,
+    status: 'canceled',
+    message: 'Generation canceled.'
+  });
   request.log.info(
     {
       generationId: generation.id,
@@ -198,6 +205,12 @@ function publishFailedGenerationCancel(
   generation: Generation
 ) {
   publishGenerationUpsert(options.eventBus, generation);
+  publishTerminalMilestoneAndClear(options, {
+    generationId: generation.id,
+    source: generationTelemetrySources.api,
+    status: 'failed',
+    message: generation.error ?? 'Generation cancel failed.'
+  });
   request.log.warn(
     {
       generationId: generation.id,
@@ -222,4 +235,14 @@ function publishConcurrentTerminalCancelResolution(
   );
 
   return generationSchema.parse(generation);
+}
+
+function publishTerminalMilestoneAndClear(
+  options: RegisterGenerationRoutesOptions,
+  milestone: Parameters<
+    RegisterGenerationRoutesOptions['telemetry']['publishMilestone']
+  >[0]
+): void {
+  options.telemetry.publishMilestone(milestone);
+  options.telemetry.clearRun(milestone.generationId);
 }

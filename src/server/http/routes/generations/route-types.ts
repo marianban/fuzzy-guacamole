@@ -1,6 +1,7 @@
 import type { AppConfig } from '../../../config/app-config.js';
 import type { GenerationEventBus } from '../../../generations/events.js';
 import type { GenerationStore } from '../../../generations/store.js';
+import type { GenerationTelemetry } from '../../../generations/telemetry.js';
 import type { PresetCatalog } from '../../../presets/preset-catalog.js';
 
 export interface RegisterGenerationRoutesOptions {
@@ -8,4 +9,5 @@ export interface RegisterGenerationRoutesOptions {
   presetCatalog: PresetCatalog;
   store: GenerationStore;
   eventBus: GenerationEventBus;
+  telemetry: GenerationTelemetry;
 }

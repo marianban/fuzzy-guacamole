@@ -1,10 +1,12 @@
 import type { FastifyBaseLogger } from 'fastify';
 
 import type { Generation } from '../../shared/generations.js';
+import { generationTelemetrySources } from '../../shared/generation-telemetry.js';
 import type { GenerationEventBus } from './events.js';
 import type { GenerationProcessor, GenerationProcessResult } from './processor.js';
 import type { StoredGeneration } from './stored-generation.js';
 import type { GenerationStore } from './store.js';
+import type { GenerationTelemetry } from './telemetry.js';
 
 const startupRecoveryError =
   'Generation processing was interrupted during server shutdown.';
@@ -13,6 +15,7 @@ const staleSubmittedRecoveryError =
 
 export interface GenerationWorkerOptions {
   eventBus: GenerationEventBus;
+  telemetry: GenerationTelemetry;
   store: GenerationStore;
   processor: GenerationProcessor;
   pollIntervalMs: number;
@@ -30,6 +33,7 @@ export interface GenerationWorker {
 
 class DefaultGenerationWorker implements GenerationWorker {
   readonly #eventBus: GenerationEventBus;
+  readonly #telemetry: GenerationTelemetry;
   readonly #store: GenerationStore;
   readonly #processor: GenerationProcessor;
   readonly #pollIntervalMs: number;
@@ -57,6 +61,7 @@ class DefaultGenerationWorker implements GenerationWorker {
     }
 
     this.#eventBus = options.eventBus;
+    this.#telemetry = options.telemetry;
     this.#store = options.store;
     this.#processor = options.processor;
     this.#pollIntervalMs = options.pollIntervalMs;
@@ -81,6 +86,7 @@ class DefaultGenerationWorker implements GenerationWorker {
     const recovered = await this.#store.failSubmittedOnStartup(startupRecoveryError);
     for (const generation of recovered) {
       this.#publishUpsert(generation);
+      this.#publishTerminalMilestone(generation, startupRecoveryError);
     }
 
     this.#pollTimer = setInterval(() => {
@@ -139,6 +145,7 @@ class DefaultGenerationWorker implements GenerationWorker {
         const recovered = await this.#failStaleSubmittedGenerations();
         for (const generation of recovered) {
           this.#publishUpsert(generation);
+          this.#publishTerminalMilestone(generation, staleSubmittedRecoveryError);
         }
 
         while (!this.#stopping) {
@@ -148,6 +155,12 @@ class DefaultGenerationWorker implements GenerationWorker {
           }
 
           this.#publishUpsert(generation);
+          this.#telemetry.publishMilestone({
+            generationId: generation.id,
+            source: generationTelemetrySources.worker,
+            status: 'submitted',
+            message: 'Generation execution started.'
+          });
           const result = await this.#runProcessor(generation);
           const terminalGeneration = await this.#finalizeGenerationResult(
             generation,
@@ -156,6 +169,7 @@ class DefaultGenerationWorker implements GenerationWorker {
 
           if (terminalGeneration !== undefined) {
             this.#publishUpsert(terminalGeneration);
+            this.#publishTerminalMilestone(terminalGeneration);
           }
         }
 
@@ -247,6 +261,23 @@ class DefaultGenerationWorker implements GenerationWorker {
       generationId: generation.id,
       generation
     });
+  }
+
+  #publishTerminalMilestone(
+    generation: StoredGeneration,
+    fallbackMessage?: string
+  ): void {
+    this.#telemetry.publishMilestone({
+      generationId: generation.id,
+      source: generationTelemetrySources.worker,
+      status: generation.status,
+      ...(generation.error !== null
+        ? { message: generation.error }
+        : fallbackMessage !== undefined
+          ? { message: fallbackMessage }
+          : {})
+    });
+    this.#telemetry.clearRun(generation.id);
   }
 
   #resolveIfIdle(): void {

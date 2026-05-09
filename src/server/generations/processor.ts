@@ -2,6 +2,10 @@ import type { FastifyBaseLogger } from 'fastify';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import {
+  generationTelemetrySources,
+  generationTelemetrySteps
+} from '../../shared/generation-telemetry.js';
 import type { AppConfig } from '../config/app-config.js';
 import {
   extractDeterministicOutputImage,
@@ -14,6 +18,7 @@ import type { GenerationExecutionPlan } from './execution/plan.js';
 import { resolveGenerationArtifactPath } from './artifact-paths.js';
 import type { StoredGeneration } from './stored-generation.js';
 import type { GenerationStore } from './store.js';
+import type { GenerationTelemetry } from './telemetry.js';
 
 export type GenerationProcessResult =
   | {
@@ -39,6 +44,7 @@ export interface GenerationProcessorOptions {
     GenerationStore,
     'getStoredById' | 'recordPromptRequest' | 'recordPromptResponse'
   >;
+  telemetry: GenerationTelemetry;
   comfyClient: Pick<
     ComfyClient,
     'uploadInputImage' | 'submitPrompt' | 'pollHistory' | 'downloadImage'
@@ -57,6 +63,7 @@ export function createGenerationProcessor(
 
 class DefaultGenerationProcessor implements GenerationProcessor {
   readonly #store: GenerationProcessorOptions['store'];
+  readonly #telemetry: GenerationTelemetry;
   readonly #comfyClient: GenerationProcessorOptions['comfyClient'];
   readonly #config: Pick<AppConfig, 'paths' | 'timeouts'>;
   readonly #runtimeStatus: GenerationProcessorOptions['runtimeStatus'];
@@ -65,6 +72,7 @@ class DefaultGenerationProcessor implements GenerationProcessor {
 
   constructor(options: GenerationProcessorOptions) {
     this.#store = options.store;
+    this.#telemetry = options.telemetry;
     this.#comfyClient = options.comfyClient;
     this.#config = options.config;
     this.#runtimeStatus = options.runtimeStatus;
@@ -172,11 +180,14 @@ class DefaultGenerationProcessor implements GenerationProcessor {
       return workflow;
     }
 
-    const upload = await this.#runWithTransientRetry('upload input image', async () =>
-      this.#comfyClient.uploadInputImage(
-        inputImagePath,
-        signal !== undefined ? { signal } : {}
-      )
+    const upload = await this.#runWithTransientRetry(
+      generationId,
+      'upload input image',
+      async () =>
+        this.#comfyClient.uploadInputImage(
+          inputImagePath,
+          signal !== undefined ? { signal } : {}
+        )
     );
     return setLoadImageReference(workflow, upload.comfyImageRef);
   }
@@ -195,6 +206,12 @@ class DefaultGenerationProcessor implements GenerationProcessor {
           prompt: workflow
         })
     });
+    this.#telemetry.publishMilestone({
+      generationId,
+      source: generationTelemetrySources.processor,
+      step: generationTelemetrySteps.promptRequestRecorded,
+      message: 'Prompt request metadata recorded.'
+    });
   }
 
   async #submitPrompt(
@@ -204,8 +221,11 @@ class DefaultGenerationProcessor implements GenerationProcessor {
   ): Promise<{ promptId: string; nodeErrors?: Record<string, unknown> }> {
     await this.#guardGenerationStep(generationId, signal);
 
-    const promptResponse = await this.#runWithTransientRetry('submit prompt', async () =>
-      this.#comfyClient.submitPrompt(workflow, signal !== undefined ? { signal } : {})
+    const promptResponse = await this.#runWithTransientRetry(
+      generationId,
+      'submit prompt',
+      async () =>
+        this.#comfyClient.submitPrompt(workflow, signal !== undefined ? { signal } : {})
     );
 
     await this.#recordPromptMetadata({
@@ -221,6 +241,15 @@ class DefaultGenerationProcessor implements GenerationProcessor {
       },
       'generation prompt submitted'
     );
+    this.#telemetry.publishMilestone({
+      generationId,
+      source: generationTelemetrySources.processor,
+      step: generationTelemetrySteps.promptSubmitted,
+      message: 'Generation prompt submitted.',
+      details: {
+        promptId: promptResponse.promptId
+      }
+    });
 
     this.#throwIfPromptHasNodeErrors(promptResponse);
 
@@ -250,9 +279,21 @@ class DefaultGenerationProcessor implements GenerationProcessor {
   ) {
     await this.#guardGenerationStep(generationId, signal);
 
-    return this.#runWithTransientRetry('poll prompt history', async () =>
+    return this.#runWithTransientRetry(generationId, 'poll prompt history', async () =>
       this.#comfyClient.pollHistory(promptId, {
         pollMs: this.#config.timeouts.historyPollMs,
+        onProgress: (update) => {
+          this.#telemetry.publishProgress({
+            generationId,
+            source: update.source,
+            step: update.step,
+            elapsedMs: update.elapsedMs,
+            message: 'Still waiting for Comfy history.',
+            details: {
+              promptId: update.promptId
+            }
+          });
+        },
         ...(signal !== undefined ? { signal } : {})
       })
     );
@@ -285,6 +326,16 @@ class DefaultGenerationProcessor implements GenerationProcessor {
       },
       'generation output stored'
     );
+    this.#telemetry.publishMilestone({
+      generationId,
+      source: generationTelemetrySources.processor,
+      step: generationTelemetrySteps.outputStored,
+      message: 'Generation output stored.',
+      details: {
+        promptId,
+        outputPath
+      }
+    });
   }
 
   async #recordPromptMetadata(options: {
@@ -326,6 +377,7 @@ class DefaultGenerationProcessor implements GenerationProcessor {
   }
 
   async #runWithTransientRetry<T>(
+    generationId: string,
     label: string,
     operation: () => Promise<T>
   ): Promise<T> {
@@ -347,6 +399,16 @@ class DefaultGenerationProcessor implements GenerationProcessor {
         },
         'retrying transient generation execution failure'
       );
+      this.#telemetry.publishLog({
+        generationId,
+        source: generationTelemetrySources.processor,
+        level: 'warn',
+        message: `Retrying transient generation execution failure for ${label}.`,
+        step: label,
+        details: {
+          error: normalizeErrorMessage(error)
+        }
+      });
       return operation();
     }
   }

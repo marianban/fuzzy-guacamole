@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { generationTelemetrySources } from '../../shared/generation-telemetry.js';
 import { buildServer } from '../http/server-app.js';
 import { createPresetCatalog } from '../presets/preset-catalog.js';
 import { createBuildServerOptions } from '../test-support/build-server-options.js';
@@ -14,10 +15,33 @@ import { createBasicImg2ImgTestCatalog } from '../test-support/preset-catalog-fi
 import { loadTestConfig } from '../test-support/test-app-config.js';
 import type { PresetDetail } from '../../shared/presets.js';
 import { createGenerationStore } from './default-store.js';
+import { createGenerationEventBus } from './events.js';
 import type { GenerationStore } from './store.js';
+import { createGenerationTelemetry, type GenerationTelemetry } from './telemetry.js';
 
 function buildTestServer(options: Parameters<typeof createBuildServerOptions>[0]) {
   return buildServer(createBuildServerOptions(options));
+}
+
+function createSpyTelemetry(
+  eventBus: ReturnType<typeof createGenerationEventBus>,
+  now: () => Date = () => new Date()
+): GenerationTelemetry & { clearRun: ReturnType<typeof vi.fn> } {
+  const telemetry = createGenerationTelemetry({
+    eventBus,
+    now
+  });
+  const clearRun = vi.fn((generationId: string) => {
+    telemetry.clearRun(generationId);
+  });
+
+  return {
+    startRun: (generationId: string) => telemetry.startRun(generationId),
+    publishMilestone: (options) => telemetry.publishMilestone(options),
+    publishProgress: (options) => telemetry.publishProgress(options),
+    publishLog: (options) => telemetry.publishLog(options),
+    clearRun
+  };
 }
 
 function createCatalog() {
@@ -990,40 +1014,88 @@ describe('generation routes', () => {
     tempDirs.push(root);
     await mkdir(root, { recursive: true });
     const config = await loadTestConfig(root);
+    const eventBus = createGenerationEventBus();
+    const telemetryEvents: {
+      runId: string;
+      sequence: number;
+      source: string;
+      status?: string;
+      step?: string;
+    }[] = [];
 
     const app = buildTestServer({
       config,
-      presetCatalog: createCatalog()
+      presetCatalog: createCatalog(),
+      generationEventBus: eventBus
     });
 
-    const createResponse = await app.inject({
-      method: 'POST',
-      url: '/api/generations',
-      payload: {
-        presetId: 'img2img-basic/basic',
-        presetParams: {
-          prompt: 'queue me'
-        }
+    const unsubscribe = eventBus.subscribe((event) => {
+      if (event.type !== 'telemetry') {
+        return;
       }
-    });
-    const created = createResponse.json() as { id: string };
 
-    const queueResponse = await app.inject({
-      method: 'POST',
-      url: `/api/generations/${created.id}/queue`
-    });
-    expect(queueResponse.statusCode).toBe(200);
-    expect(queueResponse.json()).toMatchObject({
-      id: created.id,
-      status: 'queued'
-    });
-    expect(queueResponse.json()).toEqual(
-      expect.objectContaining({
-        queuedAt: expect.any(String)
-      })
-    );
+      if (event.telemetry.kind === 'log') {
+        return;
+      }
 
-    await app.close();
+      telemetryEvents.push({
+        runId: event.runId,
+        sequence: event.sequence,
+        source: event.telemetry.source,
+        ...(event.telemetry.kind === 'progress'
+          ? { step: event.telemetry.step }
+          : event.telemetry.kind === 'milestone'
+            ? {
+                ...(event.telemetry.status !== undefined
+                  ? { status: event.telemetry.status }
+                  : {}),
+                ...(event.telemetry.step !== undefined
+                  ? { step: event.telemetry.step }
+                  : {})
+              }
+            : {})
+      });
+    });
+
+    try {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/api/generations',
+        payload: {
+          presetId: 'img2img-basic/basic',
+          presetParams: {
+            prompt: 'queue me'
+          }
+        }
+      });
+      const created = createResponse.json() as { id: string };
+
+      const queueResponse = await app.inject({
+        method: 'POST',
+        url: `/api/generations/${created.id}/queue`
+      });
+      expect(queueResponse.statusCode).toBe(200);
+      expect(queueResponse.json()).toMatchObject({
+        id: created.id,
+        status: 'queued'
+      });
+      expect(queueResponse.json()).toEqual(
+        expect.objectContaining({
+          queuedAt: expect.any(String)
+        })
+      );
+      expect(telemetryEvents).toEqual([
+        {
+          runId: expect.any(String),
+          sequence: 1,
+          source: generationTelemetrySources.api,
+          status: 'queued'
+        }
+      ]);
+    } finally {
+      unsubscribe();
+      await app.close();
+    }
   });
 
   it('given_queued_generation_when_canceled_then_status_becomes_canceled', async () => {
@@ -1031,10 +1103,14 @@ describe('generation routes', () => {
     tempDirs.push(root);
     await mkdir(root, { recursive: true });
     const config = await loadTestConfig(root);
+    const eventBus = createGenerationEventBus();
+    const telemetry = createSpyTelemetry(eventBus);
 
     const app = buildTestServer({
       config,
-      presetCatalog: createCatalog()
+      presetCatalog: createCatalog(),
+      generationEventBus: eventBus,
+      generationTelemetry: telemetry
     });
 
     const createResponse = await app.inject({
@@ -1063,6 +1139,7 @@ describe('generation routes', () => {
       id: created.id,
       status: 'canceled'
     });
+    expect(telemetry.clearRun).toHaveBeenCalledWith(created.id);
 
     await app.close();
   });
@@ -1204,6 +1281,8 @@ describe('generation routes', () => {
     await mkdir(root, { recursive: true });
     const config = await loadTestConfig(root);
     const store = createGenerationStore();
+    const eventBus = createGenerationEventBus();
+    const telemetry = createSpyTelemetry(eventBus);
 
     const generation = await store.create({
       presetId: 'img2img-basic/basic',
@@ -1240,7 +1319,9 @@ describe('generation routes', () => {
     const app = buildTestServer({
       config,
       presetCatalog: createCatalog(),
-      generationStore: store
+      generationStore: store,
+      generationEventBus: eventBus,
+      generationTelemetry: telemetry
     });
 
     try {
@@ -1255,6 +1336,7 @@ describe('generation routes', () => {
         status: 'failed',
         error: expect.stringMatching(/interrupt unavailable/i)
       });
+      expect(telemetry.clearRun).toHaveBeenCalledWith(generation.id);
     } finally {
       vi.unstubAllGlobals();
       await app.close();

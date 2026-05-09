@@ -3,11 +3,13 @@
 import type { FastifyBaseLogger } from 'fastify';
 import { describe, expect, test, vi } from 'vitest';
 
+import { generationTelemetrySources } from '../../shared/generation-telemetry.js';
 import type { Generation } from '../../shared/generations.js';
 import type { GenerationProcessResult } from './processor.js';
 import type { StoredGeneration } from './stored-generation.js';
 import { createGenerationStore } from './default-store.js';
 import { createGenerationEventBus } from './events.js';
+import { createGenerationTelemetry, type GenerationTelemetry } from './telemetry.js';
 import { createGenerationWorker } from './worker.js';
 
 describe('createGenerationWorker', () => {
@@ -15,6 +17,10 @@ describe('createGenerationWorker', () => {
     expect(() =>
       createGenerationWorker({
         eventBus: createGenerationEventBus(),
+        telemetry: createGenerationTelemetry({
+          eventBus: createGenerationEventBus(),
+          now: () => new Date()
+        }),
         store: createGenerationStore(),
         pollIntervalMs: 60_000,
         processor: {
@@ -28,6 +34,10 @@ describe('createGenerationWorker', () => {
     expect(() =>
       createGenerationWorker({
         eventBus: createGenerationEventBus(),
+        telemetry: createGenerationTelemetry({
+          eventBus: createGenerationEventBus(),
+          now: () => new Date()
+        }),
         store: createGenerationStore(),
         pollIntervalMs: 60_000,
         submittedTimeoutMs: 30_000,
@@ -58,6 +68,7 @@ describe('createGenerationWorker', () => {
 
     const worker = createGenerationWorker({
       eventBus,
+      telemetry: createTestTelemetry(eventBus),
       store,
       pollIntervalMs: 60_000,
       submittedTimeoutMs: 30_000,
@@ -99,6 +110,7 @@ describe('createGenerationWorker', () => {
 
     const worker = createGenerationWorker({
       eventBus,
+      telemetry: createTestTelemetry(eventBus),
       store,
       pollIntervalMs: 60_000,
       submittedTimeoutMs: 30_000,
@@ -138,6 +150,7 @@ describe('createGenerationWorker', () => {
 
     const worker = createGenerationWorker({
       eventBus,
+      telemetry: createTestTelemetry(eventBus),
       store,
       pollIntervalMs: 60_000,
       submittedTimeoutMs: 30_000,
@@ -177,6 +190,7 @@ describe('createGenerationWorker', () => {
 
     const worker = createGenerationWorker({
       eventBus,
+      telemetry: createTestTelemetry(eventBus),
       store,
       pollIntervalMs: 60_000,
       submittedTimeoutMs: 30_000,
@@ -204,6 +218,122 @@ describe('createGenerationWorker', () => {
     }
   });
 
+  test('given_worker_processes_a_generation_when_execution_progresses_then_it_publishes_ordered_telemetry_events', async () => {
+    const store = createGenerationStore();
+    const eventBus = createGenerationEventBus();
+    const generation = await createQueuedGeneration(store, {
+      prompt: 'telemetry me',
+      queuedAt: '2026-04-07T10:00:00.000Z'
+    });
+    const telemetryEvents: {
+      runId: string;
+      sequence: number;
+      kind: string;
+      source: string;
+      status?: string;
+      step?: string;
+    }[] = [];
+
+    const unsubscribe = eventBus.subscribe((event) => {
+      if (event.type !== 'telemetry' || event.generationId !== generation.id) {
+        return;
+      }
+
+      telemetryEvents.push({
+        runId: event.runId,
+        sequence: event.sequence,
+        kind: event.telemetry.kind,
+        source: event.telemetry.source,
+        ...(event.telemetry.kind === 'progress'
+          ? { step: event.telemetry.step }
+          : event.telemetry.kind === 'milestone'
+            ? {
+                ...(event.telemetry.status !== undefined
+                  ? { status: event.telemetry.status }
+                  : {}),
+                ...(event.telemetry.step !== undefined
+                  ? { step: event.telemetry.step }
+                  : {})
+              }
+            : {})
+      });
+    });
+
+    const worker = createGenerationWorker({
+      eventBus,
+      telemetry: createTestTelemetry(
+        eventBus,
+        () => new Date('2026-04-07T10:00:05.000Z')
+      ),
+      store,
+      pollIntervalMs: 60_000,
+      submittedTimeoutMs: 30_000,
+      now: () => new Date('2026-04-07T10:00:05.000Z'),
+      processor: {
+        async process() {
+          return { status: 'completed' };
+        }
+      }
+    });
+
+    try {
+      await worker.start();
+      await worker.waitForIdle();
+
+      expect(telemetryEvents).toEqual([
+        {
+          runId: expect.any(String),
+          sequence: 1,
+          kind: 'milestone',
+          source: generationTelemetrySources.worker,
+          status: 'submitted'
+        },
+        {
+          runId: expect.any(String),
+          sequence: 2,
+          kind: 'milestone',
+          source: generationTelemetrySources.worker,
+          status: 'completed'
+        }
+      ]);
+      expect(new Set(telemetryEvents.map((event) => event.runId)).size).toBe(1);
+    } finally {
+      unsubscribe();
+      await worker.stop();
+    }
+  });
+
+  test('given_generation_reaches_terminal_status_when_worker_publishes_terminal_milestone_then_telemetry_run_is_cleared', async () => {
+    const store = createGenerationStore();
+    const eventBus = createGenerationEventBus();
+    const generation = await createQueuedGeneration(store, {
+      prompt: 'cleanup terminal telemetry',
+      queuedAt: '2026-04-07T10:00:00.000Z'
+    });
+    const telemetry = createSpyTelemetry(eventBus);
+
+    const worker = createGenerationWorker({
+      eventBus,
+      telemetry,
+      store,
+      pollIntervalMs: 60_000,
+      submittedTimeoutMs: 30_000,
+      now: () => new Date('2026-04-07T10:00:05.000Z'),
+      processor: {
+        async process() {
+          return { status: 'completed' };
+        }
+      }
+    });
+
+    await worker.start();
+    await worker.waitForIdle();
+
+    expect(telemetry.clearRun).toHaveBeenCalledWith(generation.id);
+
+    await worker.stop();
+  });
+
   test('given_processor_returns_unknown_status_when_worker_drains_then_worker_logs_error_and_generation_remains_submitted', async () => {
     const store = createGenerationStore();
     const eventBus = createGenerationEventBus();
@@ -218,6 +348,7 @@ describe('createGenerationWorker', () => {
 
     const worker = createGenerationWorker({
       eventBus,
+      telemetry: createTestTelemetry(eventBus),
       store,
       pollIntervalMs: 60_000,
       submittedTimeoutMs: 30_000,
@@ -256,9 +387,14 @@ describe('createGenerationWorker', () => {
       prompt: 'stale runtime submitted',
       queuedAt: '2026-04-07T10:00:00.000Z'
     });
+    const telemetry = createSpyTelemetry(
+      eventBus,
+      () => new Date('2026-04-07T10:01:00.000Z')
+    );
 
     const worker = createGenerationWorker({
       eventBus,
+      telemetry,
       store,
       pollIntervalMs: 60_000,
       submittedTimeoutMs: 30_000,
@@ -290,6 +426,7 @@ describe('createGenerationWorker', () => {
       status: 'failed',
       error: expect.stringMatching(/timed out/i)
     });
+    expect(telemetry.clearRun).toHaveBeenCalledWith(generation.id);
 
     await worker.stop();
   });
@@ -322,6 +459,10 @@ describe('createGenerationWorker', () => {
 
     const worker = createGenerationWorker({
       eventBus,
+      telemetry: createTestTelemetry(
+        eventBus,
+        () => new Date('2026-04-07T10:01:00.000Z')
+      ),
       store: store as unknown as Parameters<typeof createGenerationWorker>[0]['store'],
       pollIntervalMs: 60_000,
       submittedTimeoutMs: 30_000,
@@ -358,6 +499,7 @@ describe('createGenerationWorker', () => {
 
     const worker = createGenerationWorker({
       eventBus,
+      telemetry: createTestTelemetry(eventBus),
       store,
       pollIntervalMs: 60_000,
       submittedTimeoutMs: 30_000,
@@ -411,6 +553,7 @@ describe('createGenerationWorker', () => {
 
     const worker = createGenerationWorker({
       eventBus,
+      telemetry: createTestTelemetry(eventBus),
       store,
       pollIntervalMs: 60_000,
       submittedTimeoutMs: 30_000,
@@ -486,5 +629,36 @@ function createDeferred() {
   return {
     promise,
     resolve
+  };
+}
+
+function createTestTelemetry(
+  eventBus: ReturnType<typeof createGenerationEventBus>,
+  now: () => Date = () => new Date()
+) {
+  return createGenerationTelemetry({
+    eventBus,
+    now
+  });
+}
+
+function createSpyTelemetry(
+  eventBus: ReturnType<typeof createGenerationEventBus>,
+  now: () => Date = () => new Date()
+): GenerationTelemetry & { clearRun: ReturnType<typeof vi.fn> } {
+  const telemetry = createGenerationTelemetry({
+    eventBus,
+    now
+  });
+  const clearRun = vi.fn((generationId: string) => {
+    telemetry.clearRun(generationId);
+  });
+
+  return {
+    startRun: (generationId: string) => telemetry.startRun(generationId),
+    publishMilestone: (options) => telemetry.publishMilestone(options),
+    publishProgress: (options) => telemetry.publishProgress(options),
+    publishLog: (options) => telemetry.publishLog(options),
+    clearRun
   };
 }
