@@ -2,28 +2,6 @@
 
 Review scope: `src/server`, shared server contracts in `src/shared`, and the current architecture/spec docs. The items below are missing server capabilities, not polish tasks. Each item is scoped to be implementable as one meaningful PR.
 
-## P1. Expand SSE/events into an execution telemetry stream the UI can actually use
-
-Why this is missing:
-- The SSE endpoint is just a thin transport around coarse `upsert` and `deleted` events.
-- The shared event contract does not carry progress, run logs, or execution-specific metadata.
-- The spec expects live generation updates and the UI spec expects logs, but the server has no model for either.
-
-Current evidence:
-- `src/server/routes/events.ts:11-49`
-- `src/shared/generations.ts:31-43`
-- `docs/specs.MD:408-409`
-
-Work expected in the PR:
-- Define an event model for progress, execution milestones, and operator-visible log entries.
-- Publish those events from the worker/execution path without breaking existing upsert consumers.
-- Decide which telemetry is transient SSE-only versus persisted on the generation record.
-- Add tests for SSE formatting and event ordering across a full execution.
-
-Definition of done:
-- The client can observe more than final state flips.
-- Execution failures and long-running submissions are diagnosable without reading server stdout.
-
 ## P2. Add a real `txt2img` preset bundle to the runtime catalog
 
 Why this is missing:
