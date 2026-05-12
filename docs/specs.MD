@@ -19,7 +19,8 @@ Key principles:
 
 Terminology:
 - A **generation** is a persisted record (DB + folders) that can be re-run multiple times.
-- A **run** is one execution of a generation that produces one output image.
+- A **run** is one execution attempt of a generation that produces one output image.
+- Runs are not persisted as first-class records in v1. The generation retains only the latest run's execution metadata; earlier runs remain observable through generated output files and logs.
 
 ---
 
@@ -112,7 +113,8 @@ Current target ComfyUI environment (locked for v1 integration):
     "sshPollMs": 2000,
     "comfyBootMs": 180000,
     "healthPollMs": 2000,
-    "historyPollMs": 1000
+    "historyPollMs": 1000,
+    "submittedTimeoutMs": 1800000
   }
 }
 ```
@@ -126,7 +128,7 @@ Configuration policy:
 
 ---
 
-## 4) Presets (workflow bundles on disk)
+## 4) Presets (preset bundles on disk)
 
 ### 4.1 Structure
 ```
@@ -139,26 +141,28 @@ Configuration policy:
 
 Folder naming rule:
 - Folder name is `templateId` (for example `img2img-basic`).
-- One template can have multiple preset variants (`1:N` relation).
+- One preset bundle can have multiple preset variants (`1:N` relation).
 
 ### 4.2 preset.template.json
 ```json
 {
   "id": "img2img-basic",
   "type": "img2img",
+  "implicitRuntimeParamKeys": ["inputImagePath"],
   "workflow": {}
 }
 ```
 
 Template rules:
 - `workflow` is an exported ComfyUI workflow JSON with field-id template tokens.
-- `preset.template.json` contains workflow structure only.
+- `preset.template.json` contains the workflow template structure only.
 - Field metadata is defined in `model.json`, not inline in the template.
+- `implicitRuntimeParamKeys` declares runtime-only token keys that may appear in `workflow` without corresponding `model.json.fields[]` entries.
+- For img2img preset bundles, `inputImagePath` is declared this way so uploaded input image references stay outside the control-panel model.
 
 ### 4.3 model.json
 ```json
 {
-  "templateId": "img2img-basic",
   "categories": [
     {
       "id": "main",
@@ -339,20 +343,19 @@ Template rules:
 
 Model rules:
 - `model.json` is required for every preset bundle.
-- `templateId` must match the preset folder name and `preset.template.json.id`.
+- `model.json` is preset-bundle-local field metadata and inherits bundle identity from the surrounding preset bundle folder and workflow template.
 - `categories` define optional UI groups. Category labels are localized.
 - `fields` define control-panel field metadata for the bundle.
 - Workflow template tokens for control-panel values use field ids directly with the syntax `{{fieldId}}` (for example `{{prompt}}`, `{{steps}}`).
 - Non-control-panel runtime values such as uploaded input image references are not currently modeled in `model.json`.
 - `label` is required for every field and category and must support localization.
 - `description` is optional localized helper text.
-- `fieldType` defines the underlying value shape, validation, and serialization. Initial supported values:
+- `fieldType` defines the underlying value shape, validation, and serialization. Current implemented values:
   - `string`
   - `integer`
   - `number`
-  - `boolean`
   - `enum`
-  - `image`
+- `boolean` is reserved for a future preset-model extension and is not accepted by the current server implementation.
 - `control` is required for every field.
 - Initial supported `control.type` values:
   - `input`
@@ -370,12 +373,14 @@ Model rules:
 - `categoryId` is optional. Fields without a category render in the default top-level group.
 - `order` controls rendering order within the category.
 - `visibility` is optional and allows declarative conditional fields (for example seed only when `seedMode === fixed`).
+- `visibility` controls UI presentation and field validation only. Inactive fields are not required or type/bounds validated, but existing resolved values are not stripped from `presetParams` and may still be used by workflow token substitution.
 - `id` must be unique within a bundle and is the canonical key used by:
   - workflow template tokens
-  - preset defaults
-  - runtime generation params
+  - preset variant defaults
+  - editable generation params
 - A field may exist without being referenced by the workflow if it is needed for UI-only behavior or derived runtime logic.
 - Runtime-only generation params that are not edited in the control panel may exist outside `model.json.fields`.
+- Runtime-only params are server-owned. Clients must not submit them through `POST /api/generations` or `PATCH /api/generations/{generationId}` `presetParams`; dedicated endpoints such as input upload write them.
 
 Localization rules:
 - Localized values use an object keyed by BCP 47 language tags (for example `en`, `en-US`, `sk`).
@@ -386,14 +391,12 @@ Localization rules:
   4. First available localized value
   5. Field/category `id` as a last-resort fallback
 
-### 4.4 *.preset.json
+### 4.4 *.preset.json preset variants
 ```json
 {
   "id": "img2img-basic/basic",
   "name": "Img2Img - Basic",
   "type": "img2img",
-  "template": "preset.template.json",
-  "model": "model.json",
   "defaults": {
     "prompt": "soft cinematic lighting",
     "negativePrompt": "",
@@ -405,16 +408,19 @@ Localization rules:
 ```
 
 Preset rules:
-- `template` is required and must point to a template file in the same preset folder (v1).
-- `model` is required and must point to `model.json` in the same preset folder (vNext preset contract).
+- Preset variants inherit `preset.template.json` and `model.json` from their containing bundle folder.
 - `id` format is `{templateId}/{presetName}` to avoid collisions across folders.
-- Presets provide preset-specific defaults/overrides only.
+- Preset variants provide variant-specific defaults/overrides only.
 - Control-panel field metadata lives in `model.json`.
 - Default value resolution order:
   1. Runtime user-entered value
   2. System-assigned value (for example uploaded input image path)
   3. `*.preset.json.defaults`
   4. `model.json.fields[].default`
+- Built-in seed convention:
+  - If a preset model includes fields named `seedMode` and `seed`, `seedMode: "random"` causes queueing to generate a new integer `seed` for that run.
+  - The generated random seed is persisted in the generation's resolved `presetParams` and used for workflow token substitution.
+  - `seedMode: "fixed"` uses the resolved `seed` value supplied by user/defaults.
 
 ### 4.5 Supported preset types
 
@@ -427,13 +433,14 @@ v1 supports:
 Workflows are treated as JSON templates with field-id template tokens (for example `{{prompt}}`) placed inside `preset.template.json`.
 
 Implementation rules:
-1. Load selected `*.preset.json`.
-2. Resolve and load preset `template` (`preset.template.json`) as JSON (not as a raw string).
-3. Resolve and load preset `model` (`model.json`).
+1. Load selected preset variant (`*.preset.json`).
+2. Resolve and load preset bundle `preset.template.json` as JSON (not as a raw string).
+3. Resolve and load preset bundle `model.json`.
 4. Validate model integrity before queueing:
    - every control-panel template token used in `template.workflow` must resolve to exactly one `fields[].id`
+   - every runtime-only template token used in `template.workflow` must be listed in `template.implicitRuntimeParamKeys`
    - every `categoryId` must reference an existing category
-   - preset `type`, template `type`, and model `templateId` must resolve to the same bundle
+   - preset variant `type` and workflow template `type` must match
 5. Resolve runtime parameter values using the default precedence defined above.
 6. Validate runtime values against `model.json.fields[].validation`.
 7. Recursively walk `template.workflow` values.
@@ -443,11 +450,12 @@ Implementation rules:
    - If the token is embedded in a larger string, replace with the stringified value.
 
 Validation rules (v1):
-- At queue time, fail if any control-panel template token exists in the template workflow but does not reference a field id from `model.json`.
+- At queue time, fail if any template token exists in the template workflow but does not reference either a field id from `model.json` or a key listed in `template.implicitRuntimeParamKeys`.
 - Fail if any required field resolves to no value.
-- Fail if preset `type` and template `type` do not match.
-- Fail if preset `template` file is missing.
-- Fail if preset `model` file is missing.
+- Fail if any runtime-only token declared by the template and used by the workflow resolves to no value.
+- Fail if preset variant `type` and workflow template `type` do not match.
+- Fail if preset bundle `preset.template.json` file is missing.
+- Fail if preset bundle `model.json` file is missing.
 - Do not validate models/assets on the ComfyUI machine; if the workflow fails, surface the error.
 
 UI generation rules:
@@ -558,10 +566,18 @@ Editable snapshots:
 - Same-preset PATCH preserves runtime-only params already stored outside `model.json.fields`, such as `inputImagePath`, while replacing editable model params.
 - Preset-switch PATCH clears existing params, resolves the target preset defaults plus submitted params, and updates `templateId` from the target preset.
 - `GET /api/generations/{generationId}` returns the persisted resolved `presetParams`, so the client can render draft and terminal-state values without fetching preset metadata first.
+- `POST` and `PATCH` `presetParams` may include only editable field ids from the selected preset `model.json`; runtime-only params such as `inputImagePath` are written by dedicated server endpoints.
 
 Re-run behavior:
 - A user can re-run any generation at any time; re-running re-queues the same generation id.
-- Each run produces new output files under the same generation output folder (no attempts table in v1).
+- Each run produces new output files under the same generation output folder.
+- v1 does not persist a separate attempts/runs table; re-queueing replaces the generation's latest execution metadata with the new run snapshot.
+- If the generation uses `seedMode: "random"`, each re-run generates and persists a new random seed for the new run.
+
+Queue readiness:
+- `POST /api/generations/{generationId}/queue` must reject immediately unless app status is `Online` or `Starting`.
+- If app status is `Starting`, queueing is allowed and the worker waits for the in-flight startup attempt before execution.
+- If app status is `Offline` or `StartupFailed`, queueing returns an error and does not transition the generation to `queued`.
 
 ---
 
@@ -569,8 +585,11 @@ Re-run behavior:
 
 - Backend does not auto-start ComfyUI on app boot.
 - A user must explicitly initiate startup through `POST /api/comfy/start`.
+- Explicit startup is allowed from `Offline` and `StartupFailed`.
+- If status is `Online`, `POST /api/comfy/start` returns the current online status without starting a new attempt.
+- If status is `Starting`, concurrent `POST /api/comfy/start` callers receive the shared in-flight startup state.
 - Current startup flow (this version):
-  1. Transition app status from `Offline` to `Starting`.
+  1. Transition app status from `Offline` or `StartupFailed` to `Starting`.
   2. Poll ComfyUI readiness via `GET /api/system_stats` until success or timeout.
   3. Transition to `Online` on success or `StartupFailed` on failure.
 - Future versions may extend the explicit startup action with WOL, SSH, and remote process launch, but that is out of scope for the current implementation.
@@ -579,6 +598,7 @@ Re-run behavior:
   - Must be concurrency-safe: multiple callers share the same in-flight startup attempt (single-flight).
   - `GET /api/status` is observational only and must not initiate startup.
   - Internal execution gates may wait on an in-flight `Starting` attempt, but must not implicitly move `Offline` to `Starting`.
+  - Queue requests must not implicitly initiate startup; they are accepted only when ComfyUI is already `Online` or an explicit startup attempt is `Starting`.
 
 ---
 
@@ -587,6 +607,7 @@ Re-run behavior:
 - POST /api/prompt with body `{ "prompt": <workflow-json> }` -> prompt_id
 - GET /history/{prompt_id} polling
 - One output image expected
+- Workflows may contain multiple image-producing or `SaveImage` nodes, but v1 persists and displays exactly one canonical output image per run.
 
 ### 9.0 img2img input transfer and output persistence
 
@@ -594,6 +615,9 @@ Re-run behavior:
 - Backend injects the uploaded file reference into the workflow (`LoadImage.inputs.image`) before `POST /prompt`.
 - Backend does not rely on manual filesystem copy into ComfyUI `input/`.
 - Final outputs are always downloaded from Comfy and persisted under `/data/outputs/{generationId}/...` regardless of Comfy-side storage layout.
+- `POST /api/generations/{generationId}/input` is allowed only for `draft`, `completed`, `failed`, and `canceled` generations.
+- Input upload is rejected for `queued` and `submitted` generations.
+- Uploading input replaces the generation's server-owned `inputImagePath` runtime parameter.
 
 ### 9.1 Checking when a run is "ready"
 
@@ -617,7 +641,8 @@ ComfyUI readiness (v1):
 `POST /api/generations/{generationId}/cancel`
 
 - queued -> canceled
-- submitted -> interrupt ComfyUI -> canceled
+- submitted -> interrupt ComfyUI, then mark canceled if the generation is still submitted
+- if submitted execution reaches a terminal state before cancellation is recorded, return the current terminal state
 - failure to cancel -> failed
 
 ---
@@ -626,8 +651,8 @@ ComfyUI readiness (v1):
 
 `DELETE /api/generations/{generationId}`
 
-- Allowed for draft, completed, failed, canceled
-- queued -> remove then delete
+- Allowed for draft, queued, completed, failed, canceled
+- queued -> delete the queued generation row and its artifacts
 - submitted -> 409 Conflict
 
 ---
@@ -710,11 +735,16 @@ All API endpoints must be documented in the OpenAPI Specification.
 - `GET /api/events/generations` (`text/event-stream`)
 
 Notes:
-- SSE events are live-only in v1 (no replay/catch-up); they emit basic generation status updates and optional progress when available.
+- SSE events are live-only in v1 (no replay/catch-up); they emit generation upsert/deleted events and transient telemetry events.
+- Generation telemetry events are ordered per live run using `runId` and `sequence`.
+- Generation telemetry is not persisted. Browser reloads lose prior telemetry; backend log files are the durable diagnostic source.
 - `+ New generation` is client-only and does not hit the backend.
 - `presetId` uses `{templateId}/{presetName}` format (for example `img2img-basic/basic`).
 - `GET /api/presets/{presetId}` must expose the resolved template plus the resolved preset `model.json` so the client can build the control panel dynamically.
 - Preset parameter payloads are keyed by `fieldId` from `model.json`.
+- Runtime-only parameter keys are not valid client-submitted preset parameter keys, even when they appear in persisted generation `presetParams`.
+- `POST /api/generations/{generationId}/input` writes the server-owned `inputImagePath` runtime parameter and is allowed only while the generation is not active.
+- Public generation responses and SSE generation payloads do not expose internal execution metadata (`executionSnapshot`, `promptRequest`, `promptResponse`) in v1.
 - On Generate, the UI creates the server-side generation (`POST /api/generations`), then:
   - `img2img`: upload input (`POST /api/generations/{generationId}/input`), then queue (`POST /api/generations/{generationId}/queue`)
   - `txt2img`: queue directly (`POST /api/generations/{generationId}/queue`)
@@ -729,6 +759,7 @@ Notes:
 - id (uuid)
 - status
 - queuedAt (timestamp, nullable)
+- executionSnapshot (jsonb, internal latest-run worker input)
 - promptRequest (jsonb)
 - promptResponse (jsonb)
 - presetId (text)
@@ -738,6 +769,9 @@ Notes:
 - createdAt (timestamp)
 - updatedAt (timestamp)
 
+Internal-only fields:
+- `executionSnapshot`, `promptRequest`, and `promptResponse` are persisted for worker/debugging use and are not exposed by public REST/SSE generation payloads in v1.
+
 ---
 
 ## 15) Worker
@@ -746,6 +780,8 @@ Notes:
 - One execution at a time
 - Processes oldest queued by `queuedAt`
 - Checks cancellation before each step
+- On worker startup, marks any leftover `submitted` generations as `failed` because processing was interrupted during server shutdown
+- Marks stale `submitted` generations as `failed` when `updatedAt` is older than `timeouts.submittedTimeoutMs`
 
 ---
 
