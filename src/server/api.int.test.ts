@@ -12,6 +12,7 @@ import {
   presetListResponseSchema,
   presetSummarySchema
 } from '../shared/presets.js';
+import { appStatusResponseSchema } from '../shared/status.js';
 import { requireTestEnvVar } from './test-support/test-env.js';
 
 const localBaseUrl = requireTestEnvVar('API_BASE_URL');
@@ -23,6 +24,8 @@ const img2imgInputFixturePath = path.resolve(
 const openApiDocumentSchema = z.object({
   paths: z.record(z.string(), z.unknown())
 });
+
+const localGenerationTimeoutMs = 30_000;
 
 describe.sequential('API integration (local server)', () => {
   test('given_local_server_when_requesting_openapi_then_generation_and_event_routes_are_documented', async () => {
@@ -39,30 +42,47 @@ describe.sequential('API integration (local server)', () => {
     });
   });
 
-  test('given_local_server_when_running_generation_lifecycle_then_create_queue_cancel_and_delete_work', async () => {
-    const preset = await resolveLocalPreset();
-    const created = await createGenerationWithFetch(localBaseUrl, preset.id);
+  test(
+    'given_local_server_when_running_generation_lifecycle_then_create_queue_cancel_and_delete_work',
+    async () => {
+      const preset = await resolveLocalPreset();
+      const created = await createGenerationWithFetch(localBaseUrl, preset.id);
 
-    if (preset.type === 'img2img') {
-      await uploadGenerationInputWithFetch(localBaseUrl, created.id);
-    }
-
-    const queueResponse = await fetch(
-      `${localBaseUrl}/api/generations/${created.id}/queue`,
-      {
-        method: 'POST'
+      if (preset.type === 'img2img') {
+        await uploadGenerationInputWithFetch(localBaseUrl, created.id);
       }
-    );
-    expect(queueResponse.status).toBe(200);
 
-    const terminalGeneration = await waitForTerminalGeneration(created.id);
-    expect(terminalGeneration.status).toMatch(/completed|failed/);
+      await ensureLocalRuntimeQueueReady();
 
-    const deleteResponse = await fetch(`${localBaseUrl}/api/generations/${created.id}`, {
-      method: 'DELETE'
-    });
-    expect(deleteResponse.status).toBe(204);
-  });
+      const queueResponse = await fetch(
+        `${localBaseUrl}/api/generations/${created.id}/queue`,
+        {
+          method: 'POST'
+        }
+      );
+      expect(queueResponse.status).toBe(200);
+
+      const cancelResponse = await fetch(
+        `${localBaseUrl}/api/generations/${created.id}/cancel`,
+        {
+          method: 'POST'
+        }
+      );
+      expect(cancelResponse.status).toBe(200);
+
+      const canceledGeneration = generationSchema.parse(await cancelResponse.json());
+      expect(canceledGeneration.status).toMatch(/canceled|completed|failed/);
+
+      const deleteResponse = await fetch(
+        `${localBaseUrl}/api/generations/${created.id}`,
+        {
+          method: 'DELETE'
+        }
+      );
+      expect(deleteResponse.status).toBe(204);
+    },
+    localGenerationTimeoutMs
+  );
 });
 
 async function resolveLocalPreset(): Promise<z.infer<typeof presetSummarySchema>> {
@@ -133,19 +153,21 @@ async function uploadGenerationInputWithFetch(
   expect(response.status).toBe(204);
 }
 
-async function waitForTerminalGeneration(generationId: string) {
-  const deadline = Date.now() + 5_000;
+async function ensureLocalRuntimeQueueReady(): Promise<void> {
+  const currentStatusResponse = await fetch(`${localBaseUrl}/api/status`);
+  expect(currentStatusResponse.status).toBe(200);
 
-  while (Date.now() < deadline) {
-    const response = await fetch(`${localBaseUrl}/api/generations/${generationId}`);
-    expect(response.status).toBe(200);
-    const generation = generationSchema.parse(await response.json());
-    if (generation.status === 'completed' || generation.status === 'failed') {
-      return generation;
-    }
+  const currentStatus = appStatusResponseSchema.parse(await currentStatusResponse.json());
+
+  if (currentStatus.state === 'Online' || currentStatus.state === 'Starting') {
+    return;
   }
 
-  throw new Error(
-    `Timed out waiting for generation "${generationId}" to reach a terminal state.`
-  );
+  const startupResponse = await fetch(`${localBaseUrl}/api/comfy/start`, {
+    method: 'POST'
+  });
+  expect([200, 202]).toContain(startupResponse.status);
+
+  const startupStatus = appStatusResponseSchema.parse(await startupResponse.json());
+  expect(['Online', 'Starting']).toContain(startupStatus.state);
 }

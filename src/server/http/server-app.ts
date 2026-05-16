@@ -31,7 +31,7 @@ export interface BuildServerOptions {
   generationStore: GenerationStore;
   generationEventBus: GenerationEventBus;
   generationTelemetry: GenerationTelemetry;
-  runtimeStatus: Pick<AppRuntimeStatusService, 'getStatus' | 'start'>;
+  runtimeStatus: AppRuntimeStatusService;
   config?: AppConfig;
   logger?: ServerLoggerOptions;
   loggerInstance?: FastifyBaseLogger;
@@ -87,7 +87,8 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
       presetCatalog: options.presetCatalog,
       store: options.generationStore,
       eventBus: options.generationEventBus,
-      telemetry: options.generationTelemetry
+      telemetry: options.generationTelemetry,
+      statusService: options.runtimeStatus
     });
     registerEventRoutes(app, options.generationEventBus);
   });

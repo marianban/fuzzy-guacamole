@@ -6,7 +6,7 @@ import type { AppRuntimeStatusService } from '../../status/runtime-status.js';
 
 export function registerStatusRoutes(
   app: FastifyInstance,
-  runtimeStatus: Pick<AppRuntimeStatusService, 'getStatus'>
+  statusService: AppRuntimeStatusService
 ): void {
   app.withTypeProvider<ZodTypeProvider>().get(
     '/api/status',
@@ -20,7 +20,7 @@ export function registerStatusRoutes(
       }
     },
     async () => {
-      return appStatusResponseSchema.parse(runtimeStatus.getStatus());
+      return appStatusResponseSchema.parse(statusService.getStatus());
     }
   );
 }

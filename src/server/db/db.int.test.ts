@@ -14,6 +14,7 @@ import { createGenerationProcessor } from '../generations/processor.js';
 import { createGenerationTelemetry } from '../generations/telemetry.js';
 import { createGenerationWorker } from '../generations/worker.js';
 import { createBuildServerOptions } from '../test-support/build-server-options.js';
+import { createOnlineRuntimeStatusFixture } from '../test-support/comfy-fixtures.js';
 import { buildMultipartPayload } from '../test-support/multipart-fixtures.js';
 import {
   createBasicImg2ImgTestCatalog as createTestCatalog,
@@ -26,7 +27,12 @@ import {
 import { createTestDatabaseContext } from './test-database-context.js';
 
 function buildTestServer(options: Parameters<typeof createBuildServerOptions>[0]) {
-  return buildServer(createBuildServerOptions(options));
+  return buildServer(
+    createBuildServerOptions({
+      runtimeStatus: createOnlineRuntimeStatusFixture(),
+      ...options
+    })
+  );
 }
 
 describe('postgres-backed generations', () => {

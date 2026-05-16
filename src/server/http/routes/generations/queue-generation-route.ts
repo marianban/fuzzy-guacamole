@@ -43,6 +43,14 @@ function isQueueableGenerationStatus(status: GenerationStatus): boolean {
   );
 }
 
+function isQueueReadyAppStatus(
+  state: ReturnType<
+    RegisterGenerationRoutesOptions['statusService']['getStatus']
+  >['state']
+): boolean {
+  return state === 'Online' || state === 'Starting';
+}
+
 export function registerQueueGenerationRoute(
   app: FastifyInstance,
   options: RegisterGenerationRoutesOptions
@@ -76,6 +84,18 @@ export function registerQueueGenerationRoute(
           generation,
           warningCode: queueGenerationWarningCode,
           responseMessage: `Generation "${generation.id}" cannot be queued in status "${generation.status}".`
+        });
+      }
+
+      const status = options.statusService.getStatus();
+      if (!isQueueReadyAppStatus(status.state)) {
+        logGenerationWarning(request, queueGenerationWarningMessage, {
+          generationId: generation.id,
+          appStatus: status.state,
+          warningCode: 'generation_queue_runtime_not_ready'
+        });
+        return reply.code(409).send({
+          message: `Generation "${generation.id}" cannot be queued while app status is "${status.state}".`
         });
       }
 

@@ -6,7 +6,7 @@ import type { AppRuntimeStatusService } from '../../status/runtime-status.js';
 
 export function registerComfyRoutes(
   app: FastifyInstance,
-  runtimeStatus: Pick<AppRuntimeStatusService, 'start'>
+  statusService: AppRuntimeStatusService
 ): void {
   app.withTypeProvider<ZodTypeProvider>().post(
     '/api/comfy/start',
@@ -21,7 +21,7 @@ export function registerComfyRoutes(
       }
     },
     async (_request, reply) => {
-      const status = appStatusResponseSchema.parse(await runtimeStatus.start());
+      const status = appStatusResponseSchema.parse(await statusService.start());
       return reply.code(status.state === 'Online' ? 200 : 202).send(status);
     }
   );

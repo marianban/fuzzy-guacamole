@@ -10,6 +10,7 @@ import { generationTelemetrySources } from '../../shared/generation-telemetry.js
 import { buildServer } from '../http/server-app.js';
 import { createPresetCatalog } from '../presets/preset-catalog.js';
 import { createBuildServerOptions } from '../test-support/build-server-options.js';
+import { createRuntimeStatusFixture } from '../test-support/comfy-fixtures.js';
 import { buildMultipartPayload } from '../test-support/multipart-fixtures.js';
 import { createBasicImg2ImgTestCatalog } from '../test-support/preset-catalog-fixtures.js';
 import { loadTestConfig } from '../test-support/test-app-config.js';
@@ -1026,7 +1027,8 @@ describe('generation routes', () => {
     const app = buildTestServer({
       config,
       presetCatalog: createCatalog(),
-      generationEventBus: eventBus
+      generationEventBus: eventBus,
+      runtimeStatus: createRuntimeStatusFixture('Online')
     });
 
     const unsubscribe = eventBus.subscribe((event) => {
@@ -1098,6 +1100,145 @@ describe('generation routes', () => {
     }
   });
 
+  it('given_offline_app_status_when_queueing_generation_then_request_is_rejected_and_generation_remains_draft', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+    const store = createGenerationStore();
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalog(),
+      generationStore: store,
+      runtimeStatus: createRuntimeStatusFixture('Offline')
+    });
+
+    try {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/api/generations',
+        payload: {
+          presetId: 'img2img-basic/basic',
+          presetParams: {
+            prompt: 'queue me later'
+          }
+        }
+      });
+      const created = createResponse.json() as { id: string };
+
+      const queueResponse = await app.inject({
+        method: 'POST',
+        url: `/api/generations/${created.id}/queue`
+      });
+
+      expect(queueResponse.statusCode).toBe(409);
+      expect(queueResponse.json()).toMatchObject({
+        message: expect.stringMatching(/offline/i)
+      });
+
+      const stored = await store.getById(created.id);
+      expect(stored).toMatchObject({
+        id: created.id,
+        status: 'draft',
+        queuedAt: null
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('given_startup_failed_app_status_when_queueing_generation_then_request_is_rejected_and_generation_remains_draft', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+    const store = createGenerationStore();
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalog(),
+      generationStore: store,
+      runtimeStatus: createRuntimeStatusFixture('StartupFailed', {
+        lastError: 'startup failed'
+      })
+    });
+
+    try {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/api/generations',
+        payload: {
+          presetId: 'img2img-basic/basic',
+          presetParams: {
+            prompt: 'queue me later'
+          }
+        }
+      });
+      const created = createResponse.json() as { id: string };
+
+      const queueResponse = await app.inject({
+        method: 'POST',
+        url: `/api/generations/${created.id}/queue`
+      });
+
+      expect(queueResponse.statusCode).toBe(409);
+      expect(queueResponse.json()).toMatchObject({
+        message: expect.stringMatching(/startupfailed|startup failed/i)
+      });
+
+      const stored = await store.getById(created.id);
+      expect(stored).toMatchObject({
+        id: created.id,
+        status: 'draft',
+        queuedAt: null
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('given_starting_app_status_when_queueing_generation_then_generation_is_queued', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalog(),
+      runtimeStatus: createRuntimeStatusFixture('Starting')
+    });
+
+    try {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/api/generations',
+        payload: {
+          presetId: 'img2img-basic/basic',
+          presetParams: {
+            prompt: 'queue me during startup'
+          }
+        }
+      });
+      const created = createResponse.json() as { id: string };
+
+      const queueResponse = await app.inject({
+        method: 'POST',
+        url: `/api/generations/${created.id}/queue`
+      });
+
+      expect(queueResponse.statusCode).toBe(200);
+      expect(queueResponse.json()).toMatchObject({
+        id: created.id,
+        status: 'queued',
+        queuedAt: expect.any(String)
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
   it('given_queued_generation_when_canceled_then_status_becomes_canceled', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
     tempDirs.push(root);
@@ -1110,7 +1251,8 @@ describe('generation routes', () => {
       config,
       presetCatalog: createCatalog(),
       generationEventBus: eventBus,
-      generationTelemetry: telemetry
+      generationTelemetry: telemetry,
+      runtimeStatus: createRuntimeStatusFixture('Online')
     });
 
     const createResponse = await app.inject({
@@ -1486,7 +1628,8 @@ describe('generation routes', () => {
 
     const app = buildTestServer({
       config,
-      presetCatalog: createCatalogRequiringInput()
+      presetCatalog: createCatalogRequiringInput(),
+      runtimeStatus: createRuntimeStatusFixture('Online')
     });
 
     const createResponse = await app.inject({
@@ -1522,7 +1665,8 @@ describe('generation routes', () => {
 
     const app = buildTestServer({
       config,
-      presetCatalog: createCatalogRequiringInput()
+      presetCatalog: createCatalogRequiringInput(),
+      runtimeStatus: createRuntimeStatusFixture('Online')
     });
 
     const createResponse = await app.inject({
@@ -1594,7 +1738,8 @@ describe('generation routes', () => {
     const app = buildTestServer({
       config,
       presetCatalog: createCatalogRequiringInput(),
-      generationStore: store
+      generationStore: store,
+      runtimeStatus: createRuntimeStatusFixture('Online')
     });
 
     const queueResponse = await app.inject({
@@ -1630,7 +1775,8 @@ describe('generation routes', () => {
     const app = buildTestServer({
       config,
       presetCatalog: createCatalogRequiringInput(),
-      generationStore: store
+      generationStore: store,
+      runtimeStatus: createRuntimeStatusFixture('Online')
     });
 
     const queueResponse = await app.inject({
@@ -1660,7 +1806,8 @@ describe('generation routes', () => {
     const app = buildTestServer({
       config,
       presetCatalog: createCatalogWithSeed(),
-      generationStore: store
+      generationStore: store,
+      runtimeStatus: createRuntimeStatusFixture('Online')
     });
 
     try {
@@ -1733,7 +1880,8 @@ describe('generation routes', () => {
     const app = buildTestServer({
       config,
       presetCatalog: createCatalogWithSeed(),
-      generationStore: store
+      generationStore: store,
+      runtimeStatus: createRuntimeStatusFixture('Online')
     });
 
     try {
@@ -1824,7 +1972,8 @@ describe('generation routes', () => {
     const app = buildTestServer({
       config,
       presetCatalog: createCatalogWithSeed(),
-      generationStore: store
+      generationStore: store,
+      runtimeStatus: createRuntimeStatusFixture('Online')
     });
 
     try {

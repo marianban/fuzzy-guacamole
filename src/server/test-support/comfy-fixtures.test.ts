@@ -6,6 +6,8 @@ import { describe, expect, test } from 'vitest';
 
 import {
   comfyFixturePaths,
+  createOnlineRuntimeStatusFixture,
+  createRuntimeStatusFixture,
   loadCapturedComfyFixture,
   loadComfyWorkflow
 } from './comfy-fixtures.js';
@@ -23,5 +25,21 @@ describe('Comfy fixture test support', () => {
 
     const workflow = await loadComfyWorkflow(comfyFixturePaths.img2imgTemplate);
     expect(workflow['12']).toBeDefined();
+  });
+
+  test('given_runtime_status_fixture_helpers_when_loading_status_then_expected_state_is_returned', () => {
+    const onlineStatus = createOnlineRuntimeStatusFixture();
+    expect(onlineStatus.getStatus()).toMatchObject({
+      state: 'Online',
+      comfy: {}
+    });
+
+    const failedStatus = createRuntimeStatusFixture('StartupFailed', {
+      lastError: 'startup failed'
+    });
+    expect(failedStatus.getStatus()).toMatchObject({
+      state: 'StartupFailed',
+      lastError: 'startup failed'
+    });
   });
 });

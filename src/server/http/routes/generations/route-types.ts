@@ -3,6 +3,7 @@ import type { GenerationEventBus } from '../../../generations/events.js';
 import type { GenerationStore } from '../../../generations/store.js';
 import type { GenerationTelemetry } from '../../../generations/telemetry.js';
 import type { PresetCatalog } from '../../../presets/preset-catalog.js';
+import type { AppRuntimeStatusService } from '../../../status/runtime-status.js';
 
 export interface RegisterGenerationRoutesOptions {
   config: AppConfig | undefined;
@@ -10,4 +11,5 @@ export interface RegisterGenerationRoutesOptions {
   store: GenerationStore;
   eventBus: GenerationEventBus;
   telemetry: GenerationTelemetry;
+  statusService: AppRuntimeStatusService;
 }

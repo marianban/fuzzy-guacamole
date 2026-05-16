@@ -2,6 +2,9 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { appStatusResponseSchema, type AppStatusState } from '../../shared/status.js';
+import type { AppRuntimeStatusService } from '../status/runtime-status.js';
+
 export interface CapturedComfyFixture {
   metadata: {
     capturedAt: string;
@@ -53,4 +56,40 @@ export async function loadComfyWorkflow(
 ): Promise<Record<string, unknown>> {
   const source = await readFile(filePath, 'utf8');
   return JSON.parse(source) as Record<string, unknown>;
+}
+
+export function createRuntimeStatusFixture(
+  state: AppStatusState,
+  options: {
+    lastError?: string;
+    since?: string;
+  } = {}
+): AppRuntimeStatusService {
+  const status = appStatusResponseSchema.parse({
+    state,
+    since: options.since ?? '2026-04-07T10:00:00.000Z',
+    ...(options.lastError !== undefined ? { lastError: options.lastError } : {}),
+    ...(state === 'Online' ? { comfy: {} } : {})
+  });
+
+  return {
+    getStatus() {
+      return status;
+    },
+    async start() {
+      return status;
+    },
+    async ensureOnline() {
+      return;
+    },
+    async stop() {
+      return;
+    }
+  };
+}
+
+export function createOnlineRuntimeStatusFixture(
+  since?: string
+): AppRuntimeStatusService {
+  return createRuntimeStatusFixture('Online', { since });
 }

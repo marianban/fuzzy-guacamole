@@ -26,7 +26,7 @@ export interface TestBuildServerOptions {
   generationStore?: GenerationStore;
   generationEventBus?: GenerationEventBus;
   generationTelemetry?: GenerationTelemetry;
-  runtimeStatus?: Pick<AppRuntimeStatusService, 'getStatus' | 'start' | 'ensureOnline'>;
+  runtimeStatus?: AppRuntimeStatusService;
   logger?: ServerLoggerOptions;
   loggerInstance?: FastifyBaseLogger;
 }

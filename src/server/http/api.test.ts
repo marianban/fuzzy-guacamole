@@ -29,7 +29,17 @@ describe.sequential('API unit (memory)', () => {
     const config = await loadTestConfig(tempDir);
     const options = createBuildServerOptions({
       config,
-      presetCatalog: createTestCatalog()
+      presetCatalog: createTestCatalog(),
+      runtimeStatus: createRuntimeStatusStub({
+        current: {
+          state: 'Online',
+          since: '2026-04-11T09:00:00.000Z'
+        },
+        started: {
+          state: 'Starting',
+          since: '2026-04-11T09:05:00.000Z'
+        }
+      })
     });
     app = buildServer(options);
   });
@@ -190,10 +200,7 @@ function createRuntimeStatusStub(values: {
   current: z.infer<typeof appStatusResponseSchema>;
   started: z.infer<typeof appStatusResponseSchema>;
 }) {
-  const runtimeStatus: Pick<
-    AppRuntimeStatusService,
-    'getStatus' | 'start' | 'ensureOnline'
-  > & {
+  const runtimeStatus: AppRuntimeStatusService & {
     current: z.infer<typeof appStatusResponseSchema>;
     started: z.infer<typeof appStatusResponseSchema>;
   } = {
@@ -201,7 +208,8 @@ function createRuntimeStatusStub(values: {
     started: appStatusResponseSchema.parse(values.started),
     getStatus: vi.fn(() => appStatusResponseSchema.parse(values.current)),
     start: vi.fn(async () => appStatusResponseSchema.parse(values.started)),
-    ensureOnline: vi.fn(async () => undefined)
+    ensureOnline: vi.fn(async () => undefined),
+    stop: vi.fn(async () => undefined)
   };
 
   return runtimeStatus;
