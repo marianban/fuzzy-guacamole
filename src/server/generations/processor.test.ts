@@ -820,6 +820,51 @@ describe('createGenerationProcessor', () => {
     expect(receivedSignals).toEqual([signal, signal, signal]);
   });
 
+  it('given_generation_processed_when_polling_comfy_history_then_processor_uses_configured_submitted_timeout', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
+    tempDirs.push(root);
+
+    const store = createTestStore(
+      createTestGeneration({
+        presetId: 'txt2img-basic/basic',
+        templateId: 'txt2img-basic',
+        presetParams: {
+          prompt: 'history timeout config',
+          steps: 5,
+          seedMode: 'fixed',
+          seed: 123
+        }
+      })
+    );
+    const pollHistory = vi.fn(async () => createCompletedPromptHistory());
+
+    const processor = createGenerationProcessor({
+      store,
+      telemetry: createTestTelemetry(),
+      comfyClient: {
+        uploadInputImage: vi.fn(async () => {
+          throw new Error('should not upload');
+        }),
+        submitPrompt: vi.fn(async () => ({ promptId: 'prompt-1' })),
+        pollHistory,
+        downloadImage: vi.fn(async () => Buffer.from([9, 8, 7]))
+      },
+      config: createTestConfig(root)
+    });
+
+    const result = await processor.process(store.current);
+
+    expect(result).toEqual({ status: 'completed' });
+    expect(pollHistory).toHaveBeenCalledWith(
+      'prompt-1',
+      expect.objectContaining({
+        pollMs: 10,
+        timeoutMs: 900000,
+        onProgress: expect.any(Function)
+      })
+    );
+  });
+
   it('given_invalid_generation_id_when_output_is_persisted_then_processor_fails_without_writing_outside_output_root', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
     tempDirs.push(root);

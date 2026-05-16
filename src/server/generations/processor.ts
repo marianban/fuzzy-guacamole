@@ -282,6 +282,7 @@ class DefaultGenerationProcessor implements GenerationProcessor {
     return this.#runWithTransientRetry(generationId, 'poll prompt history', async () =>
       this.#comfyClient.pollHistory(promptId, {
         pollMs: this.#config.timeouts.historyPollMs,
+        timeoutMs: this.#config.timeouts.submittedTimeoutMs,
         onProgress: (update) => {
           this.#telemetry.publishProgress({
             generationId,

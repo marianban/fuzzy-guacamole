@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { describe, expect, test } from 'vitest';
@@ -26,6 +26,9 @@ const openApiDocumentSchema = z.object({
 });
 
 const localGenerationTimeoutMs = 30_000;
+const localImageGenerationTimeoutMs = 900_000;
+const localGenerationPollIntervalMs = 2_000;
+const localOutputsDir = path.resolve(process.cwd(), 'data/outputs');
 
 describe.sequential('API integration (local server)', () => {
   test('given_local_server_when_requesting_openapi_then_generation_and_event_routes_are_documented', async () => {
@@ -83,6 +86,65 @@ describe.sequential('API integration (local server)', () => {
     },
     localGenerationTimeoutMs
   );
+
+  test(
+    'given_local_server_when_queueing_txt2img_ernie_preset_then_generation_completes_and_output_image_is_stored',
+    async () => {
+      const preset = await requireLocalPresetById('txt2img-ernie/basic');
+
+      const created = await createGenerationWithFetch(localBaseUrl, preset.id, {
+        prompt: 'A simple lighthouse on a rocky coast at sunrise, cinematic lighting.',
+        width: 512,
+        height: 512,
+        steps: 4,
+        cfg: 1,
+        seedMode: 'fixed',
+        seed: 123456789
+      });
+
+      await ensureLocalRuntimeQueueReady();
+
+      const queueResponse = await fetch(
+        `${localBaseUrl}/api/generations/${created.id}/queue`,
+        {
+          method: 'POST'
+        }
+      );
+      expect(queueResponse.status).toBe(200);
+
+      const completedGeneration = await waitForTerminalGenerationStatus(
+        localBaseUrl,
+        created.id,
+        localImageGenerationTimeoutMs
+      );
+
+      expect(completedGeneration.status).toBe('completed');
+
+      const outputFiles = await waitForOutputFiles(
+        created.id,
+        localImageGenerationTimeoutMs
+      );
+      expect(outputFiles.length).toBeGreaterThan(0);
+
+      const firstOutputPath = path.join(
+        localOutputsDir,
+        created.id,
+        outputFiles[0] ?? 'missing'
+      );
+      const outputStats = await stat(firstOutputPath);
+      expect(outputStats.isFile()).toBe(true);
+      expect(outputStats.size).toBeGreaterThan(0);
+
+      const deleteResponse = await fetch(
+        `${localBaseUrl}/api/generations/${created.id}`,
+        {
+          method: 'DELETE'
+        }
+      );
+      expect(deleteResponse.status).toBe(204);
+    },
+    localImageGenerationTimeoutMs
+  );
 });
 
 async function resolveLocalPreset(): Promise<z.infer<typeof presetSummarySchema>> {
@@ -117,9 +179,30 @@ async function resolveLocalPreset(): Promise<z.infer<typeof presetSummarySchema>
   return firstPreset;
 }
 
+async function requireLocalPresetById(
+  presetId: string
+): Promise<z.infer<typeof presetDetailSchema>> {
+  const response = await fetch(
+    `${localBaseUrl}/api/presets/${encodeURIComponent(presetId)}`
+  );
+
+  if (response.status === 404) {
+    throw new Error(
+      `Preset ${presetId} is not available from the running API server at ${localBaseUrl}. ` +
+        'Restart the local server so it reloads data/presets before rerunning this integration test.'
+    );
+  }
+
+  expect(response.status).toBe(200);
+  return presetDetailSchema.parse(await response.json());
+}
+
 async function createGenerationWithFetch(
   baseUrl: string,
-  presetId: string
+  presetId: string,
+  presetParams: Record<string, unknown> = {
+    prompt: 'integration test'
+  }
 ): Promise<z.infer<typeof generationSchema>> {
   const response = await fetch(`${baseUrl}/api/generations`, {
     method: 'POST',
@@ -128,13 +211,68 @@ async function createGenerationWithFetch(
     },
     body: JSON.stringify({
       presetId,
-      presetParams: {
-        prompt: 'integration test'
-      }
+      presetParams
     })
   });
   expect(response.status).toBe(201);
   return generationSchema.parse(await response.json());
+}
+
+async function waitForTerminalGenerationStatus(
+  baseUrl: string,
+  generationId: string,
+  timeoutMs: number
+): Promise<z.infer<typeof generationSchema>> {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const response = await fetch(`${baseUrl}/api/generations/${generationId}`);
+    expect(response.status).toBe(200);
+
+    const generation = generationSchema.parse(await response.json());
+    if (
+      generation.status === 'completed' ||
+      generation.status === 'failed' ||
+      generation.status === 'canceled'
+    ) {
+      return generation;
+    }
+
+    await wait(localGenerationPollIntervalMs);
+  }
+
+  throw new Error(
+    `Generation ${generationId} did not reach a terminal state within ${timeoutMs}ms.`
+  );
+}
+
+async function waitForOutputFiles(
+  generationId: string,
+  timeoutMs: number
+): Promise<string[]> {
+  const startedAt = Date.now();
+  const outputDir = path.join(localOutputsDir, generationId);
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const outputFiles = await readdir(outputDir);
+      if (outputFiles.length > 0) {
+        return outputFiles;
+      }
+    } catch {
+      // Output directory may not exist until the generation finishes writing.
+    }
+
+    await wait(localGenerationPollIntervalMs);
+  }
+
+  throw new Error(
+    `No output files found for generation ${generationId} within ${timeoutMs}ms.`
+  );
+}
+
+async function wait(delayMs: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 async function uploadGenerationInputWithFetch(

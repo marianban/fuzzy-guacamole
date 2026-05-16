@@ -1,0 +1,209 @@
+{
+  "categories": [
+    {
+      "id": "main",
+      "label": {
+        "en": "Main",
+        "sk": "Hlavne"
+      },
+      "order": 10,
+      "presentation": {
+        "collapsible": false,
+        "defaultExpanded": true
+      }
+    },
+    {
+      "id": "size",
+      "label": {
+        "en": "Image Size",
+        "sk": "Velkost obrazka"
+      },
+      "order": 20,
+      "presentation": {
+        "collapsible": false,
+        "defaultExpanded": true
+      }
+    },
+    {
+      "id": "advanced",
+      "label": {
+        "en": "Advanced Parameters",
+        "sk": "Pokrocile parametre"
+      },
+      "order": 30,
+      "presentation": {
+        "collapsible": true,
+        "defaultExpanded": false
+      }
+    }
+  ],
+  "fields": [
+    {
+      "id": "prompt",
+      "fieldType": "string",
+      "categoryId": "main",
+      "order": 10,
+      "label": {
+        "en": "Prompt",
+        "sk": "Prompt"
+      },
+      "description": {
+        "en": "Primary instruction for the generation.",
+        "sk": "Hlavna instrukcia pre generovanie."
+      },
+      "default": "",
+      "validation": {
+        "required": true,
+        "maxLength": 4000
+      },
+      "control": {
+        "type": "input",
+        "multiline": true,
+        "rows": 4,
+        "placeholder": {
+          "en": "Describe the image you want to generate",
+          "sk": "Popiste obrazok, ktory chcete vygenerovat"
+        }
+      }
+    },
+    {
+      "id": "width",
+      "fieldType": "integer",
+      "categoryId": "size",
+      "order": 20,
+      "label": {
+        "en": "Width",
+        "sk": "Sirka"
+      },
+      "default": 1344,
+      "validation": {
+        "required": true,
+        "min": 256,
+        "max": 2048
+      },
+      "control": {
+        "type": "input",
+        "inputMode": "numeric"
+      }
+    },
+    {
+      "id": "height",
+      "fieldType": "integer",
+      "categoryId": "size",
+      "order": 30,
+      "label": {
+        "en": "Height",
+        "sk": "Vyska"
+      },
+      "default": 768,
+      "validation": {
+        "required": true,
+        "min": 256,
+        "max": 2048
+      },
+      "control": {
+        "type": "input",
+        "inputMode": "numeric"
+      }
+    },
+    {
+      "id": "steps",
+      "fieldType": "integer",
+      "categoryId": "advanced",
+      "order": 40,
+      "label": {
+        "en": "Steps",
+        "sk": "Kroky"
+      },
+      "default": 8,
+      "validation": {
+        "required": true,
+        "min": 1,
+        "max": 100
+      },
+      "control": {
+        "type": "slider",
+        "min": 1,
+        "max": 100,
+        "step": 1
+      }
+    },
+    {
+      "id": "cfg",
+      "fieldType": "number",
+      "categoryId": "advanced",
+      "order": 50,
+      "label": {
+        "en": "CFG",
+        "sk": "CFG"
+      },
+      "default": 1,
+      "validation": {
+        "required": true,
+        "min": 1,
+        "max": 20
+      },
+      "control": {
+        "type": "slider",
+        "min": 1,
+        "max": 20,
+        "step": 0.5
+      }
+    },
+    {
+      "id": "seedMode",
+      "fieldType": "enum",
+      "categoryId": "advanced",
+      "order": 60,
+      "label": {
+        "en": "Seed Mode",
+        "sk": "Rezim seedu"
+      },
+      "default": "random",
+      "validation": {
+        "required": true
+      },
+      "control": {
+        "type": "select",
+        "options": [
+          {
+            "value": "random",
+            "label": {
+              "en": "Random",
+              "sk": "Nahodny"
+            }
+          },
+          {
+            "value": "fixed",
+            "label": {
+              "en": "Fixed",
+              "sk": "Pevny"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "seed",
+      "fieldType": "integer",
+      "categoryId": "advanced",
+      "order": 70,
+      "label": {
+        "en": "Seed",
+        "sk": "Seed"
+      },
+      "validation": {
+        "required": false,
+        "min": 0
+      },
+      "visibility": {
+        "field": "seedMode",
+        "equals": "fixed"
+      },
+      "control": {
+        "type": "input",
+        "inputMode": "numeric"
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "txt2img-ernie/basic",
+  "name": "Txt2Img - Ernie Image Turbo",
+  "type": "txt2img",
+  "defaults": {
+    "prompt": "A highly detailed cute cartoon bunny character standing on a tropical beach holding a wooden sign that says 'Vitaj v skole', warm sunset light, cinematic 3D cartoon render.",
+    "steps": 8,
+    "cfg": 1,
+    "width": 1344,
+    "height": 768,
+    "seed": 605520399649534,
+    "seedMode": "random"
+  }
+}
