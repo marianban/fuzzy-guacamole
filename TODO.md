@@ -189,6 +189,7 @@ Work expected in the evaluation:
 - Prefer dedicated history/restore endpoints or a dedicated history subresource over inflating the base generation payload with the full revision timeline.
 - Define how restoring a prior input updates the canonical `inputImagePath` and any related generation telemetry or edit history.
 - Update the spec and architecture docs to reflect the chosen undo/history contract.
+- This change would probably only need adding two nullable columns into the generations table: prevGenerationId and nextGenerationId
 
 Definition of done:
 - The product has an explicit decision on whether uploaded-input undo is session-local or persisted.
