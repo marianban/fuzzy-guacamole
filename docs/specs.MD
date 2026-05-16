@@ -17,10 +17,17 @@ Key principles:
 - No auth, LAN-only, truly open on LAN
 - Global history (no per-user sessions)
 
-Terminology:
-- A **generation** is a persisted record (DB + folders) that can be re-run multiple times.
-- A **run** is one execution attempt of a generation that produces one output image.
-- Runs are not persisted as first-class records in v1. The generation retains only the latest run's execution metadata; earlier runs remain observable through generated output files and logs.
+## 1.1 Product invariants
+
+These are contract-level rules that users and implementers can rely on throughout v1.
+
+- Deployment model: the product is LAN-only in v1 and intentionally has no authentication or per-user session isolation.
+- History model: history is global in v1. All persisted generations belong to the same shared workspace.
+- Output model: one run produces exactly one canonical output image. v1 does not support batching or multi-output result selection in the user-facing contract.
+- Generation and run semantics: a **generation** is the persisted record a user edits, queues, re-runs, and deletes. A **run** is one execution attempt of that generation. Runs are not persisted as first-class records in v1; the generation retains only the latest run metadata while output files and logs provide historical evidence of earlier runs.
+- Startup state model: app readiness is always represented as one of `Offline`, `Starting`, `Online`, or `StartupFailed`.
+- Cancel model: cancel is per generation. Canceling a queued generation moves it to `canceled`. Canceling a submitted generation must attempt to stop remote execution and resolve to `canceled`, or `failed` if cancellation cannot be confirmed.
+- Preset bundle model: presets are stored as preset bundles on disk. A preset bundle owns exactly one workflow template (`preset.template.json`) and exactly one control model (`model.json`), and can contain one or more preset variants (`*.preset.json`). Preset variants provide named defaults and inherit their template and control model from the containing bundle.
 
 ---
 
