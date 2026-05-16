@@ -45,6 +45,46 @@ describe.sequential('API integration (local server)', () => {
     });
   });
 
+  test('given_local_server_when_listing_presets_then_response_contains_every_shipped_preset', async () => {
+    const response = await fetch(`${localBaseUrl}/api/presets`);
+    expect(response.status).toBe(200);
+
+    const presets = presetListResponseSchema.parse(await response.json());
+    const shippedPresetIds = await listShippedPresetIds();
+
+    expect(presets.map((preset) => preset.id).sort()).toEqual(shippedPresetIds);
+  });
+
+  test('given_local_server_when_requesting_each_shipped_preset_then_detail_endpoint_returns_it', async () => {
+    const response = await fetch(`${localBaseUrl}/api/presets`);
+    expect(response.status).toBe(200);
+
+    const presets = presetListResponseSchema.parse(await response.json());
+    const shippedPresetIds = await listShippedPresetIds();
+
+    await Promise.all(
+      shippedPresetIds.map(async (presetId) => {
+        const presetSummary = presets.find((preset) => preset.id === presetId);
+        expect(presetSummary).toBeDefined();
+
+        const detailResponse = await fetch(
+          `${localBaseUrl}/api/presets/${encodeURIComponent(presetId)}`
+        );
+        expect(detailResponse.status).toBe(200);
+
+        const presetDetail = presetDetailSchema.parse(await detailResponse.json());
+        expect(presetDetail).toMatchObject({
+          id: presetSummary?.id,
+          name: presetSummary?.name,
+          type: presetSummary?.type,
+          templateId: presetSummary?.templateId,
+          templateFile: presetSummary?.templateFile,
+          defaults: presetSummary?.defaults
+        });
+      })
+    );
+  });
+
   test(
     'given_local_server_when_running_generation_lifecycle_then_create_queue_cancel_and_delete_work',
     async () => {
@@ -269,6 +309,29 @@ async function waitForOutputFiles(
   throw new Error(
     `No output files found for generation ${generationId} within ${timeoutMs}ms.`
   );
+}
+
+async function listShippedPresetIds(): Promise<string[]> {
+  const presetsRoot = path.resolve(process.cwd(), 'data/presets');
+  const templateDirectories = await readdir(presetsRoot, { withFileTypes: true });
+
+  const presetIds = await Promise.all(
+    templateDirectories
+      .filter((entry) => entry.isDirectory())
+      .map(async (templateDirectory) => {
+        const templatePath = path.join(presetsRoot, templateDirectory.name);
+        const templateEntries = await readdir(templatePath, { withFileTypes: true });
+
+        return templateEntries
+          .filter((entry) => entry.isFile() && entry.name.endsWith('.preset.json'))
+          .map(
+            (entry) =>
+              `${templateDirectory.name}/${entry.name.replace(/\.preset\.json$/, '')}`
+          );
+      })
+  );
+
+  return presetIds.flat().sort();
 }
 
 async function wait(delayMs: number): Promise<void> {
