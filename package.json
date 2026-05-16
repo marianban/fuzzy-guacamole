@@ -27,7 +27,9 @@
     "format:write": "prettier --write .",
     "cloc": "npx cloc . --exclude-dir=coverage,dist,node_modules",
     "lint:styles": "stylelint src/client/src/**/*.{css,scss,sass}",
-    "fallow": "fallow"
+    "fallow": "fallow",
+    "drizzle:docs:generate": "drizzle-docs generate ./src/server/db/schema.ts -d postgresql --single-file -o ./docs/DB.md",
+    "drizzle:studio": "npx drizzle-kit studio"
   },
   "keywords": [
     "comfyui",
@@ -66,6 +68,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/coverage-v8": "^4.1.2",
     "concurrently": "^9.2.1",
+    "drizzle-docs-generator": "^0.7.2",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.7.0",
     "eslint-config-prettier": "^10.1.8",
