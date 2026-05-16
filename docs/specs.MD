@@ -736,6 +736,7 @@ All API endpoints must be documented in the OpenAPI Specification.
 
 Notes:
 - SSE events are live-only in v1 (no replay/catch-up); they emit generation upsert/deleted events and transient telemetry events.
+- Telemetry identifiers stay on the SSE event envelope: `generationId`, `runId`, `sequence`, and `occurredAt` are event metadata, while the nested `telemetry` payload contains only kind-specific telemetry fields.
 - Generation telemetry events are ordered per live run using `runId` and `sequence`.
 - Generation telemetry is not persisted. Browser reloads lose prior telemetry; backend log files are the durable diagnostic source.
 - `+ New generation` is client-only and does not hit the backend.

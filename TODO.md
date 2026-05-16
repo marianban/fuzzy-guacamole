@@ -67,7 +67,7 @@ Current evidence:
 Work expected in the PR:
 - Restrict canonical output extraction to actual image outputs only.
 - Fail the run if the preferred canonical `SaveImage` node does not yield an image instead of silently accepting non-image artifacts.
-- Decide whether future preset metadata should name an explicit output node instead of relying on lowest-numbered `SaveImage` detection.
+- Decide whether future preset metadata should name an explicit output node instead of relying on lowest-numbered `SaveImage` detection. (Probably this is the best so we can remove the fallback logic and avoid ambiguity in multi-node workflows.)
 - Update the spec and server behavior/tests to match the chosen rule.
 
 Definition of done:
@@ -75,28 +75,6 @@ Definition of done:
 - Runs fail deterministically when the canonical output node does not produce an image.
 - Output selection behavior is explicitly documented.
 - Workflows with multiple possible outputs have deterministic and unsurprising v1 behavior.
-
-## P2. Evaluate duplicating generationId inside telemetry payloads
-
-Why this needs evaluation:
-- Current SSE telemetry events carry `generationId` on the event envelope alongside `runId`, `sequence`, `occurredAt`, and nested `telemetry`.
-- The nested telemetry payload intentionally omits transport fields such as `generationId`.
-- Client consumers or log bridges may be simpler if each telemetry payload also contains `generationId`, even when detached from the SSE envelope.
-
-Current evidence:
-- `src/shared/generations.ts`
-- `src/server/generations/telemetry.ts`
-- `src/server/generations/telemetry.test.ts`
-- `docs/specs.MD`
-
-Work expected in the evaluation:
-- Decide whether `generationId` should remain envelope-only or also be duplicated inside nested telemetry payloads.
-- If duplicated, update shared schemas, telemetry publishing, tests, and SSE consumer expectations.
-- Keep a single documented convention so clients do not have to guess where identifiers live.
-
-Definition of done:
-- Telemetry identifier placement is explicitly documented.
-- Tests cover the chosen event shape.
 
 ## P2. Review history timeout retry behavior
 
