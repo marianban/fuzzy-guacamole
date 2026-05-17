@@ -168,6 +168,7 @@ Template rules:
 - Field metadata is defined in `model.json`, not inline in the template.
 - `implicitRuntimeParamKeys` declares runtime-only token keys that may appear in `workflow` without corresponding `model.json.fields[]` entries.
 - For img2img preset bundles, `inputImagePath` is declared this way so uploaded input image references stay outside the control-panel model.
+- `POST /api/generations/{generationId}/input` is contract-gated by this metadata: the route is allowed only when the selected preset template declares `inputImagePath` in `implicitRuntimeParamKeys`.
 
 ### 4.3 model.json
 ```json
@@ -457,11 +458,17 @@ Implementation rules:
    - If it contains a template token, replace occurrences with the corresponding parameter value.
    - If the entire string equals the token, replace with the raw value (so numbers can stay numbers).
    - If the token is embedded in a larger string, replace with the stringified value.
+    - If the token references an optional model field that resolves to no value, materialize the missing value instead of failing queue-time validation.
+    - For optional model fields, `undefined`, `null`, `""`, and whitespace-only strings are treated as no value.
+    - If an optional model-field token occupies the entire JSON string value and resolves to no value, materialize it as JSON `null`.
+    - If an optional model-field token is embedded inside a larger string and resolves to no value, materialize it as `""` within that string.
+    - The full-token `null` rule applies uniformly to optional `string`, `integer`, `number`, and `enum` model fields.
 
 Validation rules (v1):
 - At queue time, fail if any template token exists in the template workflow but does not reference either a field id from `model.json` or a key listed in `template.implicitRuntimeParamKeys`.
 - Fail if any required field resolves to no value.
 - Fail if any runtime-only token declared by the template and used by the workflow resolves to no value.
+- If the selected preset template declares `inputImagePath` in `implicitRuntimeParamKeys`, fail queueing unless that runtime parameter references an existing readable file.
 - Fail if preset variant `type` and workflow template `type` do not match.
 - Fail if preset bundle `preset.template.json` file is missing.
 - Fail if preset bundle `model.json` file is missing.
@@ -624,9 +631,14 @@ Queue readiness:
 - Backend injects the uploaded file reference into the workflow (`LoadImage.inputs.image`) before `POST /prompt`.
 - Backend does not rely on manual filesystem copy into ComfyUI `input/`.
 - Final outputs are always downloaded from Comfy and persisted under `/data/outputs/{generationId}/...` regardless of Comfy-side storage layout.
-- `POST /api/generations/{generationId}/input` is allowed only for `draft`, `completed`, `failed`, and `canceled` generations.
+- `POST /api/generations/{generationId}/input` is allowed only for `draft`, `completed`, `failed`, and `canceled` generations whose selected preset template declares `inputImagePath` in `implicitRuntimeParamKeys`.
 - Input upload is rejected for `queued` and `submitted` generations.
+- Input upload is also rejected with `409 Conflict` when the generation's preset contract does not declare `inputImagePath`, for example txt2img generations, with the message `Generation "{generationId}" cannot accept uploaded input because its preset does not declare inputImagePath.`
+- The request body is `multipart/form-data` and must include a file part named `file`; if that part is missing, the route returns `400`.
 - Uploading input replaces the generation's server-owned `inputImagePath` runtime parameter.
+- Each successful upload is stored at a unique generation-scoped path under `/data/inputs/{generationId}/original/`, even when the same filename is uploaded again, so older uploaded inputs remain available for future restore/undo behavior.
+- v1 upload validation stops at generation-state checks, preset-contract checks, config availability, and multipart file presence. It does not add content-type, format, or image-decoding validation at upload time.
+- Queue-time validation still requires `inputImagePath` to reference an existing readable file whenever the selected preset template consumes that runtime parameter.
 
 ### 9.1 Checking when a run is "ready"
 
@@ -756,7 +768,9 @@ Notes:
 - `GET /api/presets/{presetId}` must expose the resolved template plus the resolved preset `model.json` so the client can build the control panel dynamically.
 - Preset parameter payloads are keyed by `fieldId` from `model.json`.
 - Runtime-only parameter keys are not valid client-submitted preset parameter keys, even when they appear in persisted generation `presetParams`.
-- `POST /api/generations/{generationId}/input` writes the server-owned `inputImagePath` runtime parameter and is allowed only while the generation is not active.
+- `POST /api/generations/{generationId}/input` writes the server-owned `inputImagePath` runtime parameter and is allowed only while the generation is not active and the selected preset template declares `inputImagePath` in `implicitRuntimeParamKeys`.
+- `POST /api/generations/{generationId}/input` requires a `multipart/form-data` request with a `file` part; missing `file` returns `400`, and presets without the `inputImagePath` runtime contract return `409`.
+- Successful re-uploads replace the canonical `presetParams.inputImagePath` pointer while preserving previously stored uploaded files on disk at older unique paths.
 - Public generation responses and SSE generation payloads do not expose internal execution metadata (`executionSnapshot`, `promptRequest`, `promptResponse`) in v1.
 - On Generate, the UI creates the server-side generation (`POST /api/generations`), then:
   - `img2img`: upload input (`POST /api/generations/{generationId}/input`), then queue (`POST /api/generations/{generationId}/queue`)

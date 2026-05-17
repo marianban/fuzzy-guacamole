@@ -3,6 +3,7 @@ import type { PresetModelField } from '../../shared/presets.js';
 
 interface BasicImg2ImgTestCatalogOptions {
   includeStepsField?: boolean;
+  supportsInputImageUpload?: boolean;
 }
 
 export function createBasicImg2ImgTestCatalog(
@@ -65,11 +66,18 @@ export function createBasicImg2ImgTestCatalog(
     template: {
       id: 'img2img-basic',
       type: 'img2img' as const,
-      implicitRuntimeParamKeys: [],
+      implicitRuntimeParamKeys: options.supportsInputImageUpload
+        ? ['inputImagePath']
+        : [],
       workflow: {
         '1': {
           class_type: 'PromptNode',
-          inputs: { prompt: '{{prompt}}' }
+          inputs: options.supportsInputImageUpload
+            ? {
+                prompt: '{{prompt}}',
+                image: '{{inputImagePath}}'
+              }
+            : { prompt: '{{prompt}}' }
         }
       }
     }

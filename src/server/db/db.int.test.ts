@@ -693,7 +693,7 @@ describe('postgres-backed generations', () => {
     const root = await mkdtemp(path.join(tmpdir(), 'fg-db-upload-'));
     tempDirs.push(root);
     const config = await loadTestConfig(root);
-    const presetCatalog = createTestCatalog();
+    const presetCatalog = createTestCatalog({ supportsInputImageUpload: true });
     const testDatabase = await createTestDatabaseContext();
     await testDatabase.migrate();
 

@@ -1540,7 +1540,7 @@ describe('generation routes', () => {
 
     const app = buildTestServer({
       config,
-      presetCatalog: createCatalog()
+      presetCatalog: createCatalogRequiringInput()
     });
 
     const createResponse = await app.inject({
@@ -1585,6 +1585,134 @@ describe('generation routes', () => {
 
     const savedContent = await readFile(detail.presetParams.inputImagePath);
     expect(savedContent.equals(fileBuffer)).toBe(true);
+
+    await app.close();
+  });
+
+  it('given_generation_without_input_runtime_contract_when_uploading_input_then_request_is_rejected', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalogWithSeed()
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/generations',
+      payload: {
+        presetId: 'txt2img-basic/basic',
+        presetParams: {
+          prompt: 'text only'
+        }
+      }
+    });
+    const created = createResponse.json() as { id: string };
+
+    const multipart = buildMultipartPayload('input.png', Buffer.from('txt2img input'));
+    const uploadResponse = await app.inject({
+      method: 'POST',
+      url: `/api/generations/${created.id}/input`,
+      headers: {
+        'content-type': `multipart/form-data; boundary=${multipart.boundary}`
+      },
+      payload: multipart.payload
+    });
+
+    expect(uploadResponse.statusCode).toBe(409);
+    expect(uploadResponse.json()).toMatchObject({
+      message: `Generation "${created.id}" cannot accept uploaded input because its preset does not declare inputImagePath.`
+    });
+
+    await app.close();
+  });
+
+  it('given_same_filename_reuploaded_when_uploading_input_then_new_runtime_path_replaces_prior_file_reference_without_overwriting_old_file', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-gen-'));
+    tempDirs.push(root);
+    await mkdir(root, { recursive: true });
+    const config = await loadTestConfig(root);
+
+    const app = buildTestServer({
+      config,
+      presetCatalog: createCatalogRequiringInput()
+    });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/generations',
+      payload: {
+        presetId: 'img2img-basic/basic',
+        presetParams: {
+          prompt: 'replace input'
+        }
+      }
+    });
+    const created = createResponse.json() as { id: string };
+
+    const firstBuffer = Buffer.from('first image bytes');
+    const firstMultipart = buildMultipartPayload('input.png', firstBuffer);
+    const firstUploadResponse = await app.inject({
+      method: 'POST',
+      url: `/api/generations/${created.id}/input`,
+      headers: {
+        'content-type': `multipart/form-data; boundary=${firstMultipart.boundary}`
+      },
+      payload: firstMultipart.payload
+    });
+    expect(firstUploadResponse.statusCode).toBe(204);
+
+    const firstDetailResponse = await app.inject({
+      method: 'GET',
+      url: `/api/generations/${created.id}`
+    });
+    const firstDetail = firstDetailResponse.json() as {
+      presetParams: {
+        inputImagePath: string;
+      };
+    };
+
+    const secondBuffer = Buffer.from('second image bytes');
+    const secondMultipart = buildMultipartPayload('input.png', secondBuffer);
+    const secondUploadResponse = await app.inject({
+      method: 'POST',
+      url: `/api/generations/${created.id}/input`,
+      headers: {
+        'content-type': `multipart/form-data; boundary=${secondMultipart.boundary}`
+      },
+      payload: secondMultipart.payload
+    });
+    expect(secondUploadResponse.statusCode).toBe(204);
+
+    const secondDetailResponse = await app.inject({
+      method: 'GET',
+      url: `/api/generations/${created.id}`
+    });
+    const secondDetail = secondDetailResponse.json() as {
+      presetParams: {
+        inputImagePath: string;
+      };
+    };
+
+    expect(secondDetail.presetParams.inputImagePath).not.toBe(
+      firstDetail.presetParams.inputImagePath
+    );
+    expect(secondDetail.presetParams.inputImagePath).toContain(`${created.id}`);
+    expect(secondDetail.presetParams.inputImagePath).toContain('original');
+
+    const [firstSavedContent, secondSavedContent] = await Promise.all([
+      readFile(firstDetail.presetParams.inputImagePath),
+      readFile(secondDetail.presetParams.inputImagePath)
+    ]);
+
+    expect(firstSavedContent.equals(firstBuffer)).toBe(true);
+    expect(secondSavedContent.equals(secondBuffer)).toBe(true);
+    await expect(stat(firstDetail.presetParams.inputImagePath)).resolves.toMatchObject({
+      isFile: expect.any(Function)
+    });
 
     await app.close();
   });

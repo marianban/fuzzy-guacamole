@@ -2,66 +2,6 @@
 
 Review scope: `src/server`, shared server contracts in `src/shared`, and the current architecture/spec docs. The items below are missing server capabilities, not polish tasks. Each item is scoped to be implementable as one meaningful PR.
 
-## P2. Clarify optional workflow token materialization semantics
-
-Why this needs evaluation:
-- The execution builder currently treats missing optional model fields as a valid materialization case instead of a queue-time validation failure.
-- When a workflow value is exactly an optional token such as `{{negativePrompt}}`, the builder materializes the missing value as `null`.
-- When an optional token is embedded inside a larger string, the builder materializes the missing value as an empty string.
-- The spec describes the required-field failure path and normal token replacement, but it does not define this missing-optional branch.
-
-Current evidence:
-- `docs/specs.MD`
-- `src/server/generations/execution/builder.ts`
-- `src/server/generations/execution/builder.test.ts`
-
-Work expected in the evaluation:
-- Decide and document the v1 contract for missing optional field tokens during workflow materialization.
-- Make blank-string handling explicit, because the current builder treats blank optional strings as missing values.
-- State whether full-token omissions should continue to become `null`, whether embedded omissions should continue to become `""`, and whether that rule applies uniformly across optional string, integer, number, and enum fields.
-- Update implementation/tests if the chosen contract differs from the current builder behavior.
-
-Definition of done:
-- Preset authors have an explicit spec for how missing optional fields materialize into workflow JSON.
-- The spec and tests agree on blank and omitted optional-field behavior.
-
-## P2. Enforce contract-gated generation input endpoint and finalize multipart shape
-
-Why this needs evaluation:
-- The intended contract is now that `POST /api/generations/{generationId}/input` is allowed only when the selected preset template declares `inputImagePath`, but the current upload route accepts any non-active generation regardless of preset contract.
-- The route requires a multipart field named `file`, stores the uploaded path in `presetParams.inputImagePath`, and returns `400` when that field is missing.
-- Queue-time validation later requires `inputImagePath` to still reference an existing readable file when the selected preset template declares that runtime parameter.
-- The spec and architecture doc do not yet state that `txt2img` uploads must be rejected at the route boundary.
-
-Current evidence:
-- `docs/specs.MD`
-- `docs/architecture.MD`
-- `src/server/http/routes/generations/upload-generation-input-route.ts`
-- `src/server/presets/preset-params-validator.ts`
-- `src/server/generations/generations.test.ts`
-
-Work expected in the evaluation:
-- Update the spec to make `POST /api/generations/{generationId}/input` explicitly contract-gated by the selected preset template declaring `inputImagePath`.
-- Reject uploads for generations whose preset template does not declare `inputImagePath`.
-- Return `409 Conflict` when a generation cannot accept uploaded input because its preset contract does not allow it.
-- Use an explicit contract-based error message, for example: `Generation "{generationId}" cannot accept uploaded input because its preset does not declare inputImagePath.`
-- Document the multipart request contract, including the required `file` field.
-- Keep replacement semantics simple: a new successful upload silently replaces the stored `inputImagePath` runtime parameter for the generation, while retaining previously uploaded input files so undo can restore an earlier input.
-- Store each successful upload at a unique path even when the user uploads the same filename again, so older inputs remain restorable.
-- Keep v1 file handling as-is: no additional content-type, format, or image decoding validation at upload time.
-- Document the queue-time readable-file requirement for `inputImagePath` when a preset consumes that runtime parameter.
-- Add focused tests proving `txt2img` generations cannot accept uploaded input.
-
-Definition of done:
-- The spec states that only generations whose selected preset template declares `inputImagePath` may call the input-upload endpoint.
-- Generations whose preset contract does not declare `inputImagePath` receive `409 Conflict` from the upload route.
-- Contract-based upload rejections use an explicit message that names the missing `inputImagePath` declaration.
-- Multipart and queue-time runtime-file validation rules are explicit.
-- Successful re-uploads silently replace the stored `inputImagePath` reference while preserving older uploaded inputs for undo/history behavior.
-- Successful uploads are written to unique stored paths so same-name uploads do not overwrite earlier undoable inputs.
-- The spec keeps v1 upload validation limited to the current multipart/file-presence and readable-file rules.
-- Tests cover the chosen behavior for both `img2img` and `txt2img` generations.
-
 ## P2. Evaluate persisted uploaded-input history and undo model
 
 Why this needs evaluation:

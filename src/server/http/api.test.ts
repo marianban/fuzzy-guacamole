@@ -98,35 +98,53 @@ describe.sequential('API unit (memory)', () => {
   });
 
   test('given_empty_upload_filename_when_uploading_input_then_route_falls_back_to_input_bin', async () => {
-    const created = await createGenerationWithInject(
-      requireApp(app),
-      'img2img-basic/basic'
+    const uploadApp = buildServer(
+      createBuildServerOptions({
+        config: await loadTestConfig(tempDir),
+        presetCatalog: createTestCatalog({ supportsInputImageUpload: true }),
+        runtimeStatus: createRuntimeStatusStub({
+          current: {
+            state: 'Online',
+            since: '2026-04-11T09:00:00.000Z'
+          },
+          started: {
+            state: 'Starting',
+            since: '2026-04-11T09:05:00.000Z'
+          }
+        })
+      })
     );
-    const fileBuffer = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-    const multipart = buildMultipartPayload('', fileBuffer);
 
-    const uploadResponse = await requireApp(app).inject({
-      method: 'POST',
-      url: `/api/generations/${created.id}/input`,
-      headers: {
-        'content-type': `multipart/form-data; boundary=${multipart.boundary}`
-      },
-      payload: multipart.payload
-    });
+    try {
+      const created = await createGenerationWithInject(uploadApp, 'img2img-basic/basic');
+      const fileBuffer = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+      const multipart = buildMultipartPayload('', fileBuffer);
 
-    expect(uploadResponse.statusCode).toBe(204);
+      const uploadResponse = await uploadApp.inject({
+        method: 'POST',
+        url: `/api/generations/${created.id}/input`,
+        headers: {
+          'content-type': `multipart/form-data; boundary=${multipart.boundary}`
+        },
+        payload: multipart.payload
+      });
 
-    const detailResponse = await requireApp(app).inject({
-      method: 'GET',
-      url: `/api/generations/${created.id}`
-    });
-    expect(detailResponse.statusCode).toBe(200);
+      expect(uploadResponse.statusCode).toBe(204);
 
-    const detail = generationSchema.parse(detailResponse.json());
-    const inputImagePath = z.string().parse(detail.presetParams.inputImagePath);
+      const detailResponse = await uploadApp.inject({
+        method: 'GET',
+        url: `/api/generations/${created.id}`
+      });
+      expect(detailResponse.statusCode).toBe(200);
 
-    expect(path.basename(inputImagePath)).toBe('input.bin');
-    await expect(readFile(inputImagePath)).resolves.toEqual(fileBuffer);
+      const detail = generationSchema.parse(detailResponse.json());
+      const inputImagePath = z.string().parse(detail.presetParams.inputImagePath);
+
+      expect(path.basename(inputImagePath)).toMatch(/^[0-9a-f-]+-input\.bin$/);
+      await expect(readFile(inputImagePath)).resolves.toEqual(fileBuffer);
+    } finally {
+      await uploadApp.close();
+    }
   });
 
   test('given_runtime_status_service_when_requesting_status_then_live_state_is_returned', async () => {

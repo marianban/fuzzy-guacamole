@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -14,6 +15,7 @@ import {
   getGenerationById,
   logGenerationWarning,
   publishGenerationUpsert,
+  sendGenerationCurrentStateConflict,
   sendGenerationNotFound,
   sendGenerationStatusConflict
 } from './route-helpers.js';
@@ -98,6 +100,21 @@ export function registerUploadGenerationInputRoute(
         });
       }
 
+      const preset = options.presetCatalog.getById(generation.presetId);
+      if (
+        preset === undefined ||
+        !preset.template.implicitRuntimeParamKeys.includes('inputImagePath')
+      ) {
+        return sendGenerationCurrentStateConflict({
+          request,
+          reply,
+          warningMessage: uploadGenerationWarningMessage,
+          generation,
+          warningCode: 'generation_input_contract_not_allowed',
+          responseMessage: `Generation "${generation.id}" cannot accept uploaded input because its preset does not declare inputImagePath.`
+        });
+      }
+
       const filePart = await request.file();
       if (filePart === undefined) {
         logGenerationWarning(request, uploadGenerationWarningMessage, {
@@ -154,7 +171,7 @@ async function storeUploadedGenerationInput(input: {
   );
   await mkdir(targetDir, { recursive: true });
 
-  const targetPath = path.resolve(targetDir, safeFileName);
+  const targetPath = path.resolve(targetDir, `${randomUUID()}-${safeFileName}`);
   await pipeline(input.filePart.file, createWriteStream(targetPath));
 
   return targetPath;

@@ -109,7 +109,7 @@ describe.sequential('server logging', () => {
     const app = buildServer(
       createBuildServerOptions({
         config: await loadTestConfig(tempDir),
-        presetCatalog: createTestCatalog(),
+        presetCatalog: createTestCatalog({ supportsInputImageUpload: true }),
         logger: {
           level: 'info',
           stream: logs.stream

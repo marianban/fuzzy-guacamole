@@ -104,7 +104,7 @@ Implemented routes:
 - `GET /api/generations/{generationId}` -> single generation detail
 - `POST /api/generations` -> creates draft generation from preset + params after model-driven validation/default resolution and persists resolved defaults in `presetParams`
 - `PATCH /api/generations/{generationId}` -> updates editable generation snapshots in draft/completed/failed/canceled states, resolves defaults, updates `templateId` from the target preset, preserves same-preset runtime-only params such as `inputImagePath`, and returns `409` for queued/submitted rows
-- `POST /api/generations/{generationId}/input` -> accepts multipart file upload, stores path in `presetParams.inputImagePath`, and returns `204`
+- `POST /api/generations/{generationId}/input` -> accepts multipart file upload only for non-active generations whose preset template declares `inputImagePath`, stores each upload at a distinct generation-scoped input path, updates `presetParams.inputImagePath`, and returns `204`
 - `POST /api/generations/{generationId}/queue` -> validates resolved preset/runtime params plus workflow template tokens, persists the full internal `executionSnapshot`, then transitions generation to `queued` and sets `queuedAt`; the background worker then claims queued rows oldest-first and moves them to a terminal state
 - `POST /api/generations/{generationId}/cancel` -> transitions `queued` generation to `canceled`, or interrupts submitted work through Comfy and resolves to `canceled` or `failed`
 - `DELETE /api/generations/{generationId}` -> deletes draft/queued/completed/failed/canceled generations and removes persisted input/output folders; submitted rows still return `409`
