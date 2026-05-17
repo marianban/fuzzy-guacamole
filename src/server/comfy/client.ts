@@ -493,34 +493,21 @@ export function extractDeterministicOutputImage(
     throw new Error(`No history entry with outputs found for prompt ${promptId}.`);
   }
 
-  const nodeIds = Object.keys(entry.outputs);
-  if (preferredSaveNodeId !== undefined && nodeIds.includes(preferredSaveNodeId)) {
-    const preferred = extractImageFromNodeOutput(
-      preferredSaveNodeId,
-      entry.outputs[preferredSaveNodeId]
-    );
-    if (preferred !== undefined) {
-      return preferred;
-    }
+  if (preferredSaveNodeId === undefined) {
+    throw new Error(`No SaveImage node configured for prompt ${promptId}.`);
   }
 
-  const sortedNodeIds = nodeIds.sort((left, right) => {
-    const leftNumber = Number(left);
-    const rightNumber = Number(right);
-    if (!Number.isNaN(leftNumber) && !Number.isNaN(rightNumber)) {
-      return leftNumber - rightNumber;
-    }
-    return left.localeCompare(right);
-  });
-
-  for (const nodeId of sortedNodeIds) {
-    const found = extractImageFromNodeOutput(nodeId, entry.outputs[nodeId]);
-    if (found !== undefined) {
-      return found;
-    }
+  const preferred = extractImageFromNodeOutput(
+    preferredSaveNodeId,
+    entry.outputs[preferredSaveNodeId]
+  );
+  if (preferred !== undefined) {
+    return preferred;
   }
 
-  throw new Error(`No output images found for prompt ${promptId}.`);
+  throw new Error(
+    `No SaveImage output images found for prompt ${promptId} at node ${preferredSaveNodeId}.`
+  );
 }
 
 function extractImageFromNodeOutput(

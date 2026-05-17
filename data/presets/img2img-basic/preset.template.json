@@ -201,44 +201,6 @@
         "title": "CLIPLoader (GGUF)"
       }
     },
-    "19": {
-      "inputs": {
-        "model_name": "4xNomos8kHAT-L_otf.pth"
-      },
-      "class_type": "UpscaleModelLoader",
-      "_meta": {
-        "title": "Load Upscale Model"
-      }
-    },
-    "20": {
-      "inputs": {
-        "upscale_model": [
-          "19",
-          0
-        ],
-        "image": [
-          "22",
-          0
-        ]
-      },
-      "class_type": "ImageUpscaleWithModel",
-      "_meta": {
-        "title": "Upscale Image (using Model)"
-      }
-    },
-    "21": {
-      "inputs": {
-        "filename_prefix": "upscaled",
-        "images": [
-          "20",
-          0
-        ]
-      },
-      "class_type": "SaveImage",
-      "_meta": {
-        "title": "Save Image"
-      }
-    },
     "22": {
       "inputs": {
         "anything": [

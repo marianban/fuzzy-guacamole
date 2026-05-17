@@ -437,6 +437,89 @@ describe('createGenerationProcessor', () => {
     );
   });
 
+  it('given_history_without_preferred_save_image_output_when_processed_then_generation_fails', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
+    tempDirs.push(root);
+
+    const generation = {
+      ...createTestGeneration({
+        presetId: 'missing/basic',
+        templateId: 'missing',
+        presetParams: {
+          prompt: 'missing save image output',
+          steps: 5,
+          seedMode: 'random',
+          seed: 8675309
+        }
+      }),
+      executionSnapshot: {
+        workflow: {
+          '3': {
+            class_type: 'SaveImage',
+            inputs: {
+              filename_prefix: 'result'
+            }
+          }
+        },
+        resolvedParams: {
+          prompt: 'missing save image output',
+          steps: 5,
+          seedMode: 'random',
+          seed: 8675309
+        },
+        preferredOutputNodeId: '3'
+      }
+    } as StoredGeneration & {
+      executionSnapshot: GenerationExecutionPlan;
+    };
+
+    const processor = createGenerationProcessor({
+      store: createTestStore(generation as StoredGeneration),
+      telemetry: createTestTelemetry(),
+      comfyClient: {
+        uploadInputImage: vi.fn(async () => {
+          throw new Error('should not upload');
+        }),
+        submitPrompt: vi.fn(async () => ({ promptId: 'prompt-1' })),
+        pollHistory: vi.fn(async () => ({
+          history: {
+            'prompt-1': {
+              outputs: {
+                '3': {
+                  images: [{ filename: '' }]
+                },
+                '4': {
+                  images: [{ filename: 'fallback.png' }]
+                }
+              }
+            }
+          },
+          entry: {
+            outputs: {
+              '3': {
+                images: [{ filename: '' }]
+              },
+              '4': {
+                images: [{ filename: 'fallback.png' }]
+              }
+            }
+          }
+        })),
+        downloadImage: vi.fn(async () => {
+          throw new Error('should not download');
+        })
+      },
+      config: createTestConfig(root)
+    });
+
+    const result = await processor.process(generation as StoredGeneration);
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      error: 'No SaveImage output images found for prompt prompt-1 at node 3.'
+    });
+  });
+
   it('given_transient_upload_failure_when_processed_then_upload_is_retried_once', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
     tempDirs.push(root);

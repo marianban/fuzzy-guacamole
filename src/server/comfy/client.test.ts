@@ -402,7 +402,7 @@ describe('Comfy client helpers', () => {
     );
   });
 
-  it('given_preferred_and_sorted_outputs_when_extracting_output_then_deterministic_selection_is_used', () => {
+  it('given_preferred_save_image_output_when_extracting_output_then_that_output_is_returned', () => {
     const history: Record<string, { outputs?: Record<string, unknown> | undefined }> = {
       p1: {
         outputs: {
@@ -422,12 +422,6 @@ describe('Comfy client helpers', () => {
       subfolder: 'output',
       type: 'output'
     });
-
-    const sorted = extractDeterministicOutputImage(history, 'p1');
-    expect(sorted).toEqual({
-      nodeId: '3',
-      filename: 'early.gif'
-    });
   });
 
   it('given_outputs_without_images_when_extracting_output_then_error_is_thrown', () => {
@@ -441,14 +435,49 @@ describe('Comfy client helpers', () => {
       }
     };
 
-    expect(() => extractDeterministicOutputImage(history, 'p2')).toThrow(
-      'No output images found for prompt p2.'
+    expect(() => extractDeterministicOutputImage(history, 'p2', '1')).toThrow(
+      'No SaveImage output images found for prompt p2 at node 1.'
+    );
+  });
+
+  it('given_preferred_save_node_missing_image_when_extracting_output_then_error_is_thrown', () => {
+    const history: Record<string, { outputs?: Record<string, unknown> | undefined }> = {
+      p3: {
+        outputs: {
+          '3': {
+            images: [{ filename: '' }]
+          },
+          '4': {
+            images: [{ filename: 'fallback.png' }]
+          }
+        }
+      }
+    };
+
+    expect(() => extractDeterministicOutputImage(history, 'p3', '3')).toThrow(
+      'No SaveImage output images found for prompt p3 at node 3.'
     );
   });
 
   it('given_missing_prompt_history_when_extracting_output_then_error_is_thrown', () => {
     expect(() => extractDeterministicOutputImage({}, 'unknown')).toThrow(
       'No history entry with outputs found for prompt unknown.'
+    );
+  });
+
+  it('given_missing_preferred_save_node_when_extracting_output_then_error_is_thrown', () => {
+    const history: Record<string, { outputs?: Record<string, unknown> | undefined }> = {
+      p4: {
+        outputs: {
+          '3': {
+            images: [{ filename: 'result.png' }]
+          }
+        }
+      }
+    };
+
+    expect(() => extractDeterministicOutputImage(history, 'p4')).toThrow(
+      'No SaveImage node configured for prompt p4.'
     );
   });
 });
