@@ -21,6 +21,7 @@ describe.sequential('ComfyClient unit (mock replay)', () => {
     const client = new ComfyClient({
       baseUrl: 'http://mocked-comfy.local',
       fetchImpl: createMockFetch(fixture),
+      requestTimeoutMs: 10_000,
       historyPollMs: 1,
       historyTimeoutMs: 1_000
     });

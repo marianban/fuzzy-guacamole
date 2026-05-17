@@ -2,54 +2,6 @@
 
 Review scope: `src/server`, shared server contracts in `src/shared`, and the current architecture/spec docs. The items below are missing server capabilities, not polish tasks. Each item is scoped to be implementable as one meaningful PR.
 
-## P2. Enforce image-only canonical output and finalize SaveImage selection semantics
-
-Why this is missing:
-- The spec positions each run as producing exactly one canonical output image, but the current Comfy history extraction code still accepts non-image payloads such as `gifs`, `video`, and `audio` when selecting the persisted artifact.
-- The current server prefers the lowest-numbered `SaveImage` node in the materialized workflow, then falls back to the first image-like output from Comfy history sorted by node id.
-- The preferred-node behavior matches the current img2img workflow where SaveImage node `3` is canonical and upscaled SaveImage node `21` is ignored for v1.
-- The fallback behavior may be surprising when a workflow has multiple image-producing nodes or when the preferred SaveImage node is absent from history.
-
-Current evidence:
-- `docs/specs.MD`
-- `src/server/generations/execution/builder.ts`
-- `src/server/comfy/client.ts`
-- `data/presets/img2img-basic/preset.template.json`
-
-Work expected in the PR:
-- Restrict canonical output extraction to actual image outputs only.
-- Fail the run if the preferred canonical `SaveImage` node does not yield an image instead of silently accepting non-image artifacts.
-- Decide whether future preset metadata should name an explicit output node instead of relying on lowest-numbered `SaveImage` detection. (Probably this is the best so we can remove the fallback logic and avoid ambiguity in multi-node workflows.)
-- Update the spec and server behavior/tests to match the chosen rule.
-
-Definition of done:
-- Canonical output selection is image-only.
-- Runs fail deterministically when the canonical output node does not produce an image.
-- Output selection behavior is explicitly documented.
-- Workflows with multiple possible outputs have deterministic and unsurprising v1 behavior.
-
-## P2. Review history timeout retry behavior
-
-Why this needs evaluation:
-- The spec describes retry behavior for transient failures during history polling.
-- The current processor treats transport-like failures during history polling as retryable, but treats a Comfy history timeout as terminal and non-retryable.
-- This distinction is reasonable, but the product expectation around long-running or slow-to-finalize Comfy jobs needs to be explicit.
-
-Current evidence:
-- `docs/specs.MD`
-- `src/server/generations/processor.ts`
-- `src/server/comfy/client.ts`
-- `src/server/generations/processor.test.ts`
-
-Work expected in the evaluation:
-- Decide whether history timeout should remain a terminal generation failure or get one retry/re-poll cycle.
-- Decide whether timeout configuration should distinguish per-request transport timeout from overall history wait timeout.
-- Update retry/error handling docs and tests to match the chosen behavior.
-
-Definition of done:
-- History timeout retry semantics are explicit in the spec.
-- Processor tests cover the chosen timeout behavior.
-
 ## P2. Clarify optional workflow token materialization semantics
 
 Why this needs evaluation:

@@ -119,5 +119,10 @@ export function createComfyClient(config: AppConfig | undefined): ComfyClient {
     throw new Error('Comfy client is unavailable because route config is missing.');
   }
 
-  return new ComfyClient({ baseUrl: config.comfyBaseUrl });
+  return new ComfyClient({
+    baseUrl: config.comfyBaseUrl,
+    requestTimeoutMs: config.timeouts.requestTimeoutMs,
+    historyPollMs: config.timeouts.historyPollMs,
+    historyTimeoutMs: config.timeouts.historyTimeoutMs
+  });
 }

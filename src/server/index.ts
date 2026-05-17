@@ -49,7 +49,9 @@ try {
   });
   const comfyClient = new ComfyClient({
     baseUrl: config.comfyBaseUrl,
-    historyPollMs: config.timeouts.historyPollMs
+    requestTimeoutMs: config.timeouts.requestTimeoutMs,
+    historyPollMs: config.timeouts.historyPollMs,
+    historyTimeoutMs: config.timeouts.historyTimeoutMs
   });
   const runtimeStatus = createAppRuntimeStatusService({
     comfyClient,

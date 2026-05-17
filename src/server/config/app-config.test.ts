@@ -38,8 +38,10 @@ function createValidConfig() {
       pcBootMs: 60000,
       sshPollMs: 1000,
       comfyBootMs: 120000,
+      requestTimeoutMs: 10000,
       healthPollMs: 1000,
       historyPollMs: 1000,
+      historyTimeoutMs: 900000,
       submittedTimeoutMs: 900000
     }
   };
@@ -103,6 +105,46 @@ describe('loadAppConfig', () => {
 
     await expect(loadAppConfig({ configPath })).rejects.toThrow(
       /Config at .* is invalid: .*ssh\.port/
+    );
+  });
+
+  it('given_missing_request_timeout_when_loading_config_then_throws_validation_error', async () => {
+    const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-config-'));
+    tempDirs.push(tempDir);
+
+    const configPath = path.join(tempDir, 'config.json');
+    const timeoutsWithoutRequestTimeout = Object.fromEntries(
+      Object.entries(createValidConfig().timeouts).filter(
+        ([key]) => key !== 'requestTimeoutMs'
+      )
+    );
+    await writeJsonFile(configPath, {
+      ...createValidConfig(),
+      timeouts: timeoutsWithoutRequestTimeout
+    });
+
+    await expect(loadAppConfig({ configPath })).rejects.toThrow(
+      /Config at .* is invalid: .*timeouts\.requestTimeoutMs/
+    );
+  });
+
+  it('given_missing_history_timeout_when_loading_config_then_throws_validation_error', async () => {
+    const tempDir = await mkdtemp(path.join(tmpdir(), 'fg-config-'));
+    tempDirs.push(tempDir);
+
+    const configPath = path.join(tempDir, 'config.json');
+    const timeoutsWithoutHistoryTimeout = Object.fromEntries(
+      Object.entries(createValidConfig().timeouts).filter(
+        ([key]) => key !== 'historyTimeoutMs'
+      )
+    );
+    await writeJsonFile(configPath, {
+      ...createValidConfig(),
+      timeouts: timeoutsWithoutHistoryTimeout
+    });
+
+    await expect(loadAppConfig({ configPath })).rejects.toThrow(
+      /Config at .* is invalid: .*timeouts\.historyTimeoutMs/
     );
   });
 

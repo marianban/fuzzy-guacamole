@@ -116,10 +116,6 @@ interface ComfyRequestOptions {
   signal?: AbortSignal;
 }
 
-const DEFAULT_HISTORY_POLL_MS = 1_000;
-const DEFAULT_HISTORY_TIMEOUT_MS = 180_000;
-const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
-
 export class ComfyClient {
   private readonly http: $Fetch;
   private readonly requestTimeoutMs: number;
@@ -128,9 +124,15 @@ export class ComfyClient {
 
   constructor(options: ComfyClientOptions) {
     const baseUrl = options.baseUrl.replace(/\/+$/, '');
-    this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
-    this.historyPollMs = options.historyPollMs ?? DEFAULT_HISTORY_POLL_MS;
-    this.historyTimeoutMs = options.historyTimeoutMs ?? DEFAULT_HISTORY_TIMEOUT_MS;
+    this.requestTimeoutMs = requireTimeoutOption(
+      'requestTimeoutMs',
+      options.requestTimeoutMs
+    );
+    this.historyPollMs = requireTimeoutOption('historyPollMs', options.historyPollMs);
+    this.historyTimeoutMs = requireTimeoutOption(
+      'historyTimeoutMs',
+      options.historyTimeoutMs
+    );
     this.http = ofetch.create(
       {
         baseURL: baseUrl,
@@ -430,6 +432,14 @@ function abortError(): Error {
   const error = new Error('The operation was aborted.');
   error.name = 'AbortError';
   return error;
+}
+
+function requireTimeoutOption(name: string, value: number | undefined): number {
+  if (value === undefined) {
+    throw new Error(`ComfyClientOptions.${name} is required.`);
+  }
+
+  return value;
 }
 
 export function buildComfyImageRef(image: ComfyImageRef): string {

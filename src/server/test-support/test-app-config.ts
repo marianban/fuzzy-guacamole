@@ -33,8 +33,10 @@ export async function loadTestConfig(root: string) {
           pcBootMs: 1_000,
           sshPollMs: 1_000,
           comfyBootMs: 1_000,
+          requestTimeoutMs: 10_000,
           healthPollMs: 1_000,
           historyPollMs: 1_000,
+          historyTimeoutMs: 900_000,
           submittedTimeoutMs: 900_000
         }
       },
@@ -79,8 +81,10 @@ export async function loadExecutionTestConfig(root: string) {
           pcBootMs: 1_000,
           sshPollMs: 1_000,
           comfyBootMs: 1_000,
+          requestTimeoutMs: 10_000,
           healthPollMs: 1_000,
           historyPollMs: 10,
+          historyTimeoutMs: 120_000,
           submittedTimeoutMs: 900_000
         }
       },

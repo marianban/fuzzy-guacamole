@@ -17,6 +17,17 @@ import {
   setLoadImageReference
 } from './client.js';
 
+function createClient(
+  overrides: ConstructorParameters<typeof ComfyClient>[0]
+): ComfyClient {
+  return new ComfyClient({
+    requestTimeoutMs: 10_000,
+    historyPollMs: 1_000,
+    historyTimeoutMs: 180_000,
+    ...overrides
+  });
+}
+
 interface MockResponseConfig {
   status?: number;
   body?: unknown;
@@ -56,7 +67,7 @@ describe('ComfyClient', () => {
           devices: [{ name: 'GPU', type: 'cuda' }]
         }
       });
-    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+    const client = createClient({ baseUrl: 'http://localhost:8188', fetchImpl });
 
     const result = await client.healthCheck();
 
@@ -69,11 +80,11 @@ describe('ComfyClient', () => {
     const badSchemaFetch: typeof fetch = async () =>
       createJsonResponse({ body: { system: { comfyui_version: 123 }, devices: [] } });
 
-    const nonOkClient = new ComfyClient({
+    const nonOkClient = createClient({
       baseUrl: 'http://localhost:8188',
       fetchImpl: nonOkFetch
     });
-    const badSchemaClient = new ComfyClient({
+    const badSchemaClient = createClient({
       baseUrl: 'http://localhost:8188',
       fetchImpl: badSchemaFetch
     });
@@ -93,7 +104,7 @@ describe('ComfyClient', () => {
           { once: true }
         );
       });
-    const client = new ComfyClient({
+    const client = createClient({
       baseUrl: 'http://localhost:8188',
       fetchImpl,
       requestTimeoutMs: 1
@@ -113,7 +124,7 @@ describe('ComfyClient', () => {
           { once: true }
         );
       });
-    const client = new ComfyClient({
+    const client = createClient({
       baseUrl: 'http://localhost:8188',
       fetchImpl,
       requestTimeoutMs: 1
@@ -124,10 +135,19 @@ describe('ComfyClient', () => {
     );
   });
 
+  it('given_missing_timeout_options_when_constructing_client_then_constructor_throws', () => {
+    expect(
+      () =>
+        new ComfyClient({
+          baseUrl: 'http://localhost:8188'
+        })
+    ).toThrow(/requestTimeoutMs.*required/i);
+  });
+
   it('given_server_error_when_submitting_prompt_then_message_is_included_in_error', async () => {
     const fetchImpl: typeof fetch = async () =>
       createJsonResponse({ status: 500, body: { message: 'bad prompt' } });
-    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+    const client = createClient({ baseUrl: 'http://localhost:8188', fetchImpl });
 
     await expect(client.submitPrompt({})).rejects.toThrow(
       'submit prompt failed at /api/prompt: 500 bad prompt'
@@ -142,7 +162,7 @@ describe('ComfyClient', () => {
           'Content-Type': 'text/plain'
         }
       });
-    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+    const client = createClient({ baseUrl: 'http://localhost:8188', fetchImpl });
 
     await expect(client.submitPrompt({})).rejects.toThrow(
       'submit prompt failed at /api/prompt: 500 bad prompt'
@@ -157,7 +177,7 @@ describe('ComfyClient', () => {
           'Content-Type': 'text/plain'
         }
       });
-    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+    const client = createClient({ baseUrl: 'http://localhost:8188', fetchImpl });
 
     await expect(client.submitPrompt({})).rejects.toThrow(
       'submit prompt failed at /api/prompt: 500 {"message":"bad prompt"}'
@@ -176,7 +196,7 @@ describe('ComfyClient', () => {
         body: { prompt_id: 'prompt-1' }
       });
     });
-    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+    const client = createClient({ baseUrl: 'http://localhost:8188', fetchImpl });
 
     const result = await client.submitPrompt({ foo: 'bar' }, { signal });
 
@@ -199,7 +219,7 @@ describe('ComfyClient', () => {
       }
       return createJsonResponse({ status: 404 });
     };
-    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+    const client = createClient({ baseUrl: 'http://localhost:8188', fetchImpl });
 
     const result = await client.uploadInputImage(filePath);
 
@@ -219,7 +239,7 @@ describe('ComfyClient', () => {
       createJsonResponse({
         body: { name: 'just-name.png', subfolder: '' }
       });
-    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+    const client = createClient({ baseUrl: 'http://localhost:8188', fetchImpl });
 
     const result = await client.uploadInputImage(filePath);
 
@@ -239,7 +259,7 @@ describe('ComfyClient', () => {
         body: { 'p-1': { outputs: { '3': { images: [{ filename: 'done.png' }] } } } }
       });
     };
-    const client = new ComfyClient({
+    const client = createClient({
       baseUrl: 'http://localhost:8188',
       fetchImpl,
       historyPollMs: 0,
@@ -279,7 +299,7 @@ describe('ComfyClient', () => {
         }
       });
     };
-    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+    const client = createClient({ baseUrl: 'http://localhost:8188', fetchImpl });
 
     const history = await client.getHistoryForPrompt('id with spaces');
 
@@ -290,7 +310,7 @@ describe('ComfyClient', () => {
   it('given_empty_polled_history_when_timeout_reached_then_poll_history_throws', async () => {
     const fetchImpl: typeof fetch = async () =>
       createJsonResponse({ body: { 'p-timeout': { outputs: {} } } });
-    const client = new ComfyClient({
+    const client = createClient({
       baseUrl: 'http://localhost:8188',
       fetchImpl,
       historyPollMs: 0,
@@ -317,7 +337,7 @@ describe('ComfyClient', () => {
         }
       });
     };
-    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+    const client = createClient({ baseUrl: 'http://localhost:8188', fetchImpl });
 
     const result = await client.downloadImage({
       filename: 'result image.png',
@@ -334,7 +354,7 @@ describe('ComfyClient', () => {
   it('given_download_server_error_when_downloading_image_then_error_includes_message', async () => {
     const fetchImpl: typeof fetch = async () =>
       createJsonResponse({ status: 500, body: { message: 'cannot read file' } });
-    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+    const client = createClient({ baseUrl: 'http://localhost:8188', fetchImpl });
 
     await expect(
       client.downloadImage({
@@ -353,7 +373,7 @@ describe('ComfyClient', () => {
           'Content-Type': 'text/plain'
         }
       });
-    const client = new ComfyClient({ baseUrl: 'http://localhost:8188', fetchImpl });
+    const client = createClient({ baseUrl: 'http://localhost:8188', fetchImpl });
 
     await expect(
       client.downloadImage({

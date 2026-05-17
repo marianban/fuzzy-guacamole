@@ -27,8 +27,10 @@ const appConfigSchema = z.object({
     pcBootMs: z.number().int().positive(),
     sshPollMs: z.number().int().positive(),
     comfyBootMs: z.number().int().positive(),
+    requestTimeoutMs: z.number().int().positive(),
     healthPollMs: z.number().int().positive(),
     historyPollMs: z.number().int().positive(),
+    historyTimeoutMs: z.number().int().positive(),
     submittedTimeoutMs: z.number().int().positive()
   })
 });

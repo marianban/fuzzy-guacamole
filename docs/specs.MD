@@ -119,8 +119,10 @@ Current target ComfyUI environment (locked for v1 integration):
     "pcBootMs": 180000,
     "sshPollMs": 2000,
     "comfyBootMs": 180000,
+    "requestTimeoutMs": 10000,
     "healthPollMs": 2000,
     "historyPollMs": 1000,
+    "historyTimeoutMs": 1800000,
     "submittedTimeoutMs": 1800000
   }
 }
@@ -634,6 +636,8 @@ Use ComfyUI's history endpoint and poll for completion:
 - `GET /history/{prompt_id}`
   - While the prompt is still executing, this may return `404` (prompt not found) or a payload that does not include the `prompt_id` yet.
   - Treat the run as **ready** when the response includes the `prompt_id` key and its entry contains a non-empty `outputs` object (the output image(s) are referenced there).
+  - Each individual history request uses the normal Comfy request timeout budget.
+  - History polling as a whole uses a separate overall history wait budget.
 
 Optional cross-check (useful for debugging/timeouts):
 - `GET /api/queue` exposes `queue_pending` and `queue_running`. If the `prompt_id` is not present in the queue anymore but also never appears in history before the backend's history timeout elapses, mark the run as failed with `History timeout`.
@@ -678,7 +682,8 @@ Generation fails on:
 - Cancel failure
 
 Retries (v1):
-- One retry is allowed for transient failures (network/timeouts) during upload/submit/history polling.
+- One retry is allowed for transient transport failures during upload, submit, and history polling, including failed requests and per-request Comfy request timeouts.
+- `History timeout` is terminal and non-retryable. It means the full history wait budget expired before Comfy exposed outputs for the submitted prompt.
 - Non-transient failures (validation errors, explicit Comfy execution error) do not retry.
 
 ## 12.1) Logging and diagnostics

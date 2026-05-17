@@ -942,10 +942,55 @@ describe('createGenerationProcessor', () => {
       'prompt-1',
       expect.objectContaining({
         pollMs: 10,
-        timeoutMs: 900000,
+        timeoutMs: 120000,
         onProgress: expect.any(Function)
       })
     );
+  });
+
+  it('given_history_timeout_when_processed_then_failure_is_terminal_without_retry', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'fg-processor-'));
+    tempDirs.push(root);
+
+    const store = createTestStore(
+      createTestGeneration({
+        presetId: 'txt2img-basic/basic',
+        templateId: 'txt2img-basic',
+        presetParams: {
+          prompt: 'history timeout',
+          steps: 5,
+          seedMode: 'fixed',
+          seed: 123
+        }
+      })
+    );
+    const pollHistory = vi.fn(async () => {
+      throw new Error('History timeout for prompt prompt-1 after 120000ms.');
+    });
+
+    const processor = createGenerationProcessor({
+      store,
+      telemetry: createTestTelemetry(),
+      comfyClient: {
+        uploadInputImage: vi.fn(async () => {
+          throw new Error('should not upload');
+        }),
+        submitPrompt: vi.fn(async () => ({ promptId: 'prompt-1' })),
+        pollHistory,
+        downloadImage: vi.fn(async () => {
+          throw new Error('should not download image');
+        })
+      },
+      config: createTestConfig(root)
+    });
+
+    const result = await processor.process(store.current);
+
+    expect(result).toEqual({
+      status: 'failed',
+      error: 'History timeout for prompt prompt-1 after 120000ms.'
+    });
+    expect(pollHistory).toHaveBeenCalledTimes(1);
   });
 
   it('given_invalid_generation_id_when_output_is_persisted_then_processor_fails_without_writing_outside_output_root', async () => {
@@ -1044,8 +1089,10 @@ function createTestConfig(root: string): AppConfig {
       pcBootMs: 1000,
       sshPollMs: 1000,
       comfyBootMs: 1000,
+      requestTimeoutMs: 10000,
       healthPollMs: 1000,
       historyPollMs: 10,
+      historyTimeoutMs: 120000,
       submittedTimeoutMs: 900000
     }
   };

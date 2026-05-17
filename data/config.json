@@ -23,8 +23,10 @@
     "pcBootMs": 180000,
     "sshPollMs": 2000,
     "comfyBootMs": 120000,
+    "requestTimeoutMs": 10000,
     "healthPollMs": 1000,
     "historyPollMs": 1000,
+    "historyTimeoutMs": 1800000,
     "submittedTimeoutMs": 1800000
   }
 }
