@@ -2,6 +2,32 @@
 
 Review scope: `src/server`, shared server contracts in `src/shared`, and the current architecture/spec docs. The items below are missing server capabilities, not polish tasks. Each item is scoped to be implementable as one meaningful PR.
 
+## P1. Replace React Hook Form with TanStack Form
+
+Why this is high priority:
+- The current form layer should be standardized on TanStack Form before more UI workflows and validation logic accumulate on top of React Hook Form.
+- Delaying the migration increases the cost of future form work by spreading hook-form-specific patterns across more components, helpers, and tests.
+- A single form approach will simplify future maintenance, validation reuse, and form-state behavior across the client.
+
+Current evidence:
+- `src/client`
+- `package.json`
+- Any current React Hook Form usage in client components, hooks, and tests
+
+Work expected in the migration:
+- Inventory all existing React Hook Form usage in the client and define the migration scope.
+- Replace React Hook Form dependencies, adapters, and helper patterns with TanStack Form equivalents.
+- Preserve current user-visible behavior for validation, default values, submission, disabled states, and error rendering.
+- Update tests so they exercise the TanStack Form implementation rather than hook-form-specific behavior.
+- Remove React Hook Form packages and any obsolete helper code once the migration is complete.
+- Update architecture or implementation docs if the form architecture changes materially.
+
+Definition of done:
+- No production client code depends on React Hook Form.
+- TanStack Form is the single supported form library in the codebase.
+- Existing form behavior is preserved or intentionally updated with corresponding tests.
+- Obsolete hook-form dependencies and helpers are removed.
+
 ## P2. Evaluate persisted uploaded-input history and undo model
 
 Why this needs evaluation:

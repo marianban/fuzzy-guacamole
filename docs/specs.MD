@@ -71,7 +71,7 @@ https://www.npmjs.com/package/eslint-plugin-react
   import reactHooks from 'eslint-plugin-react-hooks';
 
 - Styling: CSS modules
-- UI components library: Radix UI (for theme use <Theme appearance="dark"></Theme> wrapper), https://react-hook-form.com/ for forms + @hookform/resolvers for zod schema validation
+- UI components library: Radix UI (for theme use <Theme appearance="dark"></Theme> wrapper), TanStack Form for forms with Zod-backed validation
 - Database: Postgres
 - Containerized (Docker, NAS-agnostic)
 - Persistent volumes:
