@@ -24,7 +24,7 @@ flowchart LR
   Builder["Workflow Materializer<br/>src/server/generations/execution/builder.ts"]
   Comfy["Comfy Client<br/>src/server/comfy/client.ts"]
 
-  Browser -->|"GET /api/status (SWR poll)"| Vite
+  Browser -->|"GET /api/status (poll)"| Vite
   Browser -->|"EventSource /api/events/generations"| Vite
   Vite -->|"proxy /api/*"| API
   API -->|"validate status response"| SharedStatus

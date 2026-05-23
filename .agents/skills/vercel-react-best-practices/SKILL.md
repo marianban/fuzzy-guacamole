@@ -63,7 +63,6 @@ Reference these guidelines when:
 
 ### 4. Client-Side Data Fetching (MEDIUM-HIGH)
 
-- `client-event-listeners` - Deduplicate global event listeners
 - `client-passive-event-listeners` - Use passive listeners for scroll
 - `client-localstorage-schema` - Version and minimize localStorage data
 
@@ -129,7 +128,3 @@ Each rule file contains:
 - Incorrect code example with explanation
 - Correct code example with explanation
 - Additional context and references
-
-## Full Compiled Document
-
-For the complete guide with all rules expanded: `AGENTS.md`
