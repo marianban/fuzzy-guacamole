@@ -174,25 +174,6 @@ Prefer `sg` over `rg` when matching code patterns or performing syntax-aware ref
 
 ---
 
-### File viewing
-
-Use `bat` for viewing source files when reading code.
-
-Examples:
-
-```sh
-bat src/index.ts
-bat package.json
-```
-
-Prefer `bat` over:
-
-- cat
-- type
-- raw Get-Content
-
----
-
 ### JSON parsing
 
 Use `jq` for parsing or querying JSON.
@@ -215,7 +196,6 @@ Use these defaults:
 - Text search → `rg`
 - File discovery → `fd`
 - Structural code search → `sg`
-- File viewing → `bat`
 - JSON parsing → `jq`
 
 Assume these tools are present. Do not check whether they exist before using them.
