@@ -6,6 +6,9 @@ Review scope: `src/server`, shared server contracts in `src/shared`, and the cur
 
 https://penpot.app/blog/the-developers-guide-to-design-tokens-and-css-variables/
 https://github.com/awesome-design-tokens/dtg-examples/blob/main/common-tokens/styles/core.css
+https://thedesignsystem.guide/design-tokens
+https://spectrum.adobe.com/page/design-tokens/
+https://www.contentful.com/blog/design-token-system/
 
 ## P2. Evaluate persisted uploaded-input history and undo model
 
