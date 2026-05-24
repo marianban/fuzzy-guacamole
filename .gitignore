@@ -146,3 +146,6 @@ src/server/comfy/__fixtures__/input/liankavalentincropped.png
 src/server/comfy/__fixtures__/output/
 
 .fallow
+
+*storybook.log
+storybook-static
