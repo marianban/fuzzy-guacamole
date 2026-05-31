@@ -10,6 +10,13 @@ const config: StorybookConfig = {
     '@storybook/addon-docs',
     '@storybook/addon-mcp'
   ],
-  framework: '@storybook/tanstack-react'
+  framework: '@storybook/tanstack-react',
+  viteFinal: (config) => ({
+    ...config,
+    resolve: {
+      ...config.resolve,
+      dedupe: ['react', 'react-dom']
+    }
+  })
 };
 export default config;

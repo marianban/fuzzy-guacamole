@@ -1,0 +1,125 @@
+@import url('@radix-ui/themes/styles.css');
+@import url('@fontsource/manrope/400.css');
+@import url('@fontsource/manrope/600.css');
+@import url('../reset.css');
+
+@font-face {
+  font-family: 'Liberation Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/liberation-mono/LiberationMono-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Liberation Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./assets/liberation-mono/LiberationMono-Bold.ttf') format('truetype');
+}
+
+:root {
+  color-scheme: dark;
+
+  /* Primitive colors */
+  --color-surface-inset: #0d0f08;
+  --color-surface-base: #12140d;
+  --color-surface-panel: #1a1c15;
+  --color-surface-raised: #292b23;
+  --color-olive-emphasis: #3d522a;
+  --color-olive-muted: #434938;
+  --color-accent: #bdee63;
+  --color-fg-strong: #f4ffda;
+  --color-fg-primary: #e3e3d7;
+  --color-fg-secondary: #c4c9b2;
+  --color-accent-a10: rgb(189 238 99 / 10%);
+  --color-olive-a10: rgb(67 73 56 / 10%);
+  --color-olive-a30: rgb(67 73 56 / 30%);
+  --color-fg-secondary-a50: rgb(196 201 178 / 50%);
+
+  /* Primitive typography */
+  --font-family-interface: 'Manrope', sans-serif;
+  --font-family-mono: 'Liberation Mono', monospace;
+  --font-size-1: 10px;
+  --font-size-2: 12px;
+  --font-size-3: 14px;
+  --font-size-4: 16px;
+  --font-size-5: 20px;
+
+  /* Primitive spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Primitive radii */
+  --radius-control: 2px;
+  --radius-container: 8px;
+  --radius-full: 999px;
+
+  /* Primitive dimensions */
+  --size-top-bar-height: 56px;
+  --size-control-rail-width: 320px;
+  --size-history-dock-height: 240px;
+  --size-control-height: 36px;
+  --size-control-compact-height: 32px;
+  --size-action-height: 44px;
+  --size-slider-track-height: 4px;
+  --size-slider-thumb: 12px;
+
+  /* Primitive shadows */
+  --shadow-overlay: 0 25px 50px -12px rgb(0 0 0 / 25%);
+  --shadow-status-online: 0 0 8px var(--color-accent);
+
+  /* Semantic colors */
+  --color-background-page: var(--color-surface-base);
+  --color-background-panel: var(--color-surface-panel);
+  --color-background-input: var(--color-surface-inset);
+  --color-background-elevated: var(--color-surface-raised);
+  --color-background-accent-subtle: var(--color-accent-a10);
+  --color-border-subtle: var(--color-olive-a10);
+  --color-border-default: var(--color-olive-a30);
+  --color-border-emphasis: var(--color-olive-emphasis);
+  --color-icon-muted: var(--color-olive-muted);
+  --color-text-primary: var(--color-fg-primary);
+  --color-text-strong: var(--color-fg-strong);
+  --color-text-secondary: var(--color-fg-secondary);
+  --color-text-muted: var(--color-fg-secondary-a50);
+  --color-interactive-accent: var(--color-accent);
+  --color-interactive-track: var(--color-olive-emphasis);
+  --color-focus-ring: var(--color-accent);
+  --color-status-online: var(--color-accent);
+}
+
+/* Radix owns this provider class; project selectors use camelCase. */
+/* stylelint-disable-next-line selector-class-pattern */
+.radix-themes {
+  --default-font-family: var(--font-family-interface);
+  --heading-font-family: var(--font-family-interface);
+  --strong-font-family: var(--font-family-interface);
+  --code-font-family: var(--font-family-mono);
+  --color-page-background: var(--color-background-page);
+  --color-panel-solid: var(--color-background-panel);
+
+  min-height: 100%;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  color: var(--color-text-primary);
+  background: var(--color-background-page);
+  font-family: var(--font-family-interface);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}

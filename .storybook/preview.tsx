@@ -1,13 +1,21 @@
 import type { Preview } from '@storybook/tanstack-react';
 import { initialize, mswLoader } from 'msw-storybook-addon';
 
-import '../src/client/src/styles.css';
+import { ComfyDeckTheme } from '../src/client/src/styles/comfy-deck-theme';
+import '../src/client/src/styles/theme.css';
 
 import { mswHandlers } from './msw-handlers';
 
 initialize({ onUnhandledRequest: 'bypass' });
 
 const preview: Preview = {
+  decorators: [
+    (Story) => (
+      <ComfyDeckTheme>
+        <Story />
+      </ComfyDeckTheme>
+    )
+  ],
   loaders: [mswLoader],
   parameters: {
     controls: {
