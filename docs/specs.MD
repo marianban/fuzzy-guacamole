@@ -71,7 +71,8 @@ https://www.npmjs.com/package/eslint-plugin-react
   import reactHooks from 'eslint-plugin-react-hooks';
 
 - Styling: CSS modules
-- UI components library: Radix UI (for theme use <Theme appearance="dark"></Theme> wrapper), TanStack Form for forms with Zod-backed validation
+- UI components library: Mantine for the styled control and layout layer, TanStack Form for forms with Zod-backed validation
+- Design tokens: `src/client/src/styles/theme.css` remains the shared styling source of truth regardless of component library
 - Database: Postgres
 - Containerized (Docker, NAS-agnostic)
 - Persistent volumes:

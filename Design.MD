@@ -250,42 +250,36 @@ table explicitly says so.
   component-level treatments. Their stops should reference semantic color
   tokens rather than introduce gradient tokens during bootstrap.
 
-## Radix Theme Bootstrap Plan
+## Styled Control Bootstrap Plan
 
-The first implementation pass should establish the shared theme only. It must
-not add application components, Storybook stories, or feature layouts.
+The token contract is library-agnostic. Future themed controls should use
+Mantine as the default styled layer, while React Aria or Radix Primitives stay
+available as headless escape hatches for bespoke behavior-heavy widgets. The
+next implementation pass should establish the shared Mantine theme adapter only.
+It must not add unrelated application components, Storybook stories, or feature
+layouts.
 
-1. Install `@radix-ui/themes` and self-hosted font packages for Manrope and
-   Liberation Mono.
+1. Install Mantine packages and keep the self-hosted font packages for Manrope
+   and Liberation Mono.
 2. Add shared global theme styles under `src/client/src/styles`. Use CSS custom
    properties as the source of truth with separate primitive and semantic
    sections. Do not add JSON token-generation tooling initially.
-3. Import the Radix Themes stylesheet before project overrides so local CSS wins
-   in the cascade, as described in the
-   [Radix color customization guide](https://www.radix-ui.com/themes/docs/theme/color).
+3. Import Mantine's base stylesheet before project overrides so local CSS wins
+   in the cascade.
 4. Wrap both the application root and Storybook preview with the same
-   [`Theme`](https://www.radix-ui.com/themes/docs/components/theme) settings:
+   `MantineProvider` configuration:
 
    ```tsx
-   <Theme
-     appearance="dark"
-     accentColor="lime"
-     grayColor="olive"
-     panelBackground="solid"
-     radius="small"
-     scaling="95%"
-   >
-     {children}
-   </Theme>
+   <MantineProvider theme={comfyDeckMantineTheme}>{children}</MantineProvider>
    ```
 
-5. Map project semantic variables onto Radix tokens and override only the values
-   required to preserve the ComfyDeck visual direction. Prefer visually similar
-   Radix-native scale values where they produce more coherent hover, active,
-   focus, and disabled states.
+5. Map project semantic variables onto Mantine theme values and component
+   extensions. Prefer `theme.components`, `defaultProps`, `classNames`, and
+   component CSS variable resolvers before per-instance CSS overrides so control
+   styling stays explicit and reviewable.
 6. Load the same project theme stylesheet in the application and Storybook.
-   Replace the existing Storybook preview import of the missing
-   `src/client/src/styles.css` file with the new shared theme entry point.
+   Keep the shared provider wrapper as the single place that configures the
+   styled component layer for both environments.
 
 ## Validation Plan
 
@@ -307,6 +301,8 @@ After the later theme bootstrap implementation:
 - The bootstrap self-hosts Manrope and Liberation Mono.
 - Space Grotesk is removed to keep the product within the two-family limit.
 - Semantic tokens are the application-facing contract.
+- Mantine is the default styled component layer for future controls; React Aria
+  or Radix Primitives remain optional headless escape hatches.
 - Exact Figma values are implementation inputs, not implementation
   requirements. Apply the transition tables when translating screens.
 - Component-specific tokens stay deferred until repeated usage justifies them.
@@ -314,6 +310,6 @@ After the later theme bootstrap implementation:
 ## References
 
 - [Penpot: The developer's guide to design tokens and CSS variables](https://penpot.app/blog/the-developers-guide-to-design-tokens-and-css-variables/)
-- [Radix Themes: Color](https://www.radix-ui.com/themes/docs/theme/color)
-- [Radix Themes: Spacing](https://www.radix-ui.com/themes/docs/theme/spacing)
-- [Radix Themes: Theme component](https://www.radix-ui.com/themes/docs/components/theme)
+- [Mantine: Theme object](https://mantine.dev/theming/theme-object/)
+- [Mantine: Styles API](https://mantine.dev/styles/styles-api/)
+- [Mantine: Default props](https://mantine.dev/theming/default-props/)

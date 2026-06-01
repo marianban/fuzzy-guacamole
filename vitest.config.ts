@@ -10,6 +10,7 @@ const dirname =
 
 // More info at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const workspaceNodeModules = path.resolve(currentDir, 'node_modules');
 export default defineConfig({
   optimizeDeps: {
     include: ['react', 'react-dom']
@@ -17,7 +18,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@shared': path.resolve(currentDir, 'src/shared')
-    }
+    },
+    dedupe: ['react', 'react-dom']
   },
   test: {
     projects: [

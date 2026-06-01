@@ -52,3 +52,35 @@ Definition of done:
 - The documented proposal states that uploaded-input history is represented by persisted generation-scoped asset references owned by revision items, not only by retained files on disk.
 - The documented proposal states that canonical stored output images are named by `revisionId` so persisted revisions and their output artifacts remain directly addressable together.
 - The upload-route contract and the undo/history contract are separated cleanly in the spec.
+
+## P3. Evaluate Radix Themes to Mantine migration
+
+Why this needs evaluation:
+- The current Radix Themes setup is proving difficult to customize at the theme level for common control concerns such as border colors, disabled-state affordance, input spacing, and typography.
+- Styling intent is becoming less readable because some component-level designs are expressed through indirect Radix token remapping rather than explicit component theme overrides.
+- Before more UI components are built on top of the current stack, the product needs an explicit decision on whether Radix Themes remains the right abstraction for the desired level of customization.
+
+Current evidence:
+- `package.json`
+- `src/client/src/styles/comfy-deck-theme.tsx`
+- `src/client/src/styles/theme.css`
+- `src/client/src/components/text-area/text-area.tsx`
+- `src/client/src/components/text-area/text-area.module.css`
+
+Work expected in the evaluation:
+- Compare Radix Themes and Mantine specifically on theme-level customization of controls, including borders, disabled states, font sizes, spacing, radius, and per-component defaults.
+- Distinguish clearly between Radix Primitives, which are headless, and Radix Themes, which is the currently adopted styled layer.
+- Identify which existing design-system needs are awkward in the current Radix Themes setup and whether Mantine addresses them through documented theme APIs rather than CSS overrides.
+- Evaluate whether the current token model in `src/client/src/styles/theme.css` can be preserved as the source of truth if the UI library changes.
+- Assess migration cost for the currently implemented client surface, including theme provider setup, form controls, layout primitives, storybook stories, and tests.
+- Identify the highest-risk migration areas, including accessibility regressions, visual churn, and component API differences.
+- Decide whether the recommended direction is: stay on Radix Themes, switch to Mantine, or use a mixed strategy such as Mantine for themed controls and lower-level primitives where necessary.
+- If the recommendation is to switch, document the migration shape, sequencing, and acceptance criteria for a first incremental PR.
+- Update relevant specs or architecture docs if the evaluation changes the chosen frontend component strategy.
+
+Definition of done:
+- The product has an explicit decision on whether to stay on Radix Themes or migrate to Mantine.
+- The evaluation compares both options against the project's concrete customization requirements instead of generic library pros and cons.
+- The evaluation states whether the existing design-token model can remain the shared styling source of truth under the chosen approach.
+- The evaluation identifies the main migration risks and the expected implementation cost.
+- If migration is recommended, the next implementation slice is defined clearly enough to execute as one focused PR.

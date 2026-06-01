@@ -1,4 +1,4 @@
-@import url('@radix-ui/themes/styles.css');
+@import url('@mantine/core/styles.css');
 @import url('@fontsource/manrope/400.css');
 @import url('@fontsource/manrope/600.css');
 @import url('../reset.css');
@@ -24,19 +24,20 @@
 
   /* Primitive colors */
   --color-surface-inset: #0d0f08;
-  --color-surface-base: #12140d;
-  --color-surface-panel: #1a1c15;
-  --color-surface-raised: #292b23;
-  --color-olive-emphasis: #3d522a;
-  --color-olive-muted: #434938;
+  --color-surface-base: #11130c;
+  --color-surface-panel: #151a10;
+  --color-surface-raised: #29371d;
+  --color-surface-raised-strong: #334423;
+  --color-olive-subtle: #3d522a;
+  --color-olive-muted: #496231;
+  --color-olive-emphasis: #577538;
   --color-accent: #bdee63;
-  --color-fg-strong: #f4ffda;
+  --color-accent-strong: #d4ff70;
+  --color-fg-strong: #d4ff70;
   --color-fg-primary: #e3e3d7;
-  --color-fg-secondary: #c4c9b2;
+  --color-fg-secondary: #bde56c;
   --color-accent-a10: rgb(189 238 99 / 10%);
-  --color-olive-a10: rgb(67 73 56 / 10%);
-  --color-olive-a30: rgb(67 73 56 / 30%);
-  --color-fg-secondary-a50: rgb(196 201 178 / 50%);
+  --color-fg-secondary-a50: rgb(189 229 108 / 50%);
 
   /* Primitive typography */
   --font-family-interface: 'Manrope', sans-serif;
@@ -46,6 +47,8 @@
   --font-size-3: 14px;
   --font-size-4: 16px;
   --font-size-5: 20px;
+  --font-size-body: 14px;
+  --line-height-body: 22px;
 
   /* Primitive spacing */
   --space-1: 4px;
@@ -80,8 +83,8 @@
   --color-background-input: var(--color-surface-inset);
   --color-background-elevated: var(--color-surface-raised);
   --color-background-accent-subtle: var(--color-accent-a10);
-  --color-border-subtle: var(--color-olive-a10);
-  --color-border-default: var(--color-olive-a30);
+  --color-border-subtle: var(--color-olive-subtle);
+  --color-border-default: var(--color-olive-muted);
   --color-border-emphasis: var(--color-olive-emphasis);
   --color-icon-muted: var(--color-olive-muted);
   --color-text-primary: var(--color-fg-primary);
@@ -89,22 +92,9 @@
   --color-text-secondary: var(--color-fg-secondary);
   --color-text-muted: var(--color-fg-secondary-a50);
   --color-interactive-accent: var(--color-accent);
-  --color-interactive-track: var(--color-olive-emphasis);
-  --color-focus-ring: var(--color-accent);
-  --color-status-online: var(--color-accent);
-}
-
-/* Radix owns this provider class; project selectors use camelCase. */
-/* stylelint-disable-next-line selector-class-pattern */
-.radix-themes {
-  --default-font-family: var(--font-family-interface);
-  --heading-font-family: var(--font-family-interface);
-  --strong-font-family: var(--font-family-interface);
-  --code-font-family: var(--font-family-mono);
-  --color-page-background: var(--color-background-page);
-  --color-panel-solid: var(--color-background-panel);
-
-  min-height: 100%;
+  --color-interactive-track: var(--color-surface-raised-strong);
+  --color-focus-ring: var(--color-accent-strong);
+  --color-status-online: var(--color-accent-strong);
 }
 
 html,
