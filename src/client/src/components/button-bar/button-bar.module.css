@@ -1,0 +1,47 @@
+.root {
+  width: 100%;
+}
+
+.segmentedRoot {
+  min-height: 29px;
+  padding: 3px;
+  background: var(--color-background-input);
+  border: 1px solid var(--color-interactive-accent);
+  border-radius: var(--radius-control);
+}
+
+.control {
+  border: 0;
+}
+
+.indicator {
+  background: var(--color-background-elevated);
+  border: 1px solid var(--color-interactive-accent);
+  border-radius: calc(var(--radius-control) - 1px);
+}
+
+.label {
+  min-height: 23px;
+  padding: 4px var(--space-3);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-interface);
+  font-size: var(--font-size-1);
+  font-weight: 400;
+  line-height: 15px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.input:disabled + .label {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.input:checked + .label {
+  color: var(--color-text-strong);
+}
+
+.input:focus-visible + .label {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
