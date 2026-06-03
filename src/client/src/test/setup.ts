@@ -1,45 +1,31 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
-import { afterEach } from 'vitest';
-
-const noop = () => undefined;
+import { afterEach, vi } from 'vitest';
 
 class ResizeObserverMock {
-  observe() {
-    return undefined;
-  }
-
-  unobserve() {
-    return undefined;
-  }
-
-  disconnect() {
-    return undefined;
-  }
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
 }
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: (query: string) => ({
+  value: vi.fn().mockImplementation((query: string) => ({
     matches: false,
     media: query,
     onchange: null,
-    addListener: noop,
-    removeListener: noop,
-    addEventListener: noop,
-    removeEventListener: noop,
-    dispatchEvent: () => false
-  })
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn()
+  }))
 });
 
-Object.defineProperty(window, 'ResizeObserver', {
-  writable: true,
-  value: ResizeObserverMock
-});
+globalThis.ResizeObserver = ResizeObserverMock;
+window.ResizeObserver = ResizeObserverMock;
 
-Object.defineProperty(globalThis, 'ResizeObserver', {
-  writable: true,
-  value: ResizeObserverMock
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
 });
-
-afterEach(cleanup);
