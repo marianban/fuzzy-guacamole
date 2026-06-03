@@ -6,8 +6,12 @@
   min-height: 29px;
   padding: 3px;
   background: var(--color-background-input);
-  border: 1px solid var(--color-interactive-accent);
+  border: 1px solid var(--color-border-default);
   border-radius: var(--radius-control);
+}
+
+.segmentedRoot:hover:not(:has(.input:disabled)) {
+  border-color: var(--color-border-emphasis);
 }
 
 .control {
