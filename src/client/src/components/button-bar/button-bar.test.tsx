@@ -2,10 +2,11 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import { ComfyDeckTheme } from '../../styles/comfy-deck-theme';
 import { ButtonBar } from './button-bar';
 
 function renderButtonBar(ui: React.ReactElement) {
-  return render(ui);
+  return render(<ComfyDeckTheme>{ui}</ComfyDeckTheme>);
 }
 
 describe('ButtonBar', () => {

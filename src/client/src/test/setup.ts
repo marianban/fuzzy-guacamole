@@ -4,6 +4,20 @@ import { afterEach } from 'vitest';
 
 const noop = () => undefined;
 
+class ResizeObserverMock {
+  observe() {
+    return undefined;
+  }
+
+  unobserve() {
+    return undefined;
+  }
+
+  disconnect() {
+    return undefined;
+  }
+}
+
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: (query: string) => ({
@@ -16,6 +30,16 @@ Object.defineProperty(window, 'matchMedia', {
     removeEventListener: noop,
     dispatchEvent: () => false
   })
+});
+
+Object.defineProperty(window, 'ResizeObserver', {
+  writable: true,
+  value: ResizeObserverMock
+});
+
+Object.defineProperty(globalThis, 'ResizeObserver', {
+  writable: true,
+  value: ResizeObserverMock
 });
 
 afterEach(cleanup);

@@ -22,7 +22,7 @@ export default defineConfig({
           name: 'client',
           environment: 'jsdom',
           setupFiles: ['src/client/src/test/setup.ts'],
-          include: ['src/client/src/**/*.{test}.{ts,tsx}']
+          include: ['src/client/src/**/*.test.{ts,tsx}']
         }
       },
       {
@@ -30,7 +30,7 @@ export default defineConfig({
         test: {
           name: 'server',
           environment: 'node',
-          include: ['src/server/**/*.{test}.{ts}']
+          include: ['src/server/**/*.test.ts']
         }
       },
       {
@@ -38,7 +38,7 @@ export default defineConfig({
         test: {
           name: 'shared',
           environment: 'node',
-          include: ['src/shared/**/*.{test}.{ts}']
+          include: ['src/shared/**/*.test.ts']
         }
       }
     ]
