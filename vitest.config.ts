@@ -30,7 +30,8 @@ export default defineConfig({
         test: {
           name: 'server',
           environment: 'node',
-          include: ['src/server/**/*.test.ts']
+          include: ['src/server/**/*.test.ts'],
+          exclude: ['src/server/**/*.int.test.ts']
         }
       },
       {
