@@ -6,14 +6,16 @@ import {
 import clsx from 'clsx';
 
 import styles from './button-bar.module.css';
+import { omitUndefined } from '../../utils/object';
 
-const buttonBarClassNames: Partial<Record<SegmentedControlStylesNames, string>> = {
-  control: styles.control ?? '',
-  indicator: styles.indicator ?? '',
-  input: styles.input ?? '',
-  label: styles.label ?? '',
-  root: styles.segmentedRoot ?? ''
-};
+const buttonBarClassNames: Partial<Record<SegmentedControlStylesNames, string>> =
+  omitUndefined({
+    control: styles.control,
+    indicator: styles.indicator,
+    input: styles.input,
+    label: styles.label,
+    root: styles.segmentedRoot
+  });
 
 export interface ButtonBarProps<Value extends string = string> extends Omit<
   MantineSegmentedControlProps<Value>,
