@@ -35,9 +35,8 @@
   --color-accent-strong: #d4ff70;
   --color-fg-strong: #d4ff70;
   --color-fg-primary: #e3e3d7;
-  --color-fg-secondary: #bde56c;
+  --color-fg-secondary: #c4c9b2;
   --color-accent-a10: rgb(189 238 99 / 10%);
-  --color-fg-secondary-a50: rgb(189 229 108 / 50%);
 
   /* Primitive typography */
   --font-family-interface: 'Manrope', sans-serif;
@@ -90,7 +89,6 @@
   --color-text-primary: var(--color-fg-primary);
   --color-text-strong: var(--color-fg-strong);
   --color-text-secondary: var(--color-fg-secondary);
-  --color-text-muted: var(--color-fg-secondary-a50);
   --color-interactive-accent: var(--color-accent);
   --color-interactive-track: var(--color-surface-raised-strong);
   --color-focus-ring: var(--color-accent-strong);
@@ -107,9 +105,4 @@ body {
   color: var(--color-text-primary);
   background: var(--color-background-page);
   font-family: var(--font-family-interface);
-}
-
-:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
 }
