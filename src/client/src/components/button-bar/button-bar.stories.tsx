@@ -33,6 +33,13 @@ export const Auto: Story = {
   }
 };
 
+export const Label: Story = {
+  args: {
+    defaultValue: 'auto',
+    label: 'Button bar label'
+  }
+};
+
 export const Manual: Story = {
   args: {
     defaultValue: 'manual'

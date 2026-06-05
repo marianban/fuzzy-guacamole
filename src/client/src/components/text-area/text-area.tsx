@@ -27,6 +27,7 @@ export const TextArea = forwardRef<ElementRef<'textarea'>, TextAreaProps>(
       autosize={false}
       className={clsx(styles.root, className)}
       classNames={{
+        label: clsx(styles.label),
         input: clsx(styles.input)
       }}
       radius="xs"

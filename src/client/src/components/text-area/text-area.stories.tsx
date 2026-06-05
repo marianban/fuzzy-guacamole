@@ -28,6 +28,12 @@ export const Default: Story = {
   }
 };
 
+export const Label: Story = {
+  args: {
+    label: 'Text area label'
+  }
+};
+
 export const Placeholder: Story = {
   args: {
     placeholder: 'Describe the image you want to generate...'
