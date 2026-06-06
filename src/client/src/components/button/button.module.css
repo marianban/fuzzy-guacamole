@@ -1,0 +1,56 @@
+.root {
+  width: fit-content;
+}
+
+.button {
+  color: var(--color-text-secondary);
+  background:
+    linear-gradient(180deg, rgb(41 55 29 / 45%) 0%, rgb(21 26 16 / 100%) 100%),
+    var(--color-background-panel);
+  border: 1px solid var(--color-border-default);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 10%),
+    0 4px 6px -4px rgb(0 0 0 / 10%);
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    color 120ms ease,
+    background 120ms ease,
+    transform 120ms ease;
+}
+
+.button:disabled {
+  color: var(--color-text-muted);
+  background: var(--color-background-panel);
+  border-color: var(--color-border-subtle);
+  box-shadow: none;
+  opacity: 1;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.button:hover:not(:disabled) {
+  color: var(--color-text-strong);
+  background:
+    linear-gradient(180deg, rgb(51 68 35 / 70%) 0%, rgb(21 26 16 / 100%) 100%),
+    var(--color-background-panel);
+  border-color: var(--color-border-emphasis);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 6px 10px -4px rgb(0 0 0 / 18%);
+}
+
+.label {
+  font-family: var(--font-family-interface);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.section {
+  color: inherit;
+}
