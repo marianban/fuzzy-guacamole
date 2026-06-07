@@ -84,12 +84,14 @@ This repo currently contains the product specification and agent workflow docs f
 - Minimize global state; lift state only when needed; keep server/client boundaries clear.
 - Handle loading/error/empty states explicitly; never leave UI in ambiguous states.
 - Use CSS modules for styling; keep class names consistent and avoid ad-hoc inline styles.
+- When creating a React component or refactoring/extracting one from another component, always collocate its related styles in a `ComponentName.module.css` file next to that component.
 - Variant props should use union types: `variant: 'primary' | 'secondary'`
 - `src\client\src\components` - should be mapped to `#root/components` in the project structure when using
 - Never hardcode hex colors - use `var(--color-*)` tokens
 - Use `src/client/src/styles/theme.css` as the source of truth for shared primitive and semantic design tokens. Check the existing `var(--color-*)`, typography, spacing, radius, dimension, and shadow tokens before adding styles or introducing new shared values.
 - Use `src/client/src/styles/comfy-deck-theme.tsx` as the shared Mantine provider wrapper. Keep application and Storybook theme configuration aligned through this provider instead of configuring Mantine separately in each environment.
 - Custom styles go in component-level CSS modules
+- Do not write media queries in CSS unless the user explicitly requests them.
 - No relative imports beyond parent directory
 - Extract magic numbers/values to named constants. If same constant is used in multiple places, extract to a shared constants.ts module.
 

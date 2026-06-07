@@ -1,0 +1,40 @@
+.actionTools {
+  display: inline-flex;
+  align-items: center;
+  justify-self: center;
+  gap: 16px;
+  padding: 6px 16px;
+  border-radius: 12px;
+  background: #1a1c15;
+}
+
+.actionButton {
+  min-width: 0;
+  min-height: 0;
+  padding: 4px;
+  line-height: 0;
+  border-radius: 4px;
+  color: var(--color-text-primary);
+
+  --button-bg: transparent;
+}
+
+.actionButton:hover {
+  background: rgb(67 73 56 / 18%);
+}
+
+.actionButton:active {
+  transform: translateY(0);
+}
+
+.actionButtonIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.actionDivider {
+  width: 1px;
+  height: 16px;
+  background: rgb(67 73 56 / 30%);
+}

@@ -1,0 +1,68 @@
+.hardwareInfo {
+  display: inline-flex;
+  width: 170px;
+  min-height: 30px;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: end;
+}
+
+.hardwareHeader {
+  display: flex;
+  justify-content: end;
+  width: 100%;
+}
+
+.hardwareFooter {
+  display: grid;
+  grid-template-columns: 96px auto;
+  align-items: center;
+  width: 100%;
+  column-gap: 8px;
+}
+
+.hardwareMeterTrack {
+  position: relative;
+  width: 96px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: linear-gradient(
+    90deg,
+    var(--color-interactive-accent) 0 75%,
+    #434938 75% 100%
+  );
+}
+
+.hardwareMeterFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #a6da58 0%, var(--color-interactive-accent) 100%);
+}
+
+.hardwareLabel,
+.hardwareDetail {
+  text-transform: uppercase;
+}
+
+.hardwareLabel {
+  width: 74.09px;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-interface);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 15px;
+  letter-spacing: -0.05em;
+  text-align: right;
+}
+
+.hardwareDetail {
+  color: var(--color-interactive-accent);
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  line-height: 15px;
+  letter-spacing: 0;
+  width: 66.02px;
+  white-space: nowrap;
+}

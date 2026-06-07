@@ -1,28 +1,28 @@
 .header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: center;
-  height: 50px;
+  gap: var(--space-5);
+  height: var(--size-top-bar-height);
+  padding: 0 var(--space-4);
   background-color: var(--color-background-header);
   border-bottom: 1px solid var(--color-border-panel);
   letter-spacing: 0.02em;
 }
 
-.headerTitle {
+.leftGroup,
+.rightGroup {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
-  font-weight: 600;
 }
 
-.headerAccent {
-  color: var(--color-interactive-accent);
+.leftGroup {
+  justify-self: start;
+  min-width: 0;
+  gap: var(--space-5);
 }
 
-.headerIcon {
-  max-height: 1em;
-  overflow: hidden;
-
-  /* COPILOT: RESIZE IMAGE TO 2X BUT CUT OVERFLOW */
-  transform: scale(2.5);
+.rightGroup {
+  justify-self: end;
+  gap: 24px;
 }

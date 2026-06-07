@@ -1,0 +1,21 @@
+.navigation {
+  display: flex;
+  align-items: center;
+  padding-top: 2px;
+}
+
+.menuLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-interactive-accent);
+  font-size: var(--font-size-2);
+  font-weight: 700;
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.menuLink:hover {
+  color: var(--color-accent-strong);
+}

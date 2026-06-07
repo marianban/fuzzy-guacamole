@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ComfyDeckTheme } from '../../styles/comfy-deck-theme';
 import { Button } from './button';
+import styles from './button.module.css';
 
 function renderButton(ui: React.ReactElement) {
   return render(<ComfyDeckTheme>{ui}</ComfyDeckTheme>);
@@ -40,5 +41,13 @@ describe('Button', () => {
 
     expect(screen.getByTestId('left-icon')).toBeInTheDocument();
     expect(screen.getByTestId('right-icon')).toBeInTheDocument();
+  });
+
+  it('given an unstyled variant when rendered then it omits the themed button chrome class', () => {
+    renderButton(<Button variant="unstyled">Toolbar action</Button>);
+
+    expect(screen.getByRole('button', { name: 'Toolbar action' })).not.toHaveClass(
+      styles.button
+    );
   });
 });
