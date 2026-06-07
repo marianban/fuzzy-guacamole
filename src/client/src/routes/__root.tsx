@@ -4,6 +4,7 @@ import { TanStackDevtools } from '@tanstack/react-devtools';
 
 import { ComfyDeckTheme } from '../styles/comfy-deck-theme';
 import '../styles/theme.css';
+import { Shell } from '../layout/shell/shell';
 
 export const Route = createRootRoute({
   component: RootComponent
@@ -12,7 +13,9 @@ export const Route = createRootRoute({
 function RootComponent() {
   return (
     <ComfyDeckTheme>
-      <Outlet />
+      <Shell>
+        <Outlet />
+      </Shell>
       <TanStackDevtools
         config={{
           position: 'bottom-right'

@@ -1,0 +1,11 @@
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  color: var(--color-text-primary);
+  background: var(--color-background-page);
+  font-family: var(--font-family-interface);
+}

@@ -28,6 +28,7 @@
   --color-surface-panel: #151a10;
   --color-surface-raised: #29371d;
   --color-surface-raised-strong: #334423;
+  --color-separator: #2b2b2b;
   --color-olive-subtle: #3d522a;
   --color-olive-muted: #496231;
   --color-olive-emphasis: #577538;
@@ -79,9 +80,11 @@
   /* Semantic colors */
   --color-background-page: var(--color-surface-base);
   --color-background-panel: var(--color-surface-panel);
+  --color-background-header: var(--color-surface-panel);
   --color-background-input: var(--color-surface-inset);
   --color-background-elevated: var(--color-surface-raised);
   --color-background-accent-subtle: var(--color-accent-a10);
+  --color-border-panel: var(--color-separator);
   --color-border-subtle: var(--color-olive-subtle);
   --color-border-default: var(--color-olive-muted);
   --color-border-emphasis: var(--color-olive-emphasis);
@@ -93,16 +96,4 @@
   --color-interactive-track: var(--color-surface-raised-strong);
   --color-focus-ring: var(--color-accent-strong);
   --color-status-online: var(--color-accent-strong);
-}
-
-html,
-body,
-#root {
-  min-height: 100%;
-}
-
-body {
-  color: var(--color-text-primary);
-  background: var(--color-background-page);
-  font-family: var(--font-family-interface);
 }
