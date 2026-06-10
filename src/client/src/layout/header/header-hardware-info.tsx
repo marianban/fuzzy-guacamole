@@ -19,6 +19,7 @@ export const HeaderHardwareInfo = ({
         <span className={styles.hardwareLabel}>{label}</span>
       </div>
       <div className={styles.hardwareFooter}>
+        <span className={styles.hardwareDetail}>{detail}</span>
         <div
           aria-label="Hardware utilization"
           aria-valuemax={100}
@@ -33,7 +34,6 @@ export const HeaderHardwareInfo = ({
             style={{ width: `${normalizedPercent}%` }}
           />
         </div>
-        <span className={styles.hardwareDetail}>{detail}</span>
       </div>
     </div>
   );

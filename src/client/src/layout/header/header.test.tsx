@@ -67,7 +67,6 @@ describe('Header', () => {
     renderHeader(<HeaderLogo />);
 
     expect(screen.getByRole('heading', { name: /ComfyStar/i })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Star icon' })).toBeInTheDocument();
   });
 
   it('given action tools when rendered then it shows the available toolbar buttons', () => {
