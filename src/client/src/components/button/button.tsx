@@ -7,8 +7,7 @@ import { forwardRef, type ComponentPropsWithoutRef, type ElementRef } from 'reac
 
 import styles from './button.module.css';
 
-export interface ButtonProps extends Omit<MantineButtonProps, 'className'> {
-  className?: string;
+export interface ButtonProps extends MantineButtonProps {
   onClick?: ComponentPropsWithoutRef<'button'>['onClick'];
 }
 

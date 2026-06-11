@@ -47,7 +47,7 @@ describe('Button', () => {
     renderButton(<Button variant="unstyled">Toolbar action</Button>);
 
     expect(screen.getByRole('button', { name: 'Toolbar action' })).not.toHaveClass(
-      styles.button
+      styles.button as string
     );
   });
 });
