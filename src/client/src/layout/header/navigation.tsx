@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import styles from './navigation.module.css';
 
 export const Navigation = () => {
-  const { t } = useTranslation('header');
+  const { t } = useTranslation();
   return (
     <nav aria-label="Primary" className={styles.navigation}>
       <a className={styles.menuLink} href="/">

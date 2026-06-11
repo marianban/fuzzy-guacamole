@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n server,client -c cyan,magenta \"npm:dev:server\" \"npm:dev:client\"",
+    "dev": "concurrently -k -n server,client -c cyan,magenta \"npm:dev:server\" \"npm:dev:client\" \"npm:i18n:extract\"",
     "dev:server": "node scripts/dev-server-with-db.mjs",
     "dev:server:watch": "tsx watch src/server/index.ts",
     "dev:client": "vite --config src/client/vite.config.ts",

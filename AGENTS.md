@@ -91,6 +91,7 @@ This repo currently contains the product specification and agent workflow docs f
 - Use `src/client/src/styles/theme.css` as the source of truth for shared primitive and semantic design tokens. Check the existing `var(--color-*)`, typography, spacing, radius, dimension, and shadow tokens before adding styles or introducing new shared values.
 - Use `src/client/src/styles/comfy-deck-theme.tsx` as the shared Mantine provider wrapper. Keep application and Storybook theme configuration aligned through this provider instead of configuring Mantine separately in each environment.
 - Custom styles go in component-level CSS modules
+- When editing frontend code, do not manually inspect or edit `src/client/public/locales`; translations are extracted by `i18n:extract`. Define translation calls with component-prefixed keys and default messages, for example `t('Navigation.Generations', 'Generations')`; all extracted translations use the default namespace.
 - Do not write media queries in CSS unless the user explicitly requests them.
 - No relative imports beyond parent directory
 - Extract magic numbers/values to named constants. If same constant is used in multiple places, extract to a shared constants.ts module.
