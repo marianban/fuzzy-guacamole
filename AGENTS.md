@@ -111,11 +111,11 @@ Use skills from `.agents/skills/` when implementing features.
 
 - `src\client\src\components` - shared components that are not specific to a single page or feature
 - `src\client\src\features` - feature-specific components, hooks, and styles organized by feature domain
-- `src\client\src\layouts` - shared layout components that define page structure (headers, footers, sidebars)
+- `src\client\src\layout` - shared layout components that define page structure (headers, footers, sidebars)
 - `src\client\src\utils` - shared utility functions and helpers
-- `src\client\src\pages` - top-level page components that compose features and layouts into complete pages
+- `src\client\src\routes` - top-level route and page components that compose features and layouts into complete pages
 - `src\client\src\api` - API client code for communicating with the backend server
-- `src\client\src\i18n` - localization files and setup for react-i18next
+- `src\client\src\public\locales` - localization files for i18n
 - `src\client\src\styles` - global styles, CSS variables, and design tokens
 
 ## Preferred CLI tools
@@ -162,22 +162,6 @@ Prefer `fd` over:
 
 ---
 
-### Structural code search
-
-Use `sg` (ast-grep) when searching by syntax or code structure rather than plain text.
-
-Examples:
-
-```sh
-sg 'console.log($X)'
-sg 'await $X'
-sg 'class $NAME { $$$ }'
-```
-
-Prefer `sg` over `rg` when matching code patterns or performing syntax-aware refactors.
-
----
-
 ### JSON parsing
 
 Use `jq` for parsing or querying JSON.
@@ -199,7 +183,6 @@ Use these defaults:
 
 - Text search → `rg`
 - File discovery → `fd`
-- Structural code search → `sg`
 - JSON parsing → `jq`
 
 Assume these tools are present. Do not check whether they exist before using them.
