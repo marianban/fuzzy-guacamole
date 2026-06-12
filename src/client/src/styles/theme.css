@@ -96,4 +96,7 @@
   --color-interactive-track: var(--color-surface-raised-strong);
   --color-focus-ring: var(--color-accent-strong);
   --color-status-online: var(--color-accent-strong);
+
+  /* Other globals */
+  --size-side-panel-width: 300px;
 }

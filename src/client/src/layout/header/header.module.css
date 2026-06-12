@@ -1,9 +1,10 @@
 .header {
+  grid-area: header;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: var(--space-5);
-  height: var(--size-top-bar-height);
+  height: 100%;
   padding: 0 var(--space-4);
   background-color: var(--color-background-header);
   border-bottom: 1px solid var(--color-border-panel);
