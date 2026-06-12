@@ -18,6 +18,7 @@ LAN-hosted single-image img2img UI that orchestrates a remote ComfyUI instance.
 
 ## Development
 
+- This repo has one root `package.json` for both frontend and backend; do not look for nested client/server package manifests.
 - Write clean, maintainable TypeScript with descriptive filenames; avoid generic entrypoints like `index.ts`.
 - Prefer thin orchestration/composition modules. Extract distinct concerns into responsibility-focused modules.
 - Document important decisions and trade-offs.

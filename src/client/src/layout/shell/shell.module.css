@@ -1,12 +1,11 @@
 .shell {
   display: grid;
-  grid-template-areas:
-    'header header'
-    'canvas side-panel'
-    'footer side-panel';
+  grid-template:
+    'header header' var(--size-top-bar-height)
+    'canvas side-panel' 1fr
+    'footer side-panel' auto
+    / 1fr var(--size-side-panel-width);
   height: 100vh;
-  grid-template-rows: var(--size-top-bar-height) 1fr auto;
-  grid-template-columns: 1fr var(--size-side-panel-width);
 }
 
 .canvas {
