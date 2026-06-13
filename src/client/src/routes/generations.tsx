@@ -1,9 +1,17 @@
 import { createFileRoute } from '@tanstack/react-router';
 
+import styles from './generations.module.css';
+
 export const Route = createFileRoute('/generations')({
-  component: RouteComponent
+  component: GenerationsPage
 });
 
-function RouteComponent() {
-  return <div>Hello generations</div>;
+export function GenerationsPage() {
+  return (
+    <div className={styles.page}>
+      <div className={styles.canvas} data-testid="generation-canvas" />
+      <aside aria-label="Generation controls" className={styles.sidePanel} />
+      <footer aria-label="Generation history" className={styles.footer} />
+    </div>
+  );
 }
