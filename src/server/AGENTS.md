@@ -9,6 +9,12 @@ Applies to `src/server`.
 - Extract distinct concerns such as file loading, structural validation, value resolution, HTTP translation, workflow building, and persistence.
 - Use descriptive filenames that reveal responsibility.
 
+## Development
+
+- Provide required constructor/service parameters explicitly; avoid hidden defaults for clocks, timeouts, and operational dependencies.
+- At composition boundaries, inject explicit service contracts. Prefer whole-service references over passing only the one method currently used.
+- Compute or inject operational values at composition/call sites; avoid conditional fallback initialization inside application code.
+
 ## Runtime Design
 
 - Fail fast. Validate invalid/error cases first with explicit guards.
@@ -28,3 +34,11 @@ Applies to `src/server`.
 
 - Keep server test builders, fixtures, fakes, and composition helpers in `src/server/test-support` or test files.
 - Critical paths for coverage include API handlers, Comfy client integration, generation processing, persistence, and core workflow construction.
+
+## Integration Tests
+
+- External-infrastructure tests use `*.int.test.ts`.
+- Do not add mode switches inside tests. Selection/mode belongs in runner or global setup scripts under `scripts/`.
+- Integration tests run against real infrastructure when required: server, client, database, ComfyUI.
+- Infrastructure startup is user-owned. The agent only runs integration commands and reports preflight failures.
+- Run integration tests outside the Codex sandbox with escalation. Unit tests run in sandbox unless blocked.

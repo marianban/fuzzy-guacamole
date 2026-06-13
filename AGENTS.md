@@ -14,7 +14,7 @@ LAN-hosted single-image img2img UI that orchestrates a remote ComfyUI instance.
 - Maintain `docs/architecture.MD` when code changes alter implemented architecture.
 - Keep `docs/architecture.MD` concise and current-state only: no proposals, risks, future work, recommendations, or detailed folder maps. Prefer Mermaid plus short text.
 - Use `docs/ComfyApi.md` for ComfyUI OpenAPI details.
-- Put code examples in `examples/` and reference them from specs when useful.
+- Code examples in `examples/` and referenced from specs.
 
 ## Development
 
@@ -23,9 +23,6 @@ LAN-hosted single-image img2img UI that orchestrates a remote ComfyUI instance.
 - Prefer thin orchestration/composition modules. Extract distinct concerns into responsibility-focused modules.
 - Document important decisions and trade-offs.
 - Use fail-fast behavior. Surface errors explicitly instead of silently ignoring invalid states.
-- Provide required constructor/service parameters explicitly; avoid hidden defaults for clocks, timeouts, and operational dependencies.
-- At composition boundaries, inject explicit service contracts. Prefer whole-service references over passing only the one method currently used.
-- Compute or inject operational values at composition/call sites; avoid conditional fallback initialization inside application code.
 - Keep test-only builders, fixtures, fakes, static constructors, and composition helpers in `test-support` or test files.
 
 ## Configuration
@@ -47,15 +44,7 @@ LAN-hosted single-image img2img UI that orchestrates a remote ComfyUI instance.
 - Keep setup minimal and reset shared state.
 - Run relevant test files before marking work done.
 - Coverage targets for `npm run test:coverage`: lines 75%, functions 75%, branches 65%, statements 75%.
-- Document intentional coverage gaps in PR notes.
 
-## Integration Tests
-
-- External-infrastructure tests use `*.int.test.ts`.
-- Do not add mode switches inside tests. Selection/mode belongs in runner or global setup scripts under `scripts/`.
-- Integration tests run against real infrastructure when required: server, client, database, ComfyUI.
-- Infrastructure startup is user-owned. The agent only runs integration commands and reports preflight failures.
-- Run integration tests outside the Codex sandbox with escalation. Unit tests run in sandbox unless blocked.
 
 ## Quality Gate
 
