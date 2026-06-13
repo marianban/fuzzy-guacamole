@@ -9,55 +9,48 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as GenerationsRouteImport } from './routes/generations'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as GenerationsGenerationsRouteImport } from './routes/_generations/generations'
 
-const GenerationsRoute = GenerationsRouteImport.update({
-  id: '/generations',
-  path: '/generations',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GenerationsGenerationsRoute = GenerationsGenerationsRouteImport.update({
+  id: '/_generations/generations',
+  path: '/generations',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/generations': typeof GenerationsRoute
+  '/generations': typeof GenerationsGenerationsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/generations': typeof GenerationsRoute
+  '/generations': typeof GenerationsGenerationsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/generations': typeof GenerationsRoute
+  '/_generations/generations': typeof GenerationsGenerationsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths: '/' | '/generations'
   fileRoutesByTo: FileRoutesByTo
   to: '/' | '/generations'
-  id: '__root__' | '/' | '/generations'
+  id: '__root__' | '/' | '/_generations/generations'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  GenerationsRoute: typeof GenerationsRoute
+  GenerationsGenerationsRoute: typeof GenerationsGenerationsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/generations': {
-      id: '/generations'
-      path: '/generations'
-      fullPath: '/generations'
-      preLoaderRoute: typeof GenerationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -65,12 +58,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_generations/generations': {
+      id: '/_generations/generations'
+      path: '/generations'
+      fullPath: '/generations'
+      preLoaderRoute: typeof GenerationsGenerationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  GenerationsRoute: GenerationsRoute,
+  GenerationsGenerationsRoute: GenerationsGenerationsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

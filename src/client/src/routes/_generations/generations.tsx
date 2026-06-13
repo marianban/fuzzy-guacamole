@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 
 import styles from './generations.module.css';
 
-export const Route = createFileRoute('/generations')({
+export const Route = createFileRoute('/_generations/generations')({
   component: GenerationsPage
 });
 
