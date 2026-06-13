@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { ComfyDeckTheme } from '../../styles/comfy-deck-theme';
+import { renderApp } from '../../test/render-app';
 import { ActionTools } from './action-tools';
 import { Header } from './header';
 import { HeaderHardwareInfo } from './header-hardware-info';
@@ -9,18 +9,14 @@ import { HeaderGlobalStatus } from './header-global-status';
 import { HeaderLogo } from './header-logo';
 import { Navigation } from './navigation';
 
-function renderHeader(ui: React.ReactElement) {
-  return render(<ComfyDeckTheme>{ui}</ComfyDeckTheme>);
-}
-
 describe('Header', () => {
   it('given default props when rendered then it shows logo menu action tools and mocked status widgets', () => {
-    renderHeader(<Header />);
+    renderApp(<Header />);
 
     expect(screen.getByRole('heading', { name: /ComfyStar/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Generations/i })).toHaveAttribute(
       'href',
-      '/'
+      '/generations'
     );
     expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Redo' })).toBeInTheDocument();
@@ -31,7 +27,7 @@ describe('Header', () => {
   });
 
   it('given custom hardware props when rendered then hardware widget shows provided values', () => {
-    renderHeader(
+    renderApp(
       <HeaderHardwareInfo
         label="Apple M3 Max"
         detail="42% / 128GB"
@@ -47,30 +43,30 @@ describe('Header', () => {
   });
 
   it('given custom global status props when rendered then global status widget shows provided label', () => {
-    renderHeader(<HeaderGlobalStatus label="DEGRADED" tone="warning" />);
+    renderApp(<HeaderGlobalStatus label="DEGRADED" tone="warning" />);
 
     expect(screen.getByText('DEGRADED')).toBeInTheDocument();
   });
 
   it('given navigation when rendered then it shows the primary generations link', () => {
-    renderHeader(<Navigation />);
+    renderApp(<Navigation />);
 
     expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /ComfyStar/i })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Generations/i })).toHaveAttribute(
       'href',
-      '/'
+      '/generations'
     );
   });
 
   it('given header logo when rendered then it shows the standalone brand heading', () => {
-    renderHeader(<HeaderLogo />);
+    renderApp(<HeaderLogo />);
 
     expect(screen.getByRole('heading', { name: /ComfyStar/i })).toBeInTheDocument();
   });
 
   it('given action tools when rendered then it shows the available toolbar buttons', () => {
-    renderHeader(<ActionTools />);
+    renderApp(<ActionTools />);
 
     expect(screen.getByRole('toolbar', { name: 'Action tools' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument();

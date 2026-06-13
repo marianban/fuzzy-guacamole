@@ -21,8 +21,10 @@ export default defineConfig({
         test: {
           name: 'client',
           environment: 'jsdom',
+          typecheck: { enabled: true },
           setupFiles: ['src/client/src/test/setup.ts'],
-          include: ['src/client/src/**/*.test.{ts,tsx}']
+          include: ['src/client/src/**/*.test.{ts,tsx}'],
+          globals: true
         }
       },
       {
@@ -30,6 +32,7 @@ export default defineConfig({
         test: {
           name: 'server',
           environment: 'node',
+          typecheck: { enabled: true },
           include: ['src/server/**/*.test.ts'],
           exclude: ['src/server/**/*.int.test.ts']
         }
@@ -39,6 +42,7 @@ export default defineConfig({
         test: {
           name: 'shared',
           environment: 'node',
+          typecheck: { enabled: true },
           include: ['src/shared/**/*.test.ts']
         }
       }
