@@ -6,7 +6,6 @@ import { GenerationsPage } from './generations';
 
 const canvasClassName = styles.canvas ?? '';
 const sidePanelClassName = styles.sidePanel ?? '';
-const footerClassName = styles.footer ?? '';
 
 describe('GenerationsPage', () => {
   it('given the generations route when rendered then it provides canvas controls and footer regions', () => {
@@ -14,6 +13,8 @@ describe('GenerationsPage', () => {
 
     expect(screen.getByTestId('generation-canvas')).toHaveClass(canvasClassName);
     expect(screen.getByRole('complementary')).toHaveClass(sidePanelClassName);
-    expect(screen.getByRole('contentinfo')).toHaveClass(footerClassName);
+    expect(
+      screen.getByRole('contentinfo', { name: 'Generation history' })
+    ).toBeInTheDocument();
   });
 });

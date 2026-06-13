@@ -60,27 +60,30 @@ consistently without runtime font requests.
 
 | Token           | Value  |
 | --------------- | ------ |
-| `--font-size-1` | `10px` |
 | `--font-size-2` | `12px` |
 | `--font-size-3` | `14px` |
 | `--font-size-4` | `16px` |
 | `--font-size-5` | `20px` |
 
+The minimum supported font size is `12px`. Treat `--font-size-2` as an
+exceptional compact size and use it only when explicitly requested. Default to
+`--font-size-3` (`14px`) or larger for readable interface text. Figma font sizes
+are visual references, not implementation requirements.
+
 Use these reviewed text styles when implementing the Figma frame:
 
 | Role             | Family                         | Size / line height | Weight       | Tracking |
 | ---------------- | ------------------------------ | ------------------ | ------------ | -------- |
-| Micro label      | `var(--font-family-interface)` | `10px / 15px`      | regular      | `1px`    |
+| Micro label      | `var(--font-family-interface)` | `12px / 18px`      | regular      | `1px`    |
 | Navigation label | `var(--font-family-interface)` | `12px / 18px`      | regular      | `1px`    |
 | Small body       | `var(--font-family-interface)` | `12px / 18px`      | regular      | `0`      |
 | Body             | `var(--font-family-interface)` | `14px / 22px`      | regular      | `0`      |
 | Heading          | `var(--font-family-interface)` | `16px / 24px`      | semi bold    | `0`      |
 | Brand            | `var(--font-family-interface)` | `20px / 28px`      | semi bold    | `-1px`   |
-| Telemetry        | `var(--font-family-mono)`      | `10px / 15px`      | regular/bold | `0`      |
+| Telemetry        | `var(--font-family-mono)`      | `12px / 18px`      | regular/bold | `0`      |
 
-Diagnostics may use a local `9px / 14px` mono style if the log panel density
-requires it. Do not add `9px` to the shared scale unless another component needs
-it.
+Do not reduce diagnostics or telemetry below `12px`; density must not override
+readability.
 
 ### Spacing
 
@@ -194,8 +197,8 @@ table explicitly says so.
 | Figma raw style                                | Replace with reviewed style                    |
 | ---------------------------------------------- | ---------------------------------------------- |
 | Space Grotesk headings                         | Manrope semi bold heading                      |
-| `9px / 13.5px`, tracking `0.9px` labels        | `10px / 15px`, tracking `1px` micro label      |
-| `10px / 15px`, tracking `1px` labels           | Keep as micro label                            |
+| `9px / 13.5px`, tracking `0.9px` labels        | `12px / 18px`, tracking `1px` micro label      |
+| `10px / 15px`, tracking `1px` labels           | `12px / 18px`, tracking `1px` micro label      |
 | `11.2px / 16.8px`, tracking `1.12px` labels    | `12px / 18px`, tracking `1px` navigation label |
 | `11px / 16.5px`, tracking `1.1px` button label | `12px / 18px`, tracking `1px` navigation label |
 | `11px / 17.88px` body text                     | `12px / 18px` small body                       |
@@ -204,7 +207,7 @@ table explicitly says so.
 | `18px / 28px`, tracking `-0.45px` heading      | `16px / 24px` Manrope semi bold heading        |
 | `20px / 28px`, tracking `-1px` brand           | Keep size and tracking; use semi bold          |
 | Liberation Mono numeric values                 | Keep as telemetry                              |
-| Liberation Mono `9px` diagnostics              | Keep local to diagnostics if required          |
+| Liberation Mono `9px` diagnostics              | `12px / 18px` mono telemetry                   |
 
 ### Spacing And Radius Replacements
 
@@ -239,8 +242,8 @@ table explicitly says so.
 
 ## Audit Notes
 
-- The reviewed primitive surface contains 40 shared tokens: 10 opaque colors, 4
-  alpha colors, 2 font families, 5 font sizes, 6 spacing values, 3 radii, 8
+- The reviewed primitive surface contains 39 shared tokens: 10 opaque colors, 4
+  alpha colors, 2 font families, 4 font sizes, 6 spacing values, 3 radii, 8
   shared dimensions, and 2 shadows.
 - The Figma frame uses 18 typography combinations. The reviewed styles reduce
   them to seven shared roles plus one optional diagnostics exception.

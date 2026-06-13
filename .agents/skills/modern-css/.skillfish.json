@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "modern-css",
+  "owner": "paulirish",
+  "repo": "dotfiles",
+  "path": "agents/skills/modern-css",
+  "branch": "main",
+  "sha": "67cf221876ea8dc55083fa27834d542ab4f46666",
+  "source": "manual"
+}

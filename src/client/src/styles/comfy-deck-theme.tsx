@@ -8,7 +8,7 @@ const comfyDeckMantineTheme = createTheme({
   fontFamily: 'var(--font-family-interface)',
   fontFamilyMonospace: 'var(--font-family-mono)',
   fontSizes: {
-    xs: 'var(--font-size-1)',
+    xs: 'var(--font-size-2)',
     sm: 'var(--font-size-2)',
     md: 'var(--font-size-3)',
     lg: 'var(--font-size-4)',

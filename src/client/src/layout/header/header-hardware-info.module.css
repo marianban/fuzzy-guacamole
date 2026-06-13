@@ -45,12 +45,11 @@
 }
 
 .hardwareLabel {
-  width: 74.09px;
   color: var(--color-text-secondary);
   font-family: var(--font-family-interface);
-  font-size: 10px;
+  font-size: var(--font-size-2);
   font-weight: 400;
-  line-height: 15px;
+  line-height: 18px;
   letter-spacing: -0.05em;
   text-align: right;
 }
@@ -58,9 +57,8 @@
 .hardwareDetail {
   color: var(--color-interactive-accent);
   font-family: var(--font-family-mono);
-  font-size: 10px;
-  line-height: 15px;
+  font-size: var(--font-size-2);
+  line-height: 18px;
   letter-spacing: 0;
-  width: 66.02px;
   white-space: nowrap;
 }

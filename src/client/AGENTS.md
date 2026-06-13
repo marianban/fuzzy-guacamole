@@ -22,6 +22,7 @@ Applies to `src/client`.
 - Never hardcode hex colors; use `var(--color-*)` tokens.
 - Use `src/client/src/styles/theme.css` as the design-token source of truth.
 - Use `src/client/src/styles/comfy-deck-theme.tsx` as the shared Mantine provider for app and Storybook.
+- When implementing Figma designs, treat Figma font sizes as visual references rather than specifications. Follow accessible typography best practices: default to readable theme sizes, never use less than `12px`, and use the `12px` minimum only when the user explicitly requests it.
 - Do not write CSS media queries unless explicitly requested.
 
 ## Localization
@@ -35,6 +36,10 @@ Applies to `src/client`.
 - Use `@testing-library/react` with user-visible queries such as `getByRole` and `getByLabelText`.
 - Drive interactions with `user-event`.
 - Assert rendered text, disabled states, network calls, and other user-visible outcomes.
+
+## TanStack Router
+
+- In `src/client/src/routes`, prefix pathless layout folders with `_`; prefix colocated non-route files with `-` so TanStack Router excludes them from the route tree.
 
 ## Folder Guide
 

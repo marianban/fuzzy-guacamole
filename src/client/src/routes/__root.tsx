@@ -25,9 +25,11 @@ function RootComponent() {
       <Shell>
         <Outlet />
       </Shell>
-      <TanStackDevtools
+      {/* <TanStackDevtools
         config={{
-          position: 'bottom-right'
+          position: 'bottom-right',
+          defaultOpen: false,
+          hideUntilHover: true
         }}
         plugins={[
           {
@@ -35,7 +37,7 @@ function RootComponent() {
             render: <TanStackRouterDevtoolsPanel />
           }
         ]}
-      />
+      /> */}
     </ComfyDeckTheme>
   );
 }
