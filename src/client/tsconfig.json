@@ -9,6 +9,7 @@
     "allowJs": false,
     "isolatedModules": true,
     "paths": {
+      "#root/*": ["./src/*"],
       "@shared/*": ["../shared/*"]
     },
     "types": ["vite/client"],

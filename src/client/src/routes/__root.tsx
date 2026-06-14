@@ -1,10 +1,8 @@
 import { Outlet, createRootRoute } from '@tanstack/react-router';
-import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools';
-import { TanStackDevtools } from '@tanstack/react-devtools';
 
-import { ComfyDeckTheme } from '../styles/comfy-deck-theme';
+import { ComfyDeckTheme } from '#root/styles/comfy-deck-theme';
+import { Shell } from '#root/layout/shell/shell';
 import '../styles/theme.css';
-import { Shell } from '../layout/shell/shell';
 import { Link } from 'lucide-react';
 
 export const Route = createRootRoute({
@@ -25,19 +23,6 @@ function RootComponent() {
       <Shell>
         <Outlet />
       </Shell>
-      {/* <TanStackDevtools
-        config={{
-          position: 'bottom-right',
-          defaultOpen: false,
-          hideUntilHover: true
-        }}
-        plugins={[
-          {
-            name: 'TanStack Router',
-            render: <TanStackRouterDevtoolsPanel />
-          }
-        ]}
-      /> */}
     </ComfyDeckTheme>
   );
 }
