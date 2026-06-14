@@ -1,6 +1,8 @@
 {
-  "ControlPanel": {
-    "Title": ""
+  "Generations": {
+    "SidePanel": {
+      "Title": ""
+    }
   },
   "Header": {
     "Logo": ""

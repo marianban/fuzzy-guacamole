@@ -20,8 +20,4 @@
 
 .sidePanel {
   grid-area: side-panel;
-  min-height: 0;
-  overflow: hidden auto;
-  background: var(--color-background-panel);
-  border-left: 1px solid var(--color-border-panel);
 }

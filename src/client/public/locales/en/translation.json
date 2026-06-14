@@ -1,6 +1,8 @@
 {
-  "ControlPanel": {
-    "Title": "Control Panel"
+  "Generations": {
+    "SidePanel": {
+      "Title": "Control Panel"
+    }
   },
   "Header": {
     "Logo": "Comfy<1>Star</1>"
