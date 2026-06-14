@@ -8,6 +8,9 @@
     "jsx": "react-jsx",
     "allowJs": false,
     "isolatedModules": true,
+    "paths": {
+      "@shared/*": ["../shared/*"]
+    },
     "types": ["vite/client"],
     "noEmit": true
   },

@@ -35,6 +35,7 @@ LAN-hosted single-image img2img UI that orchestrates a remote ComfyUI instance.
 ## Testing
 
 - Use TDD for application behavior: write/adjust tests first and see new tests fail before implementation.
+- TDD applies to meaningful application behavior and business logic. Do not add tests for highly boilerplate code with no business logic unless explicitly requested.
 - Do not add tests for tooling-only config changes.
 - Add/extend tests for every behavior change; bugfixes need regression tests.
 - Delete stale tests/fixtures when fields, APIs, or behavior are removed.
@@ -44,7 +45,6 @@ LAN-hosted single-image img2img UI that orchestrates a remote ComfyUI instance.
 - Keep setup minimal and reset shared state.
 - Run relevant test files before marking work done.
 - Coverage targets for `npm run test:coverage`: lines 75%, functions 75%, branches 65%, statements 75%.
-
 
 ## Quality Gate
 

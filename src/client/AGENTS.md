@@ -33,6 +33,7 @@ Applies to `src/client`.
 
 ## Testing
 
+- Do not write tests for code under `src/client/src/api` unless explicitly requested; these modules are primarily boilerplate API wrappers and query definitions.
 - Use `@testing-library/react` with user-visible queries such as `getByRole` and `getByLabelText`.
 - Drive interactions with `user-event`.
 - Assert rendered text, disabled states, network calls, and other user-visible outcomes.
