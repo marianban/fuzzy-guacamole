@@ -3,6 +3,7 @@
     "npm exec": true
   },
   "cSpell.words": [
-    "ofetch"
+    "ofetch",
+    "VITE"
   ]
 }
