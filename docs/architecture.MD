@@ -13,6 +13,7 @@ flowchart LR
   SharedPresets["Shared Preset + Model Contract<br/>src/shared/presets.ts"]
   SharedGenerations["Shared Generation Contract<br/>src/shared/generations.ts"]
   Startup["Server Startup<br/>src/server/index.ts"]
+  Environment["Environment Schema<br/>env-schema"]
   Config["Config Loader<br/>src/server/config/app-config.ts"]
   Presets["Preset Catalog Builder<br/>src/server/presets/preset-catalog.ts"]
   Database["Drizzle + pg Database<br/>src/server/db/client.ts"]
@@ -31,7 +32,8 @@ flowchart LR
   API -->|"validate preset responses"| SharedPresets
   API -->|"validate generation responses"| SharedGenerations
   Browser -->|"parse status response"| SharedStatus
-  Startup --> Config
+  Startup --> Environment
+  Environment --> Config
   Startup --> Presets
   Startup --> Database
   Startup --> GenerationEvents
@@ -53,6 +55,10 @@ flowchart LR
 ```
 
 ## Server Surface
+
+Server startup validates and coerces `CONFIG_PATH`, `DATABASE_URL`, `HOST`, `PORT`,
+`LOG_LEVEL`, and `LOG_FILE_PATH` before constructing runtime services. Vite validates
+only `VITE_HOST` and `VITE_PORT` before configuring its development proxy.
 
 ```mermaid
 flowchart TD

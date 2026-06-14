@@ -6,19 +6,14 @@ import { defineConfig, loadEnv } from 'vite';
 import { devtools } from '@tanstack/devtools-vite';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 
+import { parseClientEnv } from './src/config/client-env';
+
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(currentDir, '../..');
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, repoRoot, 'VITE_');
-  const apiHost = env.VITE_HOST;
-  const apiPort = Number(env.VITE_PORT);
-
-  if (!apiHost || !Number.isInteger(apiPort) || apiPort < 1 || apiPort > 65_535) {
-    throw new Error('VITE_HOST and VITE_PORT must define a valid API proxy target.');
-  }
-
-  const apiTarget = `http://${apiHost}:${apiPort}`;
+  const env = parseClientEnv(loadEnv(mode, repoRoot, 'VITE_'));
+  const apiTarget = `http://${env.VITE_HOST}:${env.VITE_PORT}`;
 
   return {
     root: currentDir,

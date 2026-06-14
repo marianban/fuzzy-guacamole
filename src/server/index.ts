@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { buildServer } from './http/server-app.js';
 import { ComfyClient } from './comfy/client.js';
 import { loadAppConfig } from './config/app-config.js';
+import { loadServerEnv } from './config/server-env.js';
 import { createDatabase } from './db/client.js';
 import { createGenerationEventBus } from './generations/events.js';
 import { createPostgresGenerationStore } from './generations/postgres-store.js';
@@ -13,17 +14,11 @@ import { createServerLogger } from './logging/server-logging.js';
 import { loadPresetCatalog } from './presets/preset-catalog.js';
 import { createAppRuntimeStatusService } from './status/runtime-status.js';
 
-try {
-  process.loadEnvFile?.();
-} catch (error) {
-  if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-    throw error;
-  }
-}
-
-const port = Number(process.env.PORT ?? 3000);
-const host = process.env.HOST ?? '0.0.0.0';
-const logger = createServerLogger();
+const env = loadServerEnv();
+const logger = createServerLogger({
+  level: env.LOG_LEVEL,
+  filePath: env.LOG_FILE_PATH
+});
 let app: FastifyInstance | undefined;
 let fatalShutdownInProgress = false;
 
@@ -36,11 +31,11 @@ process.on('unhandledRejection', (reason) => {
 });
 
 try {
-  const config = await loadAppConfig();
+  const config = await loadAppConfig({ configPath: env.CONFIG_PATH });
   const presetCatalog = await loadPresetCatalog({
     presetsDir: config.paths.presets
   });
-  const database = createDatabase();
+  const database = createDatabase({ connectionString: env.DATABASE_URL });
   const generationStore = createPostgresGenerationStore(database);
   const generationEventBus = createGenerationEventBus();
   const generationTelemetry = createGenerationTelemetry({
@@ -95,8 +90,8 @@ try {
   registerStopSignalHandlers(app);
 
   await generationWorker.start();
-  await app.listen({ host, port });
-  logger.info({ host, port }, 'API listening');
+  await app.listen({ host: env.HOST, port: env.PORT });
+  logger.info({ host: env.HOST, port: env.PORT }, 'API listening');
 } catch (error) {
   logger.fatal({ err: error }, 'API startup failed');
   process.exit(1);
