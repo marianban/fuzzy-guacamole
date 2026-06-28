@@ -51,6 +51,7 @@ describe('preset loading and routes', () => {
       id: 'img2img-basic/basic',
       name: 'Img2Img - Basic',
       type: 'img2img',
+      isDefault: true,
       defaults: {
         prompt: 'soft cinematic lighting',
         seedMode: 'random'
@@ -95,6 +96,7 @@ describe('preset loading and routes', () => {
     });
 
     const catalog = await loadPresetCatalog({ presetsDir: presetsRoot });
+    expect(catalog.defaultPresetId()).toBe('img2img-basic/basic');
     expect(catalog.list()).toEqual([
       {
         id: 'img2img-basic/basic',
@@ -119,7 +121,14 @@ describe('preset loading and routes', () => {
       url: '/api/presets'
     });
     expect(listResponse.statusCode).toBe(200);
-    expect(listResponse.json()).toHaveLength(1);
+    expect(listResponse.json()).toMatchObject({
+      defaultPresetId: 'img2img-basic/basic',
+      presets: [
+        {
+          id: 'img2img-basic/basic'
+        }
+      ]
+    });
 
     const detailResponse = await app.inject({
       method: 'GET',
@@ -174,6 +183,7 @@ describe('preset loading and routes', () => {
       id: 'img2img-basic/basic',
       name: 'Img2Img - Basic',
       type: 'img2img',
+      isDefault: true,
       defaults: {
         prompt: 'soft cinematic lighting',
         seedMode: 'random'
@@ -258,6 +268,75 @@ describe('preset loading and routes', () => {
     });
   });
 
+  it('given_multiple_default_presets_when_loading_catalog_then_loader_fails', async () => {
+    const presetsRoot = await mkdtemp(path.join(tmpdir(), 'fg-presets-'));
+    tempDirs.push(presetsRoot);
+    const templateDir = path.join(presetsRoot, 'txt2img-basic');
+    await mkdir(templateDir, { recursive: true });
+
+    await writeJsonFile(path.join(templateDir, 'preset.template.json'), {
+      id: 'txt2img-basic',
+      type: 'txt2img',
+      implicitRuntimeParamKeys: [],
+      workflow: {}
+    });
+
+    await writeJsonFile(path.join(templateDir, 'basic.preset.json'), {
+      id: 'txt2img-basic/basic',
+      name: 'Txt2Img - Basic',
+      type: 'txt2img',
+      isDefault: true,
+      defaults: {}
+    });
+
+    await writeJsonFile(path.join(templateDir, 'alternate.preset.json'), {
+      id: 'txt2img-basic/alternate',
+      name: 'Txt2Img - Alternate',
+      type: 'txt2img',
+      isDefault: true,
+      defaults: {}
+    });
+
+    await writeJsonFile(path.join(templateDir, 'model.json'), {
+      categories: [],
+      fields: []
+    });
+
+    await expect(loadPresetCatalog({ presetsDir: presetsRoot })).rejects.toThrow(
+      /Multiple default presets/
+    );
+  });
+
+  it('given_presets_without_default_when_loading_catalog_then_loader_fails', async () => {
+    const presetsRoot = await mkdtemp(path.join(tmpdir(), 'fg-presets-'));
+    tempDirs.push(presetsRoot);
+    const templateDir = path.join(presetsRoot, 'txt2img-basic');
+    await mkdir(templateDir, { recursive: true });
+
+    await writeJsonFile(path.join(templateDir, 'preset.template.json'), {
+      id: 'txt2img-basic',
+      type: 'txt2img',
+      implicitRuntimeParamKeys: [],
+      workflow: {}
+    });
+
+    await writeJsonFile(path.join(templateDir, 'basic.preset.json'), {
+      id: 'txt2img-basic/basic',
+      name: 'Txt2Img - Basic',
+      type: 'txt2img',
+      defaults: {}
+    });
+
+    await writeJsonFile(path.join(templateDir, 'model.json'), {
+      categories: [],
+      fields: []
+    });
+
+    await expect(loadPresetCatalog({ presetsDir: presetsRoot })).rejects.toThrow(
+      /Exactly one default preset/
+    );
+  });
+
   it('given_template_type_mismatch_when_loading_catalog_then_loader_fails', async () => {
     const presetsRoot = await mkdtemp(path.join(tmpdir(), 'fg-presets-'));
     tempDirs.push(presetsRoot);
@@ -334,6 +413,7 @@ describe('preset loading and routes', () => {
       id: 'img2img-basic/basic',
       name: 'Img2Img - Basic',
       type: 'img2img',
+      isDefault: true,
       defaults: {}
     });
 
@@ -364,6 +444,7 @@ describe('preset loading and routes', () => {
       id: 'img2img-basic/basic',
       name: 'Img2Img - Basic',
       type: 'img2img',
+      isDefault: true,
       defaults: {}
     });
 
@@ -416,6 +497,7 @@ describe('preset loading and routes', () => {
       id: 'img2img-basic/basic',
       name: 'Img2Img - Basic',
       type: 'img2img',
+      isDefault: true,
       defaults: {}
     });
 
@@ -467,6 +549,7 @@ describe('preset loading and routes', () => {
       id: 'img2img-basic/basic',
       name: 'Img2Img - Basic',
       type: 'img2img',
+      isDefault: true,
       defaults: {}
     });
 

@@ -24,7 +24,13 @@ export function registerPresetRoutes(
         }
       }
     },
-    async () => presetListResponseSchema.parse(presetCatalog.list())
+    async () => {
+      const presets = presetCatalog.list();
+      return presetListResponseSchema.parse({
+        defaultPresetId: presetCatalog.defaultPresetId(),
+        presets
+      });
+    }
   );
 
   app.withTypeProvider<ZodTypeProvider>().get(

@@ -20,6 +20,7 @@ export const presetDefinitionSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   type: presetTypeSchema,
+  isDefault: z.boolean().optional(),
   defaults: z.record(z.string(), z.unknown())
 });
 
@@ -214,12 +215,16 @@ export const presetDetailSchema = presetSummarySchema.extend({
   model: presetModelSchema
 });
 
-export const presetListResponseSchema = z.array(presetSummarySchema);
+export const presetListResponseSchema = z.object({
+  defaultPresetId: z.string().min(1).nullable(),
+  presets: z.array(presetSummarySchema)
+});
 
 export type PresetType = z.infer<typeof presetTypeSchema>;
 export type WorkflowTemplate = z.infer<typeof workflowTemplateSchema>;
 export type PresetDefinition = z.infer<typeof presetDefinitionSchema>;
 export type PresetSummary = z.infer<typeof presetSummarySchema>;
+export type PresetListResponse = z.infer<typeof presetListResponseSchema>;
 export type PresetModelCategory = z.infer<typeof presetModelCategorySchema>;
 export type PresetModelSelectOption = z.infer<typeof presetModelSelectOptionSchema>;
 export type PresetModelControl = z.infer<typeof presetModelControlSchema>;

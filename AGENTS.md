@@ -61,8 +61,8 @@ LAN-hosted single-image img2img UI that orchestrates a remote ComfyUI instance.
 
 ## CLI Defaults
 
-- Prefix shell commands with `rtk`.
 - Text search: `rg`
 - File discovery: `fd`
 - JSON parsing: `jq`
 - Assume these tools exist; use them before slower alternatives.
+- Prefix shell commands with `rtk` (only on macos, don't use rtk on windows).

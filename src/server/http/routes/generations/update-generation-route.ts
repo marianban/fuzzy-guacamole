@@ -6,6 +6,7 @@ import {
   generationSchema,
   updateGenerationRequestSchema
 } from '../../../../shared/generations.js';
+import type { PresetDetail } from '../../../../shared/presets.js';
 import { isEditableGenerationStatus } from '../../../generations/editable-statuses.js';
 import { pickNonModelPresetParams } from '../../../generations/preset-params.js';
 import { resolvePresetParams } from '../../../presets/preset-params-resolver.js';
@@ -158,9 +159,7 @@ function buildEditableGenerationUpdate(input: {
     presetId: string;
     presetParams: Record<string, unknown>;
   };
-  preset: {
-    templateId: string;
-  };
+  preset: PresetDetail;
   presetId: string;
   presetParams: Record<string, unknown>;
 }) {

@@ -21,20 +21,31 @@ const TEMPLATE_FILE_NAME = 'preset.template.json';
 
 export interface PresetCatalog {
   list(): PresetSummary[];
+  defaultPresetId(): string | null;
   getById(presetId: string): PresetDetail | undefined;
 }
 
 class InMemoryPresetCatalog implements PresetCatalog {
   readonly #summaries: PresetSummary[];
   readonly #detailsById: Map<string, PresetDetail>;
+  readonly #defaultPresetId: string | null;
 
-  constructor(summaries: PresetSummary[], detailsById: Map<string, PresetDetail>) {
+  constructor(
+    summaries: PresetSummary[],
+    detailsById: Map<string, PresetDetail>,
+    defaultPresetId: string | null
+  ) {
     this.#summaries = summaries;
     this.#detailsById = detailsById;
+    this.#defaultPresetId = defaultPresetId;
   }
 
   list(): PresetSummary[] {
     return [...this.#summaries];
+  }
+
+  defaultPresetId(): string | null {
+    return this.#defaultPresetId;
   }
 
   getById(presetId: string): PresetDetail | undefined {
@@ -44,13 +55,14 @@ class InMemoryPresetCatalog implements PresetCatalog {
 
 export function createPresetCatalog(
   summaries: PresetSummary[],
-  detailsById: Map<string, PresetDetail>
+  detailsById: Map<string, PresetDetail>,
+  defaultPresetId: string | null
 ): PresetCatalog {
-  return new InMemoryPresetCatalog(summaries, detailsById);
+  return new InMemoryPresetCatalog(summaries, detailsById, defaultPresetId);
 }
 
 export function createEmptyPresetCatalog(): PresetCatalog {
-  return new InMemoryPresetCatalog([], new Map<string, PresetDetail>());
+  return new InMemoryPresetCatalog([], new Map<string, PresetDetail>(), null);
 }
 
 export async function loadPresetCatalog(
@@ -59,6 +71,7 @@ export async function loadPresetCatalog(
   const templateDirs = await listTemplateDirectories(options.presetsDir);
   const summaries: PresetSummary[] = [];
   const detailsById = new Map<string, PresetDetail>();
+  let defaultPresetId: string | null = null;
 
   for (const templateDirName of templateDirs) {
     const templateDirPath = path.resolve(options.presetsDir, templateDirName);
@@ -111,14 +124,28 @@ export async function loadPresetCatalog(
         throw new Error(`Duplicate preset id "${detail.id}" found in ${presetPath}.`);
       }
 
+      if (preset.isDefault === true) {
+        if (defaultPresetId !== null) {
+          throw new Error(
+            `Multiple default presets found: "${defaultPresetId}" and "${detail.id}".`
+          );
+        }
+        defaultPresetId = detail.id;
+      }
+
       summaries.push(summary);
       detailsById.set(detail.id, detail);
     }
   }
 
+  if (summaries.length > 0 && defaultPresetId === null) {
+    throw new Error('Exactly one default preset must be marked with isDefault: true.');
+  }
+
   return createPresetCatalog(
     summaries.sort((left, right) => left.id.localeCompare(right.id)),
-    detailsById
+    detailsById,
+    defaultPresetId
   );
 }
 

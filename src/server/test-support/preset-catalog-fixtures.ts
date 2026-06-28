@@ -83,7 +83,7 @@ export function createBasicImg2ImgTestCatalog(
     }
   };
 
-  return createPresetCatalog([summary], new Map([[detail.id, detail]]));
+  return createPresetCatalog([summary], new Map([[detail.id, detail]]), detail.id);
 }
 
 function createStepsField(): PresetModelField {
@@ -263,5 +263,5 @@ export function createExecutionTestCatalog() {
     }
   };
 
-  return createPresetCatalog([summary], new Map([[detail.id, detail]]));
+  return createPresetCatalog([summary], new Map([[detail.id, detail]]), detail.id);
 }

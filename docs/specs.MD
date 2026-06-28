@@ -408,6 +408,7 @@ Localization rules:
   "id": "img2img-basic/basic",
   "name": "Img2Img - Basic",
   "type": "img2img",
+  "isDefault": true,
   "defaults": {
     "prompt": "soft cinematic lighting",
     "negativePrompt": "",
@@ -422,6 +423,7 @@ Preset rules:
 - Preset variants inherit `preset.template.json` and `model.json` from their containing bundle folder.
 - `id` format is `{templateId}/{presetName}` to avoid collisions across folders.
 - Preset variants provide variant-specific defaults/overrides only.
+- Exactly one preset variant across the loaded catalog must set `isDefault: true`; startup fails if presets exist and none or multiple are marked default.
 - Control-panel field metadata lives in `model.json`.
 - Default value resolution order:
   1. Runtime user-entered value
@@ -767,6 +769,7 @@ Notes:
 - `+ New generation` is client-only and does not hit the backend.
 - `presetId` uses `{templateId}/{presetName}` format (for example `img2img-basic/basic`).
 - `GET /api/presets/{presetId}` must expose the resolved template plus the resolved preset `model.json` so the client can build the control panel dynamically.
+- `GET /api/presets` returns `{ defaultPresetId, presets }`, where `presets` is the preset summary list and `defaultPresetId` is the preset variant marked with `isDefault: true`, or `null` when no presets are available.
 - Preset parameter payloads are keyed by `fieldId` from `model.json`.
 - Runtime-only parameter keys are not valid client-submitted preset parameter keys, even when they appear in persisted generation `presetParams`.
 - `POST /api/generations/{generationId}/input` writes the server-owned `inputImagePath` runtime parameter and is allowed only while the generation is not active and the selected preset template declares `inputImagePath` in `implicitRuntimeParamKeys`.

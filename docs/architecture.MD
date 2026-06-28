@@ -84,7 +84,7 @@ flowchart TD
   Build --> OpenApiUi["GET /openapi"]
   Status --> Payload["state: Offline|Starting|Online|StartupFailed<br/>since: transition timestamp"]
   ComfyStart --> StartupTransition["Offline -> Starting -> Online|StartupFailed"]
-  PresetsList --> PresetPayload["preset summaries only"]
+  PresetsList --> PresetPayload["defaultPresetId + preset summaries"]
   PresetsDetail --> PresetDetailPayload["preset summary + template workflow + model metadata"]
   GenerationCreate --> GenerationPayload["status=draft<br/>templateId resolved from preset<br/>model-backed param validation<br/>resolved defaults persisted"]
   GenerationUpdate --> EditablePayload["draft/completed/failed/canceled editable snapshot<br/>preset switch updates templateId<br/>queued/submitted return 409"]
@@ -104,7 +104,7 @@ Implemented routes:
 - `GET /healthz` -> `{ ok: true }`
 - `GET /api/status` -> live runtime status payload validated via shared Zod schema
 - `POST /api/comfy/start` -> initiates or joins the explicit startup sequence and returns current startup state
-- `GET /api/presets` -> preset metadata list loaded from disk at startup
+- `GET /api/presets` -> `{ defaultPresetId, presets }` loaded from disk at startup; `defaultPresetId` comes from the one preset variant marked `isDefault: true`
 - `GET /api/presets/{presetId}` -> wildcard-backed route (`/api/presets/*`) returning metadata + resolved template + resolved `model.json`
 - `GET /api/generations` -> generation list ordered by `createdAt` descending
 - `GET /api/generations/{generationId}` -> single generation detail

@@ -1,11 +1,11 @@
 import { ofetch } from 'ofetch';
 
-import type { PresetDetail, PresetSummary } from '@shared/presets';
+import type { PresetDetail, PresetListResponse } from '@shared/presets';
 
 const presetsEndpoint = '/api/presets';
 
-export function getPresets(): Promise<PresetSummary[]> {
-  return ofetch<PresetSummary[]>(presetsEndpoint);
+export function getPresets(): Promise<PresetListResponse> {
+  return ofetch<PresetListResponse>(presetsEndpoint);
 }
 
 export function getPreset(id: string): Promise<PresetDetail> {

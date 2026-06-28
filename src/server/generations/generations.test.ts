@@ -134,7 +134,7 @@ function createCatalogRequiringInput() {
     }
   };
 
-  return createPresetCatalog([summary], new Map([[detail.id, detail]]));
+  return createPresetCatalog([summary], new Map([[detail.id, detail]]), detail.id);
 }
 
 function createCatalogWithSeed() {
@@ -286,7 +286,7 @@ function createCatalogWithSeed() {
     }
   };
 
-  return createPresetCatalog([summary], new Map([[detail.id, detail]]));
+  return createPresetCatalog([summary], new Map([[detail.id, detail]]), detail.id);
 }
 
 function createCatalogWithBasicAndSeed() {
@@ -352,7 +352,8 @@ function createCatalogWithBasicAndSeed() {
     new Map([
       [basicDetail.id, basicDetail],
       [seedDetail.id, seedDetail]
-    ])
+    ]),
+    basicDetail.id
   );
 }
 

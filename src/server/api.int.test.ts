@@ -49,22 +49,27 @@ describe.sequential('API integration (local server)', () => {
     const response = await fetch(`${localBaseUrl}/api/presets`);
     expect(response.status).toBe(200);
 
-    const presets = presetListResponseSchema.parse(await response.json());
+    const presetResponse = presetListResponseSchema.parse(await response.json());
     const shippedPresetIds = await listShippedPresetIds();
 
-    expect(presets.map((preset) => preset.id).sort()).toEqual(shippedPresetIds);
+    expect(presetResponse.defaultPresetId).toBe('txt2img-ernie/basic');
+    expect(presetResponse.presets.map((preset) => preset.id).sort()).toEqual(
+      shippedPresetIds
+    );
   });
 
   test('given_local_server_when_requesting_each_shipped_preset_then_detail_endpoint_returns_it', async () => {
     const response = await fetch(`${localBaseUrl}/api/presets`);
     expect(response.status).toBe(200);
 
-    const presets = presetListResponseSchema.parse(await response.json());
+    const presetResponse = presetListResponseSchema.parse(await response.json());
     const shippedPresetIds = await listShippedPresetIds();
 
     await Promise.all(
       shippedPresetIds.map(async (presetId) => {
-        const presetSummary = presets.find((preset) => preset.id === presetId);
+        const presetSummary = presetResponse.presets.find(
+          (preset) => preset.id === presetId
+        );
         expect(presetSummary).toBeDefined();
 
         const detailResponse = await fetch(
@@ -206,7 +211,8 @@ async function resolveLocalPreset(): Promise<z.infer<typeof presetSummarySchema>
 
   const response = await fetch(`${localBaseUrl}/api/presets`);
   expect(response.status).toBe(200);
-  const presets = presetListResponseSchema.parse(await response.json());
+  const presetResponse = presetListResponseSchema.parse(await response.json());
+  const presets = presetResponse.presets;
   expect(presets.length).toBeGreaterThan(0);
 
   const firstPreset = presets[0];

@@ -5,6 +5,7 @@ import {
   createGenerationRequestSchema,
   generationSchema
 } from '../../../../shared/generations.js';
+import type { PresetDetail } from '../../../../shared/presets.js';
 import {
   PresetParamsValidationError,
   validateCreatePresetParams
@@ -87,7 +88,7 @@ async function createGenerationFromRequest(
   options: RegisterGenerationRoutesOptions,
   input: {
     presetId: string;
-    preset: { templateId: string };
+    preset: PresetDetail;
     presetParams: Record<string, unknown>;
   }
 ) {
@@ -104,7 +105,7 @@ async function createGenerationFromRequest(
 }
 
 function resolveCreateGenerationParams(
-  preset: { templateId: string },
+  preset: PresetDetail,
   rawParams: Record<string, unknown>
 ): Record<string, unknown> {
   const resolvedParams = resolvePresetParams({
