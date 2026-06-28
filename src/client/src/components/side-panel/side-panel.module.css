@@ -24,6 +24,8 @@
   padding: var(--space-4);
   overflow: hidden auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
 }
 
 .footer {

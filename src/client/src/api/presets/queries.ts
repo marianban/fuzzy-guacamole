@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 
 import { getPreset, getPresets } from './api';
 
@@ -17,8 +17,22 @@ export function usePresets() {
   });
 }
 
+export function useSuspensePresets() {
+  return useSuspenseQuery({
+    queryKey: presetKeys.list(),
+    queryFn: getPresets
+  });
+}
+
 export function usePreset(id: string) {
   return useQuery({
+    queryKey: presetKeys.detail(id),
+    queryFn: () => getPreset(id)
+  });
+}
+
+export function useSuspensePreset(id: string) {
+  return useSuspenseQuery({
     queryKey: presetKeys.detail(id),
     queryFn: () => getPreset(id)
   });

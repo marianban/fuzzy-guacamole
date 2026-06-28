@@ -117,6 +117,19 @@ Implemented routes:
 - `GET /api/events/generations` -> SSE stream for live generation upsert/deleted/telemetry notifications
 - `GET /openapi/json` and `GET /openapi` -> OpenAPI spec + Swagger UI generated from Fastify route schemas
 
+## Client Surface
+
+The React route root wraps the shell in the shared Mantine theme and one TanStack
+Query client provider. The generations route composes the canvas region, right
+side control panel, and bottom generation history dock.
+
+The generations control panel reads `GET /api/presets`, loads the default preset
+detail through `GET /api/presets/{presetId}`, and uses TanStack Form for generated
+control state. It renders the existing preset selector first, then uncategorized
+model fields, then one accordion item per model category. Field labels,
+placeholders, option labels, grouping, order, default values, and visibility come
+from the loaded preset detail.
+
 Current worker behavior:
 - `src/server/index.ts` creates one shared generation event bus, one generation store, and one background worker for the process.
 - `src/server/index.ts` also creates one shared in-memory generation telemetry module; queue routes, cancel routes, the worker, and the processor all use that same instance so each execution emits one ordered transient run stream.

@@ -1,5 +1,6 @@
 import { Outlet, createRootRoute } from '@tanstack/react-router';
 
+import { ApiQueryProvider } from '#root/api/query-provider';
 import { ComfyDeckTheme } from '#root/styles/comfy-deck-theme';
 import { Shell } from '#root/layout/shell/shell';
 import '../styles/theme.css';
@@ -20,9 +21,11 @@ export const Route = createRootRoute({
 function RootComponent() {
   return (
     <ComfyDeckTheme>
-      <Shell>
-        <Outlet />
-      </Shell>
+      <ApiQueryProvider>
+        <Shell>
+          <Outlet />
+        </Shell>
+      </ApiQueryProvider>
     </ComfyDeckTheme>
   );
 }

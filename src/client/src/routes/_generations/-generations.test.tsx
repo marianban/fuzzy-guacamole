@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
+import { ApiQueryProvider } from '#root/api/query-provider';
+import { ComfyDeckTheme } from '#root/styles/comfy-deck-theme';
 import styles from './generations.module.css';
 import { GenerationsPage } from './generations';
 
@@ -9,7 +11,13 @@ const sidePanelClassName = styles.sidePanel ?? '';
 
 describe('GenerationsPage', () => {
   it('given the generations route when rendered then it provides canvas controls and footer regions', () => {
-    render(<GenerationsPage />);
+    render(
+      <ComfyDeckTheme>
+        <ApiQueryProvider>
+          <GenerationsPage />
+        </ApiQueryProvider>
+      </ComfyDeckTheme>
+    );
 
     expect(screen.getByTestId('generation-canvas')).toHaveClass(canvasClassName);
     expect(screen.getByRole('complementary')).toHaveClass(sidePanelClassName);

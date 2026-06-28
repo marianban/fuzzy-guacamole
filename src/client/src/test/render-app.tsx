@@ -7,6 +7,7 @@ import { render } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
 import type { RenderOptions } from '@testing-library/react';
 
+import { ApiQueryProvider } from '../api/query-provider';
 import { routeTree } from '../routeTree.gen';
 import { ComfyDeckTheme } from '../styles/comfy-deck-theme';
 
@@ -26,7 +27,9 @@ export function renderApp(
   function AppProviders({ children }: { children: ReactNode }) {
     return (
       <RouterContextProvider router={router}>
-        <ComfyDeckTheme>{children}</ComfyDeckTheme>
+        <ComfyDeckTheme>
+          <ApiQueryProvider>{children}</ApiQueryProvider>
+        </ComfyDeckTheme>
       </RouterContextProvider>
     );
   }
