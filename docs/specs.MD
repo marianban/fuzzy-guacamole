@@ -176,18 +176,6 @@ Template rules:
 {
   "categories": [
     {
-      "id": "main",
-      "label": {
-        "en": "Main",
-        "sk": "Hlavne"
-      },
-      "order": 10,
-      "presentation": {
-        "collapsible": false,
-        "defaultExpanded": true
-      }
-    },
-    {
       "id": "advanced",
       "label": {
         "en": "Advanced Parameters",
@@ -204,7 +192,6 @@ Template rules:
     {
       "id": "prompt",
       "fieldType": "string",
-      "categoryId": "main",
       "order": 10,
       "label": {
         "en": "Prompt",

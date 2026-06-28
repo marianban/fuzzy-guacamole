@@ -1,30 +1,6 @@
 {
   "categories": [
     {
-      "id": "main",
-      "label": {
-        "en": "Main",
-        "sk": "Hlavne"
-      },
-      "order": 10,
-      "presentation": {
-        "collapsible": false,
-        "defaultExpanded": true
-      }
-    },
-    {
-      "id": "size",
-      "label": {
-        "en": "Image Size",
-        "sk": "Velkost obrazka"
-      },
-      "order": 20,
-      "presentation": {
-        "collapsible": false,
-        "defaultExpanded": true
-      }
-    },
-    {
       "id": "advanced",
       "label": {
         "en": "Advanced Parameters",
@@ -41,7 +17,6 @@
     {
       "id": "prompt",
       "fieldType": "string",
-      "categoryId": "main",
       "order": 10,
       "label": {
         "en": "Prompt",
@@ -69,7 +44,6 @@
     {
       "id": "width",
       "fieldType": "integer",
-      "categoryId": "size",
       "order": 20,
       "label": {
         "en": "Width",
@@ -89,7 +63,6 @@
     {
       "id": "height",
       "fieldType": "integer",
-      "categoryId": "size",
       "order": 30,
       "label": {
         "en": "Height",
