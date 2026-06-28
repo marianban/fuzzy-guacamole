@@ -1,0 +1,56 @@
+.root {
+  width: 100%;
+}
+
+.accordionRoot {
+  width: 100%;
+}
+
+.item {
+  border: 0;
+}
+
+.control {
+  padding: 0;
+  color: var(--color-text-primary);
+  background: transparent;
+}
+
+.control:hover {
+  background: transparent;
+}
+
+.control:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.label {
+  color: var(--color-text-primary);
+  font-family: var(--font-family-interface);
+  font-size: var(--font-size-2);
+  font-weight: 800;
+  letter-spacing: 1px;
+  overflow-wrap: anywhere;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+}
+
+.panel {
+  padding: 0;
+}
+
+.content {
+  padding: var(--space-3) 0 0;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-interface);
+  font-size: var(--font-size-3);
+  line-height: var(--line-height-body);
+}
