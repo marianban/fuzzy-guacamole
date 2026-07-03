@@ -11,6 +11,7 @@ import type {
 import { useSuspensePreset, useSuspensePresets } from '#root/api/presets/queries';
 import { Accordion } from '#root/components/accordion/accordion';
 import { ButtonBar } from '#root/components/button-bar/button-bar';
+import { Input } from '#root/components/input/input';
 import { Slider } from '#root/components/slider/slider';
 import { TextArea } from '#root/components/text-area/text-area';
 
@@ -168,41 +169,39 @@ function ControlField({
         }
 
         return (
-          <label className={styles.textField}>
-            <span className={styles.label}>{label}</span>
-            <input
-              className={styles.input}
-              inputMode={
-                supportedInputModes.has(field.control.inputMode as InputMode)
-                  ? (field.control.inputMode as InputMode)
-                  : undefined
-              }
-              maxLength={field.control.maxLength ?? field.validation.maxLength}
-              name={formField.name}
-              onBlur={formField.handleBlur}
-              onChange={(event) => {
-                const nextValue =
-                  field.fieldType === 'integer' || field.fieldType === 'number'
-                    ? event.target.valueAsNumber
-                    : event.target.value;
-
-                formField.handleChange(
-                  Number.isNaN(nextValue) ? event.target.value : nextValue
-                );
-              }}
-              placeholder={
-                field.control.placeholder
-                  ? resolveLocalizedText(field.control.placeholder, locale, field.id)
-                  : undefined
-              }
-              type={
+          <Input
+            id={formField.name}
+            inputMode={
+              supportedInputModes.has(field.control.inputMode as InputMode)
+                ? (field.control.inputMode as InputMode)
+                : undefined
+            }
+            label={label}
+            maxLength={field.control.maxLength ?? field.validation.maxLength}
+            name={formField.name}
+            onBlur={formField.handleBlur}
+            onChange={(event) => {
+              const nextValue =
                 field.fieldType === 'integer' || field.fieldType === 'number'
-                  ? 'number'
-                  : 'text'
-              }
-              value={getStringValue(formField.state.value)}
-            />
-          </label>
+                  ? event.target.valueAsNumber
+                  : event.target.value;
+
+              formField.handleChange(
+                Number.isNaN(nextValue) ? event.target.value : nextValue
+              );
+            }}
+            placeholder={
+              field.control.placeholder
+                ? resolveLocalizedText(field.control.placeholder, locale, field.id)
+                : undefined
+            }
+            type={
+              field.fieldType === 'integer' || field.fieldType === 'number'
+                ? 'number'
+                : 'text'
+            }
+            value={getStringValue(formField.state.value)}
+          />
         );
       }}
     </form.Field>
