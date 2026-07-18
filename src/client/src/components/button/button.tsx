@@ -7,6 +7,9 @@ import { forwardRef, type ComponentPropsWithoutRef, type ElementRef } from 'reac
 
 import styles from './button.module.css';
 
+const actionButtonBackground =
+  'linear-gradient(180deg, var(--color-surface-action-start) 0%, var(--color-surface-action-end) 100%), var(--color-background-panel)';
+
 export interface ButtonProps extends MantineButtonProps {
   onClick?: ComponentPropsWithoutRef<'button'>['onClick'];
 }
@@ -15,7 +18,10 @@ export interface ButtonProps extends MantineButtonProps {
  * A themed action button built on Mantine's Button primitive.
  */
 export const Button = forwardRef<ElementRef<'button'>, ButtonProps>(
-  ({ className, radius = 'xs', size = 'md', variant = 'filled', ...props }, ref) => {
+  (
+    { className, disabled, radius = 'xs', size = 'md', variant = 'filled', ...props },
+    ref
+  ) => {
     const isUnstyled = variant === 'unstyled';
     const buttonLabelClassName = styles.label ?? '';
     const buttonRootClassName = styles.button ?? '';
@@ -39,7 +45,28 @@ export const Button = forwardRef<ElementRef<'button'>, ButtonProps>(
         }
         radius={radius}
         size={size}
+        vars={
+          isUnstyled
+            ? undefined
+            : () => ({
+                root: {
+                  '--button-bg': disabled
+                    ? 'var(--color-background-panel)'
+                    : actionButtonBackground,
+                  '--button-bd': disabled
+                    ? '1px solid var(--color-border-subtle)'
+                    : '1px solid var(--color-accent-a10)',
+                  '--button-color': disabled
+                    ? 'var(--color-text-muted)'
+                    : 'var(--color-interactive-accent)',
+                  '--button-hover-color': disabled
+                    ? 'var(--color-text-muted)'
+                    : 'var(--color-accent-strong)'
+                }
+              })
+        }
         variant={variant}
+        disabled={disabled}
       />
     );
   }

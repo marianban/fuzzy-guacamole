@@ -3,14 +3,16 @@
 }
 
 .button {
-  color: var(--color-text-secondary);
+  color: var(--color-interactive-accent);
   background:
-    linear-gradient(180deg, rgb(41 55 29 / 45%) 0%, rgb(21 26 16 / 100%) 100%),
+    linear-gradient(
+      180deg,
+      var(--color-surface-action-start) 0%,
+      var(--color-surface-action-end) 100%
+    ),
     var(--color-background-panel);
-  border: 1px solid var(--color-border-default);
-  box-shadow:
-    0 10px 15px -3px rgb(0 0 0 / 10%),
-    0 4px 6px -4px rgb(0 0 0 / 10%);
+  border: 1px solid var(--color-accent-a10);
+  box-shadow: var(--shadow-overlay);
   transition:
     border-color 120ms ease,
     box-shadow 120ms ease,
@@ -33,10 +35,7 @@
 }
 
 .button:hover:not(:disabled) {
-  color: var(--color-text-strong);
-  background:
-    linear-gradient(180deg, rgb(51 68 35 / 70%) 0%, rgb(21 26 16 / 100%) 100%),
-    var(--color-background-panel);
+  color: var(--color-accent-strong);
   border-color: var(--color-border-emphasis);
 }
 

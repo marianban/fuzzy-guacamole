@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 
 import { ControlPanel } from './-control-panel/control-panel';
+import { ControlPanelFooter } from './-control-panel-footer/control-panel-footer';
 import { GenerationHistory } from './-generation-history';
 import styles from './generations.module.css';
 import { SidePanel } from '#root/components/side-panel/side-panel';
@@ -19,7 +20,7 @@ export function GenerationsPage() {
         className={styles.sidePanel}
         title={t('Generations.SidePanel.Title', 'Control Panel')}
         content={<ControlPanel />}
-        footer={<div>Footer goes here</div>}
+        footer={<ControlPanelFooter />}
       />
       <GenerationHistory />
     </div>

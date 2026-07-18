@@ -24,5 +24,8 @@ describe('GenerationsPage', () => {
     expect(
       screen.getByRole('contentinfo', { name: 'Generation history' })
     ).toBeInTheDocument();
+    expect(screen.getByTestId('control-panel-footer')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Rerun' })).toBeInTheDocument();
+    expect(screen.getByRole('log', { name: 'Diagnostics' })).toBeInTheDocument();
   });
 });

@@ -1,0 +1,104 @@
+.panel {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  overflow: hidden;
+  background: var(--color-background-log);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-control);
+}
+
+.header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--space-1);
+}
+
+.title {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-interface);
+  font-size: var(--font-size-2);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.statusIndicator {
+  width: var(--space-1);
+  height: var(--space-1);
+  background: var(--color-status-online);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-status-online);
+}
+
+.entries {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.message {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-2);
+  line-height: 1.2;
+}
+
+.metadata {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.timestamp,
+.type {
+  color: var(--color-status-info);
+}
+
+.type {
+  font-family: var(--font-family-interface);
+  font-size: var(--font-size-2);
+  font-weight: 600;
+}
+
+.messageText {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-2);
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.message[data-message-type='warn'] .timestamp,
+.message[data-message-type='warn'] .type {
+  color: var(--color-status-warning);
+}
+
+.message[data-message-type='error'] .timestamp,
+.message[data-message-type='error'] .type {
+  color: var(--color-status-error);
+}

@@ -50,4 +50,15 @@ describe('Button', () => {
       styles.button as string
     );
   });
+
+  it('given the default variant when rendered then it exposes the gradient through Mantine button variables', () => {
+    renderButton(<Button>Generate</Button>);
+
+    const button = screen.getByRole('button', { name: 'Generate' });
+
+    expect(button).toHaveClass(styles.button as string);
+    expect(getComputedStyle(button).getPropertyValue('--button-bg')).toContain(
+      'linear-gradient'
+    );
+  });
 });

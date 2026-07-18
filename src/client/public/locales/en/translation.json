@@ -1,5 +1,10 @@
 {
   "Generations": {
+    "ControlPanelFooter": {
+      "DeleteGeneration": "Delete generation",
+      "Diagnostics": "Diagnostics",
+      "Rerun": "Rerun"
+    },
     "SidePanel": {
       "Title": "Control Panel"
     }

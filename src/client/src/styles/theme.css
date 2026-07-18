@@ -28,6 +28,9 @@
   --color-surface-panel: #151a10;
   --color-surface-raised: #29371d;
   --color-surface-raised-strong: #334423;
+  --color-surface-log: #1a1c15;
+  --color-surface-action-start: #292b23;
+  --color-surface-action-end: #1a1c15;
   --color-separator: #2b2b2b;
   --color-olive-subtle: #3d522a;
   --color-olive-muted: #496231;
@@ -97,6 +100,11 @@
   --color-interactive-track: var(--color-surface-raised-strong);
   --color-focus-ring: var(--color-accent-strong);
   --color-status-online: var(--color-accent-strong);
+  --color-status-info: var(--color-accent);
+  --color-status-warning: #e5b567;
+  --color-status-error: #ffb4ab;
+  --color-border-danger-subtle: rgb(255 180 171 / 30%);
+  --color-background-log: var(--color-surface-log);
 
   /* Other globals */
   --size-side-panel-width: 300px;
